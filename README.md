@@ -1,11 +1,21 @@
-# LeetCode
+# LeetCode Study OS
 
-刷题动画站 + 题解 + 讲义 + LC Notes 笔记系统（打卡 / 笔记 / 星标 / 表达库）。
+An open-source LeetCode study workspace with interactive algorithm pages, local progress tracking, notes, answer browsing, and spaced review.
 
-2026-08-10 从 `shuyangzhang-life-summary`（Life OS）拆出来的独立项目——不再
-需要 Life OS 跑着才能用。
+The project is designed to be self-hosted locally. Your check-ins, notes, screenshots, starred problems, struggle flags, and personal solution copies stay in your local SQLite database.
 
-## 运行
+## What It Does
+
+- Browse a structured LeetCode catalog by chapter, topic, and curated views.
+- Open interactive algorithm pages with code, visual state, and step controls.
+- Track practice sessions with score, mode, source, notes, and code snapshots.
+- Review problems with a local check-in history and review dashboard.
+- Write rich notes per problem, chapter, topic, or custom block.
+- Star important problems and flag problems you are currently struggling with.
+- View read-only standard answers from `leetcode/standard-answers/`.
+- Add your own local answers in `leetcode/user-answers/` without changing the template.
+
+## Quick Start
 
 ```bash
 python3 -m venv ~/.venvs/leetcode-app
@@ -13,50 +23,68 @@ python3 -m venv ~/.venvs/leetcode-app
 ./run.sh
 ```
 
-打开 <http://127.0.0.1:8789>。
+Then open:
 
-## 目录
-
+```text
+http://127.0.0.1:8789
 ```
-leetcode/
-├── standard-answers/           标准答案（template 自带，原样不改）
-└── leetcode-all-in-one/        动画 + LC Notes 笔记 + 打卡 + 上课记录
+
+## Project Structure
+
+```text
 backend/
-├── main.py                     API + 静态资源挂载
-├── db.py                       SQLite 存储层
-├── leetcode.db                 数据（gitignored）
-└── note_images/                笔记截图（gitignored）
+├── main.py                 FastAPI app, API routes, static file mounting
+├── db.py                   SQLite schema and storage helpers
+├── leetcode.db             Local user data, gitignored
+└── note_images/            Local note screenshots, gitignored
+
+leetcode/
+├── standard-answers/       Read-only standard answer files included with the template
+└── leetcode-all-in-one/    Interactive pages, catalog, notes UI, review dashboard
 ```
 
-本地私人资料目录不属于 template 结构，例如 `user-answers/`、`2-leetcode-speak/`、
-`3-leetcode-lecture-notes/`、`4-leetcode-fill-in/`、`0-oa-real-problems/`。
-有这些目录时项目会使用它们；导出的 template 不包含它们。
+Optional local-only directories:
 
-结构细节、共享 CSS 分层、`notes.js` 的四种页面形态见
-`leetcode/leetcode-all-in-one/ARCHITECTURE.md`。
+```text
+leetcode/user-answers/      Your own answer files, not included in the template
+```
 
-## API
+Answer files can be named by LeetCode number or by problem-title slug. The app reads `standard-answers/` first, then uses `user-answers/` as an optional fallback.
 
-| 方法 | 路径 | 说明 |
+## Local Data
+
+The app stores personal data locally:
+
+- `backend/leetcode.db`
+- `backend/note_images/`
+- `leetcode/user-answers/`
+
+These paths are intentionally excluded from the template export. Share the template repository when you want to share the system; keep your local data in your private workspace.
+
+## Core API
+
+| Method | Path | Purpose |
 | --- | --- | --- |
-| GET / POST | `/api/leetcode/checkins` | 打卡记录：全量读取 / 新增（一次可多题） |
-| PUT | `/api/leetcode/checkins/{cid}` | 改一条打卡记录 |
-| DELETE | `/api/leetcode/items/{name}` | 删一道题连同它全部打卡历史 |
-| GET / PUT | `/api/leetcode/class-links`、`/class-links/{day}` | 每节课的录屏回看链接 |
-| GET | `/api/leetcode/notes/{name}` | 一道题的笔记卡 + 自定义 block + solution 副本 + 标准答案代码 |
-| PUT / DELETE | `/api/leetcode/notes/card` `/card/{id}` | 行链笔记卡 upsert / 删除 |
-| PUT / DELETE | `/api/leetcode/notes/block` `/block/{id}` | 自命名 block upsert / 删除 |
-| GET / PUT | `/api/leetcode/notes-scope/{scope_key}` | 单条大笔记：`all` / `ch:<章>` / `cat:<章>\|<分类>` |
-| GET / POST / DELETE | `/api/leetcode/expressions` | 表达库 |
-| PUT | `/api/leetcode/solution/{name}` | 用户自改 solution 副本；code 传空 = 还原标准答案 |
-| GET / PUT / DELETE | `/api/leetcode/stars` `/stars/{name}` | 重点题星标 |
-| GET / PUT / DELETE | `/api/leetcode/struggles` `/struggles/{name}` | 难题旗（本轮卡住的题） |
-| POST / GET | `/api/leetcode/note-image` `/note-image/{fn}` | 截图上传（base64）/ 读取 |
-| GET | `/leetcode-notes/{num}` | 无动画题的空壳笔记页 |
+| GET / POST | `/api/leetcode/checkins` | Read or add practice check-ins |
+| PUT | `/api/leetcode/checkins/{id}` | Update one check-in |
+| DELETE | `/api/leetcode/items/{name}` | Delete a problem and its check-in history |
+| GET | `/api/leetcode/notes/{name}` | Load problem notes, answer data, and solution versions |
+| PUT / DELETE | `/api/leetcode/notes/card` | Save or delete line-linked note cards |
+| PUT / DELETE | `/api/leetcode/notes/block` | Save or delete custom note blocks |
+| GET / PUT | `/api/leetcode/notes-scope/{scope_key}` | Read or save chapter/topic/global notes |
+| GET / POST / DELETE | `/api/leetcode/expressions` | Manage expression-bank entries |
+| GET / PUT / DELETE | `/api/leetcode/stars` | Manage starred problems |
+| GET / PUT / DELETE | `/api/leetcode/struggles` | Manage struggle flags |
+| POST / GET | `/api/leetcode/note-image` | Upload or read note images |
+| GET | `/answers/` | Browse local answer files |
 
-## 跟 Life OS 的关系
+## Customizing
 
-Life OS（`~/Desktop/shuyangzhang-life-summary`）留了一个独立的
-"LeetCode · Class" 上课笔记页，没有搬过来，继续用它自己的数据库。这边的
-`lc_checkins` / `lc_class_links` 是拆分当天从那边迁移过来的一份快照，之后
-两边的打卡历史各自累计，不互相同步。
+- Edit `leetcode/leetcode-all-in-one/catalog.js` to add or reorganize problems.
+- Add standard shared answers to `leetcode/standard-answers/`.
+- Add private local answers to `leetcode/user-answers/`.
+- Keep personal notes and check-ins in your local database rather than committing them.
+
+## License
+
+Add your preferred license before publishing.
