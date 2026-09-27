@@ -19,11 +19,8 @@ python3 -m venv ~/.venvs/leetcode-app
 
 ```
 leetcode/
-├── 0-my-answers/               Lyon 缺的题的自写答案（按题号/题名 slug 取）
-├── 2-leetcode-speak/           Mock 逐字稿
-├── 3-leetcode-lecture-notes/   课件笔记 + 截图
 ├── 4-leetcode-fill-in/         填空练习站（独立）
-├── 0-Lyon-Python/                Lyon 老师原始答案（答案权威，原样不改）
+├── 0-Lyon-Python/              Lyon 老师原始答案（答案权威，原样不改）
 └── leetcode-all-in-one/        动画 + LC Notes 笔记 + 打卡 + 上课记录
 backend/
 ├── main.py                     API + 静态资源挂载
@@ -31,6 +28,10 @@ backend/
 ├── leetcode.db                 数据（gitignored）
 └── note_images/                笔记截图（gitignored）
 ```
+
+本地私人资料目录不属于 template 结构，例如 `0-my-answers/`、`2-leetcode-speak/`、
+`3-leetcode-lecture-notes/`、`0-oa-real-problems/`。有这些目录时项目会使用它们；
+导出的 template 不包含它们。
 
 结构细节、共享 CSS 分层、`notes.js` 的四种页面形态见
 `leetcode/leetcode-all-in-one/ARCHITECTURE.md`。

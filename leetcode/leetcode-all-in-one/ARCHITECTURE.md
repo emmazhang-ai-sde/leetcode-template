@@ -18,22 +18,22 @@
 
 ```
 leetcode/
-├── 0-my-answers/           Lyon 缺的题的自写答案（平铺，按题号/题名 slug 命名）
-├── 2-leetcode-speak/       Mock 逐字稿
-├── 3-leetcode-lecture-notes/  课件笔记 + 截图
 ├── 4-leetcode-fill-in/     填空练习站（独立，不引用本目录）
 ├── 0-Lyon-Python/            Lyon 老师原始答案（答案权威，原样不改）
 └── leetcode-all-in-one/    ← 本目录：动画 + 笔记 + 打卡
 ```
 
+本地私人资料目录不属于 template 结构：`0-my-answers/`、`2-leetcode-speak/`、
+`3-leetcode-lecture-notes/`、`0-oa-real-problems/`。有这些目录时项目会使用它们；
+导出的 template 不包含它们。
+
 两个"唯一权威"，其它地方一律引用、不复制：
 
 - **题目目录**（章节 / 分类 / 有没有动画）→ `leetcode-all-in-one/catalog.js`
-- **题目答案** → `0-Lyon-Python/`（原样不改），Lyon 没有的题 → `0-my-answers/`
-  （后端两个目录按题号现扫，Lyon 优先，改完不用重启）
+- **题目答案** → `0-Lyon-Python/`（原样不改）；本地可选补充答案可放
+  `0-my-answers/`（后端按题号现扫，Lyon 优先，改完不用重启）
 
-`2-leetcode-speak`、`3-leetcode-lecture-notes`、`4-leetcode-fill-in` 是独立目录，
-本目录不读它们、它们也不读本目录。改这里不用管它们。
+`4-leetcode-fill-in` 是独立结构目录，本目录不读它、它也不读本目录。改这里不用管它。
 
 ---
 

@@ -33,13 +33,14 @@ python3 -m venv ~/.venvs/leetcode-app
 做新动画页必读 `ANIMATION_GUIDE.md`（硬性规则：紫色行高亮必须逐行走不许跳）。
 
 题目答案的权威是 `leetcode/0-Lyon-Python/`（Lyon 原版，保持原样不改动）；
-Lyon 缺的题自写答案放 `leetcode/0-my-answers/`（平铺，按题号或题名 slug
-命名）。后端按题号/slug 现扫这两个目录（Lyon 优先），不再单独复制一份。
-这两个目录名写死在 `backend/main.py` 顶部的 `LYON_DIR` / `MY_ANSWERS_DIR`，
-改名目录必须同步改常量（缺目录时后端只警告、跳过，Solution 卡会空白）。
+本地私人补充答案可放 `leetcode/0-my-answers/`（平铺，按题号或题名 slug
+命名），但这个目录不属于 template 结构。后端按题号/slug 现扫答案目录
+（Lyon 优先），不再单独复制一份。`0-Lyon-Python` 目录名写死在
+`backend/main.py` 顶部的 `LYON_DIR`，改名目录必须同步改常量。
 `leetcode/leetcode-all-in-one/catalog.js` 是题目目录的唯一权威（加题/上架
-动画都只改它）。`2-leetcode-speak`、`3-leetcode-lecture-notes`、
-`4-leetcode-fill-in` 是相对独立的目录，互相不引用。
+动画都只改它）。`4-leetcode-fill-in` 是相对独立的结构目录，互相不引用。
+`2-leetcode-speak`、`3-leetcode-lecture-notes`、`0-oa-real-problems` 属于
+本地私人资料，导出的 template 不包含它们。
 
 ## 跟 Life OS 的关系
 

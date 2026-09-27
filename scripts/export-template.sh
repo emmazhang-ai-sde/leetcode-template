@@ -52,7 +52,7 @@ rsync -a --delete \
   --exclude='backend/leetcode.db' \
   --exclude='backend/leetcode.db.bak-*' \
   --exclude='backend/note_images/' \
-  --exclude='leetcode/0-my-answers/*' \
+  --exclude='leetcode/0-my-answers/' \
   --exclude='leetcode/0-oa-real-problems/' \
   --exclude='leetcode/2-leetcode-speak/' \
   --exclude='leetcode/3-leetcode-lecture-notes/' \
@@ -62,8 +62,6 @@ rsync -a --delete \
   "$SRC_ROOT/" "$DEST/"
 
 touch "$DEST/$MARKER"
-mkdir -p "$DEST/leetcode/0-my-answers"
-touch "$DEST/leetcode/0-my-answers/.gitkeep"
 
 JOURNAL_DIR="$DEST/leetcode/4-leetcode-fill-in"
 if [[ -f "$JOURNAL_DIR/PRACTICE_JOURNAL.example.md" ]]; then

@@ -31,6 +31,7 @@ CONTENT = ROOT / "leetcode"
 NOTE_IMG_DIR = Path(__file__).parent / "note_images"
 LYON_DIR = CONTENT / "0-Lyon-Python"
 MY_ANSWERS_DIR = CONTENT / "0-my-answers"
+ANSWER_DIRS = (LYON_DIR, MY_ANSWERS_DIR)
 
 app = FastAPI(title="LeetCode")
 
@@ -47,9 +48,8 @@ app.add_middleware(
 @app.on_event("startup")
 def _startup():
     db.init()
-    for d in (LYON_DIR, MY_ANSWERS_DIR):
-        if not d.is_dir():
-            print(f"[warn] answer dir missing: {d} —— 目录改名了？同步改 backend/main.py 顶部的路径常量")
+    if not LYON_DIR.is_dir():
+        print(f"[warn] answer dir missing: {LYON_DIR} —— 目录改名了？同步改 backend/main.py 顶部的路径常量")
 
 
 class NoCacheStaticFiles(StaticFiles):
@@ -119,13 +119,14 @@ def put_lc_class_link(day: str, payload: dict):
 # ---------- LC Notes（长在动画站里的笔记系统，notes.js 调用） ----------
 
 def _answer_files():
-    """0-Lyon-Python（Lyon 原版，不改动）优先，0-my-answers（Lyon 缺的题，
-    本人自写）补缺。每次现扫。"""
-    for d in (LYON_DIR, MY_ANSWERS_DIR):
-        # 目录改名/缺失时只丢一条警告、跳过这一个目录，别让整个 notes 接口
+    """0-Lyon-Python（Lyon 原版，不改动）优先，0-my-answers（本地可选）
+    补缺。每次现扫。"""
+    for d in ANSWER_DIRS:
+        # Lyon 目录改名/缺失时只丢一条警告、跳过这个目录，别让整个 notes 接口
         # 500（2026-08-29 Lyon-Python 改名 0-Lyon-Python 时全站 Solution 卡空白）
         if not d.is_dir():
-            print(f"[warn] answer dir missing: {d}")
+            if d == LYON_DIR:
+                print(f"[warn] answer dir missing: {d}")
             continue
         for p in sorted(d.iterdir()):
             if p.is_file() and not p.name.startswith("."):
@@ -328,11 +329,12 @@ def lyon_index():
     for p in _answer_files():
         rows.append(f'<li><a href="/lyon/file/{quote(p.name)}">{escape(p.name)}</a>'
                     f' <small>{escape(p.parent.name)}</small></li>')
+    title = " / ".join(d.name for d in ANSWER_DIRS if d.is_dir()) or "answers"
     return HTMLResponse(
         "<!DOCTYPE html><meta charset='utf-8'><title>Lyon answers</title>"
         "<style>body{font:14px/1.7 -apple-system,sans-serif;max-width:760px;margin:32px auto;padding:0 16px}"
         "li{list-style:none}a{text-decoration:none}small{color:#888;margin-left:8px}</style>"
-        f"<h2>0-Lyon-Python / 0-my-answers（{len(rows)}）</h2><ul>{''.join(rows)}</ul>",
+        f"<h2>{escape(title)}（{len(rows)}）</h2><ul>{''.join(rows)}</ul>",
         headers={"Cache-Control": "no-store"})
 
 
@@ -353,7 +355,7 @@ def lyon_file(name: str):
 def lyon_by_num(num: str):
     p = _answer_index().get(num) or _answer_index_by_slug().get(num)
     if p is None:
-        raise HTTPException(404, f"0-Lyon-Python / 0-my-answers 里没有 {num} 的答案文件")
+        raise HTTPException(404, f"答案目录里没有 {num} 的答案文件")
     return _plain(p)
 
 
@@ -363,5 +365,7 @@ def lyon_by_num(num: str):
 # 明确挂顶层目录，比 app.mount("/") 在当前 Starlette 版本下更稳。
 app.mount("/leetcode-all-in-one", NoCacheStaticFiles(directory=CONTENT / "leetcode-all-in-one", html=True), name="leetcode-all-in-one")
 app.mount("/4-leetcode-fill-in", NoCacheStaticFiles(directory=CONTENT / "4-leetcode-fill-in", html=True), name="leetcode-fill-in")
-app.mount("/3-leetcode-lecture-notes", NoCacheStaticFiles(directory=CONTENT / "3-leetcode-lecture-notes", html=True), name="leetcode-lecture-notes")
-app.mount("/0-oa-real-problems", NoCacheStaticFiles(directory=CONTENT / "0-oa-real-problems", html=True), name="leetcode-oa-real-problems")
+if (CONTENT / "3-leetcode-lecture-notes").is_dir():
+    app.mount("/3-leetcode-lecture-notes", NoCacheStaticFiles(directory=CONTENT / "3-leetcode-lecture-notes", html=True), name="leetcode-lecture-notes")
+if (CONTENT / "0-oa-real-problems").is_dir():
+    app.mount("/0-oa-real-problems", NoCacheStaticFiles(directory=CONTENT / "0-oa-real-problems", html=True), name="leetcode-oa-real-problems")
