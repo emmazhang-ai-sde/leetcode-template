@@ -18,8 +18,10 @@ The project is designed to be self-hosted locally. Your check-ins, notes, screen
 ## Quick Start
 
 ```bash
-python3 -m venv ~/.venvs/leetcode-app
-~/.venvs/leetcode-app/bin/pip install -r requirements.txt
+git clone <repo-url>
+cd leetcode-template
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
 ./run.sh
 ```
 

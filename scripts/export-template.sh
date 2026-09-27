@@ -98,8 +98,10 @@ The project is designed to be self-hosted locally. Your check-ins, notes, screen
 ## Quick Start
 
 ```bash
-python3 -m venv ~/.venvs/leetcode-app
-~/.venvs/leetcode-app/bin/pip install -r requirements.txt
+git clone <repo-url>
+cd leetcode-template
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
 ./run.sh
 ```
 
@@ -171,6 +173,25 @@ Add your preferred license before publishing.
 README
 
 perl -0pi -e 's/http:\/\/127\.0\.0\.1:8789/http:\/\/127.0.0.1:9009/g; s/--port 8789/--port 9009/g' "$DEST/run.sh" "$DEST/backend/main.py"
+
+cat > "$DEST/run.sh" <<'RUNSH'
+#!/bin/bash
+set -euo pipefail
+
+cd "$(dirname "$0")"
+VENV="${VIRTUAL_ENV:-$PWD/.venv}"
+
+if [[ ! -x "$VENV/bin/uvicorn" ]]; then
+  echo "Could not find uvicorn in $VENV."
+  echo "Run:"
+  echo "  python3 -m venv .venv"
+  echo "  .venv/bin/pip install -r requirements.txt"
+  exit 1
+fi
+
+exec "$VENV/bin/uvicorn" main:app --app-dir backend --host 127.0.0.1 --port 9009 --reload
+RUNSH
+chmod +x "$DEST/run.sh"
 
 (
   cd "$DEST"
