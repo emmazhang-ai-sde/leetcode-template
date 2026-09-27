@@ -26,7 +26,7 @@ python3 -m venv ~/.venvs/leetcode-app
 Then open:
 
 ```text
-http://127.0.0.1:8789
+http://127.0.0.1:9009
 ```
 
 ## Project Structure
