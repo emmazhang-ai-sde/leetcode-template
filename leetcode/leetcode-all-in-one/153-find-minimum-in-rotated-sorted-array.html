@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>153. Find Minimum in Rotated Sorted Array</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  .lc153-layout {
+    width: min(1320px, 100%);
+  }
+  .lc153-layout .code-half {
+    grid-column: 1;
+    grid-row: 1;
+    width: 620px;
+    max-width: 100%;
+    min-width: 0;
+    justify-self: end;
+  }
+  .lc153-layout .viz-panel {
+    grid-column: 2;
+    grid-row: 1;
+    width: fit-content;
+    max-width: 100%;
+    min-width: 0;
+    justify-self: start;
+    align-items: flex-start;
+  }
+  .lc153-layout .code-stack,
+  .lc153-layout .step-info,
+  .lc153-layout .code-panel {
+    width: 100%;
+    min-width: 0;
+  }
+  .lc153-layout .card,
+  .lc153-layout .var-bar {
+    width: fit-content;
+    max-width: 620px;
+    min-width: 0;
+  }
+  .lc153-layout .code-block { overflow-x: auto; }
+  .lc153-layout .step-info {
+    min-height: 48px;
+    padding: 8px 14px;
+    line-height: 20px;
+  }
+
+  .array-row {
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 8px;
+    min-height: 84px;
+  }
+  .cell-wrap {
+    position: relative;
+    width: 48px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    font-family: 'SF Mono', Menlo, monospace;
+  }
+  .cell-box {
+    width: 48px;
+    height: 44px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f5f5f5;
+    color: #1a1a1a;
+    font-size: 16px;
+    font-weight: 800;
+    transition: background 0.2s, transform 0.2s, opacity 0.2s, outline 0.2s;
+  }
+  .cell-box.in-range { background: rgba(139,133,212,0.22); }
+  .cell-box.cmp-test { background: rgba(249,203,66,0.50); transform: scale(1.08); }
+  .cell-box.cmp-pivot { background: rgba(58,111,212,0.20); }
+  .cell-box.eliminated { background: #f0f0f0; color: #aaa; opacity: 0.55; }
+  .cell-box.peak { background: rgba(93,202,165,0.45); border: 2px solid #1D9E75; transform: scale(1.06); }
+  .cell-wrap.pivot .cell-box { outline: 2px dashed #999; outline-offset: 2px; }
+  .eval-badge {
+    position: absolute;
+    top: -6px;
+    right: -4px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 800;
+    font-family: 'SF Mono', monospace;
+    color: #fff;
+  }
+  .eval-badge.o { background: #1D9E75; }
+  .eval-badge.x { background: #b0b0b0; }
+  .cell-idx {
+    height: 14px;
+    font-size: 11px;
+    color: #aaa;
+  }
+  .cell-ptr {
+    height: 46px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-size: 11.5px;
+    line-height: 15px;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+  .ptr-arrow { font-size: 12px; line-height: 12px; color: #888; }
+  .lbl-l { color: #3A6FD4; }
+  .lbl-m { color: #B07800; }
+  .lbl-r { color: #C4501E; }
+
+  .brace-row {
+    position: relative;
+    height: 40px;
+    margin-top: 2px;
+  }
+  .brace-svg {
+    position: absolute;
+    top: 0;
+    visibility: hidden;
+  }
+  .brace-label {
+    position: absolute;
+    top: 18px;
+    transform: translateX(-50%);
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #6B65B8;
+    white-space: nowrap;
+    visibility: hidden;
+  }
+
+  .answer-line {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 14px;
+    font-weight: 700;
+    color: #1D9E75;
+    text-align: center;
+  }
+  .answer-line.empty {
+    color: #aaa;
+    font-weight: 500;
+  }
+
+  @media (max-width: 1100px) {
+    .main.layout-grid.lc153-layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .main.layout-grid.lc153-layout .code-half,
+    .main.layout-grid.lc153-layout .viz-panel {
+      grid-column: 1;
+      justify-self: center;
+    }
+    .main.layout-grid.lc153-layout .viz-panel { grid-row: 2; }
+  }
+
+  @media (max-width: 700px) {
+    .array-row { gap: 5px; }
+    .cell-wrap,
+    .cell-box {
+      width: 40px;
+    }
+    .cell-box {
+      height: 40px;
+      font-size: 14px;
+    }
+  }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '153. Find Minimum in Rotated Sorted Array',
+  link: 'https://leetcode.com/problems/find-minimum-in-rotated-sorted-array/',
+  examples: [
+    { id: 'ex1', label: '[3,4,5,1,2] -> 1' },
+    { id: 'ex2', label: '[4,5,6,7,0,1,2] -> 0' },
+    { id: 'ex3', label: '[11,13,15,17] -> 11' },
+    { id: 'ex4', label: '[2,1] -> 1' },
+  ],
+  legend: [
+    { color: 'rgba(139,133,212,0.22)', label: 'current search range [left, right]' },
+    { color: 'rgba(249,203,66,0.50)', label: 'index being tested by isValid' },
+    { color: 'rgba(58,111,212,0.20)', label: 'nums[-1] — the fixed pivot every test compares against' },
+    { color: '#1D9E75', extra: 'border-radius:50%;width:12px;height:12px;', label: 'O — isValid True (still above the pivot)' },
+    { color: '#b0b0b0', extra: 'border-radius:50%;width:12px;height:12px;', label: 'X — isValid False (at/after the rotation point)' },
+    { color: 'rgba(93,202,165,0.45)', extra: 'border:2px solid #1D9E75;', label: 'final minimum returned' },
+  ],
+});
+</script>
+
+<div class="main layout-grid lc153-layout">
+  <script>
+  renderCodeBox({
+    code: `
+class Solution:
+    def findMin(self, nums: List[int]) -> int:
+        left = 0
+        right = len(nums) - 1
+
+        while left + 1 < right:
+            mid = (left + right) // 2
+            if self.isValid(mid, nums):
+                left = mid
+            else:
+                right = mid
+
+        if not self.isValid(left, nums):
+            return nums[left]
+
+        if not self.isValid(right, nums):
+            return nums[right]
+
+    def isValid(self, x, nums):
+        return nums[x] > nums[-1]`,
+  });
+  </script>
+
+  <div class="viz-panel">
+    <div class="card">
+      <h3 id="input-title">Input  nums = [3, 4, 5, 1, 2]  ·  pivot nums[-1] = 2</h3>
+      <div class="array-row" id="array-row"></div>
+      <div class="brace-row">
+        <svg class="brace-svg" id="brace-svg"><path id="brace-path" fill="none" stroke="#8B85D4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <div class="brace-label" id="brace-label"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Answer</h3>
+      <div class="answer-line empty" id="answer">no minimum found yet</div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+const EXAMPLES = {
+  ex1: { nums: [3, 4, 5, 1, 2] },
+  ex2: { nums: [4, 5, 6, 7, 0, 1, 2] },
+  ex3: { nums: [11, 13, 15, 17] },
+  ex4: { nums: [2, 1] },
+};
+
+let NUMS = EXAMPLES.ex1.nums.slice();
+
+// data-l line numbers from renderCodeBox (no prereq block, so numbering starts at 1)
+const L = {
+  INIT_LEFT: 3, INIT_RIGHT: 4,
+  WHILE: 6, MID: 7, CHECK_VALID: 8, SET_LEFT: 9, SET_RIGHT: 11,
+  FINAL_LEFT_CHECK: 13, RET_LEFT: 14,
+  FINAL_RIGHT_CHECK: 16, RET_RIGHT: 17,
+  ISVALID_BODY: 20,
+};
+
+function buildSteps() {
+  const steps = [];
+  const n = NUMS.length;
+  const last = NUMS[n - 1];
+  let left = null, right = null, mid = null;
+  let testIdx = null, testResult = null;
+  let evaluated = {};
+  let finalAnswer = null;
+
+  function snap(line, info) {
+    steps.push({
+      line, info, left, right, mid, testIdx, testResult,
+      evaluated: { ...evaluated }, finalAnswer,
+    });
+  }
+
+  function callIsValid(idx, callerLine, label) {
+    testIdx = idx;
+    snap(callerLine, `self.isValid(${label}=${idx}, nums) is called — checking whether nums[${idx}] is still above the pivot nums[-1] = ${last}.`);
+    const val = NUMS[idx];
+    const result = val > last;
+    evaluated[idx] = result;
+    testResult = result;
+    snap(L.ISVALID_BODY, `isValid: nums[${idx}] = ${val} ${result ? '>' : '<='} nums[-1] = ${last} → ${result} (${result ? 'O — still above the pivot' : 'X — at or after the rotation point'})`);
+    testIdx = null;
+    testResult = null;
+    return result;
+  }
+
+  snap(null, `Click Next to start: binary search nums = [${NUMS.join(', ')}] for the minimum, using nums[-1] = ${last} as a fixed pivot. Every index is either O (nums[x] > pivot, still on the high plateau) or X (nums[x] <= pivot, at/after the rotation point) — the array looks like OOO...OXXX...X, and the minimum is the first X.`);
+
+  left = 0;
+  snap(L.INIT_LEFT, 'left = 0');
+  right = n - 1;
+  snap(L.INIT_RIGHT, `right = len(nums) - 1 = ${right}`);
+
+  while (true) {
+    const cond = left + 1 < right;
+    snap(L.WHILE, cond
+      ? `left + 1 = ${left + 1} < right = ${right} → keep narrowing.`
+      : `left + 1 = ${left + 1} >= right = ${right} → stop; only two candidates remain.`);
+    if (!cond) break;
+
+    mid = Math.floor((left + right) / 2);
+    snap(L.MID, `mid = (left + right) // 2 = (${left} + ${right}) // 2 = ${mid}`);
+
+    const valid = callIsValid(mid, L.CHECK_VALID, 'mid');
+    if (valid) {
+      left = mid;
+      snap(L.SET_LEFT, `isValid(mid) is True (O) → nums[mid] is still above the pivot, so the boundary is to the right → left = mid = ${left}.`);
+    } else {
+      right = mid;
+      snap(L.SET_RIGHT, `isValid(mid) is False (X) → nums[mid] already dropped to/below the pivot, so the boundary is at or before mid → right = mid = ${right}.`);
+    }
+    mid = null;
+  }
+
+  const leftValid = callIsValid(left, L.FINAL_LEFT_CHECK, 'left');
+  if (!leftValid) {
+    finalAnswer = left;
+    snap(L.RET_LEFT, `not isValid(left) → left itself is X. left was never updated away from 0, so nums is not really rotated → return nums[left] = ${NUMS[left]}.`);
+  } else {
+    const rightValid = callIsValid(right, L.FINAL_RIGHT_CHECK, 'right');
+    finalAnswer = right;
+    snap(L.RET_RIGHT, `not isValid(right) → right is always X by construction (nums[-1] is never greater than itself, and right is only ever set to an invalid index) → return nums[right] = ${NUMS[right]}.`);
+  }
+
+  return steps;
+}
+
+let STEPS = buildSteps();
+let cur = -1;
+
+function formatArray(nums) {
+  return `[${nums.join(', ')}]`;
+}
+
+function buildArrayDOM() {
+  const row = document.getElementById('array-row');
+  row.innerHTML = '';
+  for (let idx = 0; idx < NUMS.length; idx++) {
+    const wrap = document.createElement('div');
+    wrap.className = 'cell-wrap' + (idx === NUMS.length - 1 ? ' pivot' : '');
+
+    const box = document.createElement('div');
+    box.className = 'cell-box';
+    box.id = `cell-${idx}`;
+    box.textContent = NUMS[idx];
+    wrap.appendChild(box);
+
+    const badge = document.createElement('div');
+    badge.className = 'eval-badge';
+    badge.id = `badge-${idx}`;
+    badge.style.display = 'none';
+    wrap.appendChild(badge);
+
+    const idxEl = document.createElement('div');
+    idxEl.className = 'cell-idx';
+    idxEl.textContent = idx;
+    wrap.appendChild(idxEl);
+
+    const ptr = document.createElement('div');
+    ptr.className = 'cell-ptr';
+    ptr.id = `ptr-${idx}`;
+    wrap.appendChild(ptr);
+
+    row.appendChild(wrap);
+  }
+}
+
+function renderArray(state) {
+  const lastIdx = NUMS.length - 1;
+  for (let idx = 0; idx < NUMS.length; idx++) {
+    const box = document.getElementById(`cell-${idx}`);
+    const ptr = document.getElementById(`ptr-${idx}`);
+    const badge = document.getElementById(`badge-${idx}`);
+    if (!box || !ptr || !badge) continue;
+
+    const isTest = state.testIdx === idx;
+    const isPivotGlow = state.testIdx != null && idx === lastIdx;
+    const inRange = state.left != null && state.right != null && idx >= state.left && idx <= state.right;
+    const isEliminated = state.left != null && !inRange;
+    const isPeak = state.finalAnswer != null && idx === state.finalAnswer;
+
+    let cls = 'cell-box';
+    if (isPeak) cls += ' peak';
+    else if (isTest) cls += ' cmp-test';
+    else if (isPivotGlow) cls += ' cmp-pivot';
+    else if (inRange) cls += ' in-range';
+    else if (isEliminated) cls += ' eliminated';
+    box.className = cls;
+
+    const roles = [];
+    if (state.left === idx) roles.push('<span class="lbl-l">left=' + idx + '</span>');
+    if (state.mid === idx) roles.push('<span class="lbl-m">mid=' + idx + '</span>');
+    if (state.right === idx) roles.push('<span class="lbl-r">right=' + idx + '</span>');
+    ptr.innerHTML = roles.length
+      ? '<span class="ptr-arrow">↑</span>' + roles.join('')
+      : '';
+
+    const known = state.evaluated ? state.evaluated[idx] : undefined;
+    if (known === undefined) {
+      badge.style.display = 'none';
+    } else {
+      badge.style.display = 'flex';
+      badge.className = 'eval-badge ' + (known ? 'o' : 'x');
+      badge.textContent = known ? 'O' : 'X';
+    }
+  }
+}
+
+// Draws an upward-pointing curly brace under the cells of the current
+// search range, sized from the cells' real offsets so it survives zoom
+// and the narrow-screen media query.
+function renderBrace(state) {
+  const svg = document.getElementById('brace-svg');
+  const label = document.getElementById('brace-label');
+  if (!state || state.left == null || state.right == null) {
+    svg.style.visibility = 'hidden';
+    label.style.visibility = 'hidden';
+    return;
+  }
+  const a = document.getElementById(`cell-${state.left}`).parentElement;
+  const b = document.getElementById(`cell-${state.right}`).parentElement;
+  const braceLeft = a.offsetLeft;
+  const w = b.offsetLeft + b.offsetWidth - braceLeft;
+  const H = 12, M = 7, c = w / 2;
+  const r = Math.min(10, c / 2);
+  const d = `M1,${H} Q1,${M} ${1 + r},${M} L${c - r},${M} Q${c},${M} ${c},1 Q${c},${M} ${c + r},${M} L${w - 1 - r},${M} Q${w - 1},${M} ${w - 1},${H}`;
+  svg.setAttribute('width', w);
+  svg.setAttribute('height', H + 2);
+  svg.setAttribute('viewBox', `0 0 ${w} ${H + 2}`);
+  document.getElementById('brace-path').setAttribute('d', d);
+  svg.style.left = braceLeft + 'px';
+  svg.style.visibility = 'visible';
+  label.textContent = `search range = nums[${state.left}..${state.right}]`;
+  label.style.left = (braceLeft + c) + 'px';
+  label.style.visibility = 'visible';
+}
+
+function renderAnswer(state) {
+  const answer = document.getElementById('answer');
+  if (!state || state.finalAnswer == null) {
+    answer.className = 'answer-line empty';
+    answer.textContent = 'no minimum found yet';
+    return;
+  }
+  answer.className = 'answer-line';
+  answer.textContent = `minimum index = ${state.finalAnswer}, nums[${state.finalAnswer}] = ${NUMS[state.finalAnswer]}`;
+}
+
+function render() {
+  if (cur < 0) {
+    highlightLine(null);
+    renderCtrl(-1, STEPS.length, '');
+    renderArray({});
+    renderBrace(null);
+    renderAnswer(null);
+    return;
+  }
+
+  const state = STEPS[cur];
+  highlightLine(state.line);
+  renderCtrl(cur, STEPS.length, state.info);
+  renderArray(state);
+  renderBrace(state);
+  renderAnswer(state);
+}
+
+function loadExample(id) {
+  const ex = EXAMPLES[id];
+  if (!ex) return;
+  stopAuto();
+  NUMS = ex.nums.slice();
+  document.getElementById('input-title').textContent = `Input  nums = ${formatArray(NUMS)}  ·  pivot nums[-1] = ${NUMS[NUMS.length - 1]}`;
+  buildArrayDOM();
+  STEPS = buildSteps();
+  cur = -1;
+  render();
+  lockStableSizes();
+  Object.keys(EXAMPLES).forEach(key => {
+    const btn = document.getElementById('ex-' + key);
+    if (btn) btn.classList.toggle('auto-active', key === id);
+  });
+}
+
+loadExample('ex1');
+window.addEventListener('resize', () => render());
+</script>
+</body>
+</html>

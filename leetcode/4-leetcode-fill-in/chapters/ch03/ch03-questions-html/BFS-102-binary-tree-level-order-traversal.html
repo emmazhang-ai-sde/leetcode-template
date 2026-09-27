@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>102. Binary Tree Level Order Traversal · 填空</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/fill-theme.css">
+<script src="../../assets/repo-corner.js" defer></script>
+<style>
+  .code-table .lc .cm {
+    color: #008000 !important;
+  }
+</style>
+</head>
+<body class="problem-page">
+<main class="problem-main">
+  <h1 class="prob-title">
+    <a id="probLink" href="https://leetcode.com/problems/binary-tree-level-order-traversal/description/" target="_blank" rel="noopener noreferrer">
+      <span class="prob-title__num" id="probNum">102.</span><span id="probName">Binary Tree Level Order Traversal</span>
+    </a>
+  </h1>
+  <table class="code-table" id="ct" aria-label="代码填空">
+    <tr><td class="ln">1</td><td class="lc"><span class="cm"># def levelOrder(self, root: Optional[TreeNode]) -&gt; List[List[int]]:</span></td></tr>
+    <tr><td class="ln">2</td><td class="lc"><span class="blank-group"><input type="text" class="blank" data-answer="def levelOrder(self, root: Optional[TreeNode]) -&gt; List[List[int]]:" autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">def levelOrder(self, root: Optional[TreeNode]) -&gt; List[List[int]]:</span></span></td></tr>
+    <tr><td class="ln">3</td><td class="lc"><span class="cm">    # initialize result list</span></td></tr>
+    <tr><td class="ln">4</td><td class="lc"><span class="seg">    </span><span class="blank-group"><input type="text" class="blank" data-answer="res = []" autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">res = []</span></span></td></tr>
+    <tr><td class="ln">5</td><td class="lc"><span class="cm">    # run bfs on root, passing result list to populate</span></td></tr>
+    <tr><td class="ln">6</td><td class="lc"><span class="seg">    </span><span class="blank-group"><input type="text" class="blank" data-answer="self.bfs(root, res)" autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">self.bfs(root, res)</span></span></td></tr>
+    <tr><td class="ln">7</td><td class="lc"><span class="cm">    # return result list</span></td></tr>
+    <tr><td class="ln">8</td><td class="lc"><span class="seg">    </span><span class="blank-group"><input type="text" class="blank" data-answer="return res" autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">return res</span></span></td></tr>
+    <tr><td class="ln">9</td><td class="lc"><span class="seg"></span></td></tr>
+    <tr><td class="ln">10</td><td class="lc"><span class="cm"># def bfs(self, node, res):</span></td></tr>
+    <tr><td class="ln">11</td><td class="lc"><span class="blank-group"><input type="text" class="blank" data-answer="def bfs(self, node, res):" autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">def bfs(self, node, res):</span></span></td></tr>
+    <tr><td class="ln">12</td><td class="lc"><span class="cm">    # import collections</span></td></tr>
+    <tr><td class="ln">13</td><td class="lc"><span class="seg">    </span><span class="blank-group"><input type="text" class="blank" data-answer="import collections" autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">import collections</span></span></td></tr>
+    <tr><td class="ln">14</td><td class="lc"><span class="cm">    # initialize deque as queue</span></td></tr>
+    <tr><td class="ln">15</td><td class="lc"><span class="seg">    </span><span class="blank-group"><input type="text" class="blank" data-answer="queue = collections.deque()" autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">queue = collections.deque()</span></span></td></tr>
+    <tr><td class="ln">16</td><td class="lc"><span class="cm">    # enqueue root node</span></td></tr>
+    <tr><td class="ln">17</td><td class="lc"><span class="seg">    </span><span class="blank-group"><input type="text" class="blank" data-answer="queue.append(node)" autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">queue.append(node)</span></span></td></tr>
+    <tr><td class="ln">18</td><td class="lc"><span class="cm">    # while queue is not empty:</span></td></tr>
+    <tr><td class="ln">19</td><td class="lc"><span class="seg">    </span><span class="blank-group"><input type="text" class="blank" data-answer="while len(queue) &gt; 0:" autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">while len(queue) &gt; 0:</span></span></td></tr>
+    <tr><td class="ln">20</td><td class="lc"><span class="cm">        # snapshot current level size</span></td></tr>
+    <tr><td class="ln">21</td><td class="lc"><span class="seg">        </span><span class="blank-group"><input type="text" class="blank" data-answer="size = len(queue)" autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">size = len(queue)</span></span></td></tr>
+    <tr><td class="ln">22</td><td class="lc"><span class="cm">        # initialize list for this level's values</span></td></tr>
+    <tr><td class="ln">23</td><td class="lc"><span class="seg">        </span><span class="blank-group"><input type="text" class="blank" data-answer="levelRes = []" autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">levelRes = []</span></span></td></tr>
+    <tr><td class="ln">24</td><td class="lc"><span class="cm">        # for each node in current level:</span></td></tr>
+    <tr><td class="ln">25</td><td class="lc"><span class="seg">        </span><span class="blank-group"><input type="text" class="blank" data-answer="for _ in range(size):" autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">for _ in range(size):</span></span></td></tr>
+    <tr><td class="ln">26</td><td class="lc"><span class="cm">            # dequeue front node</span></td></tr>
+    <tr><td class="ln">27</td><td class="lc"><span class="seg">            </span><span class="blank-group"><input type="text" class="blank" data-answer="curr = queue.popleft()" autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">curr = queue.popleft()</span></span></td></tr>
+    <tr><td class="ln">28</td><td class="lc"><span class="cm">            # if node is not null:</span></td></tr>
+    <tr><td class="ln">29</td><td class="lc"><span class="seg">            </span><span class="blank-group"><input type="text" class="blank" data-answer="if curr:" autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">if curr:</span></span></td></tr>
+    <tr><td class="ln">30</td><td class="lc"><span class="cm">                # add node's value to level result</span></td></tr>
+    <tr><td class="ln">31</td><td class="lc"><span class="seg">                </span><span class="blank-group"><input type="text" class="blank" data-answer="levelRes.append(curr.val)" autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">levelRes.append(curr.val)</span></span></td></tr>
+    <tr><td class="ln">32</td><td class="lc"><span class="cm">                # enqueue left child</span></td></tr>
+    <tr><td class="ln">33</td><td class="lc"><span class="seg">                </span><span class="blank-group"><input type="text" class="blank" data-answer="queue.append(curr.left)" autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">queue.append(curr.left)</span></span></td></tr>
+    <tr><td class="ln">34</td><td class="lc"><span class="cm">                # enqueue right child</span></td></tr>
+    <tr><td class="ln">35</td><td class="lc"><span class="seg">                </span><span class="blank-group"><input type="text" class="blank" data-answer="queue.append(curr.right)" autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">queue.append(curr.right)</span></span></td></tr>
+    <tr><td class="ln">36</td><td class="lc"><span class="cm">        # if level had any values, append level result to res</span></td></tr>
+    <tr><td class="ln">37</td><td class="lc"><span class="seg">        </span><span class="blank-group"><input type="text" class="blank" data-answer="if levelRes:" autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">if levelRes:</span></span></td></tr>
+    <tr><td class="ln">38</td><td class="lc"><span class="seg">            </span><span class="blank-group"><input type="text" class="blank" data-answer="res.append(levelRes)" autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">res.append(levelRes)</span></span></td></tr>
+  </table>
+</main>
+<script src="../../assets/fill-blanks.js"></script>
+<script src="../../assets/fill-core.js"></script>
+</body>
+</html>

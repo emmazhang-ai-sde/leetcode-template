@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>378. Kth Smallest Element in a Sorted Matrix — Heap Animation</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  .code-block { }
+  .viz-panel { flex: 0 0 auto; }
+  .leg-box { width: 13px; height: 13px; border-radius: 3px; }
+
+  /* Matrix */
+  .matrix-grid { display: inline-grid; gap: 6px; }
+  .matrix-cell { width: 54px; height: 54px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: 'SF Mono', monospace; background: #f5f5f5; color: #1a1a1a; transition: background 0.2s, opacity 0.2s, transform 0.15s, outline 0.15s; }
+  .cell-val { font-size: 17px; font-weight: 800; line-height: 1; }
+  .cell-coord { font-size: 9px; color: #bbb; font-weight: 400; margin-top: 2px; }
+  .matrix-cell.in-heap  { background: rgba(139,133,212,0.22); }
+  .matrix-cell.in-heap .cell-coord { color: #8B85D4; }
+  .matrix-cell.current  { background: rgba(93,202,165,0.45); transform: scale(1.08); }
+  .matrix-cell.consumed { opacity: 0.28; background: #e5e5e5; }
+  .matrix-cell.neighbor-valid   { background: rgba(93,202,165,0.18); outline: 2px dashed #3A9E7E; }
+  .matrix-cell.neighbor-invalid { background: rgba(220,60,60,0.07); outline: 2px dashed #cc6666; }
+  .matrix-cell.returned { background: rgba(247,140,108,0.32); }
+
+  /* Heap sizing */
+  .heap-node { width: 60px; height: 52px; gap: 1px; }
+  .heap-val { font-size: 16px; }
+  .heap-meta { font-size: 9px; }
+
+  /* Visited */
+  .visited-area { display: flex; flex-direction: column; gap: 4px; min-height: 28px; }
+  .visited-item { font-family: 'SF Mono', monospace; font-size: 12px; background: #f0eef8; padding: 3px 8px; border-radius: 6px; color: #9333C0; }
+  .visited-item.new-entry { background: #9333C0; color: #fff; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '378. Kth Smallest Element in a Sorted Matrix — Min-Heap Animation',
+  link: 'https://leetcode.com/problems/kth-smallest-element-in-a-sorted-matrix/',
+  legend: [
+    { color: 'rgba(139,133,212,0.22)', label: '在 heap 中' },
+    { color: 'rgba(93,202,165,0.45)', label: '当前弹出' },
+    { color: 'rgba(93,202,165,0.18)', extra: 'outline:2px dashed #3A9E7E;', label: '有效邻居' },
+    { color: 'rgba(220,60,60,0.07)', extra: 'outline:2px dashed #cc6666;', label: '无效/已访问' },
+    { color: '#e5e5e5', extra: 'opacity:0.5;', label: '已消费' },
+    { color: 'rgba(247,140,108,0.32)', label: '返回值' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+  <!-- Code panel: prereq comment (line 1) + solution (lines 2-15) -->
+  <script>
+  renderCodeBox({
+    prereq: `# min_heap 存 (value, row, col)`,
+    code: `
+def kthSmallest(self, matrix, k):
+    n = len(matrix)
+    min_heap = [(matrix[0][0], 0, 0)]
+    visited = set()
+    visited.add((0,0))
+    for i in range(k):             # O(K)
+        num,x,y = heapq.heappop(min_heap)
+        for dx, dy in [(0,1),(1,0)]:
+            newx = x + dx
+            newy = y + dy
+            if 0<=newx<n and 0<=newy<n and (newx,newy) not in visited:
+                visited.add((newx,newy))
+                heapq.heappush(min_heap, (matrix[newx][newy],newx,newy))  # O(logK)
+    return num`,
+  });
+  </script>
+
+  <!-- Viz panel -->
+  <div class="viz-panel">
+
+    <!-- Variable bar -->
+    <div class="var-bar" id="var-state">
+      <span class="var-dim">n=3  k=5</span>
+    </div>
+
+    <!-- Matrix + Heap side by side -->
+    <div style="display:flex; gap:16px; align-items:flex-start;">
+      <div class="card" style="flex:1;">
+        <h3>Matrix (3×3)&nbsp;&nbsp;k = 5</h3>
+        <div id="matrix-area"></div>
+      </div>
+
+      <div class="card" style="flex:1;">
+        <h3>Min-Heap（堆顶 = 最小值）</h3>
+        <div class="heap-area" id="heap-area">
+          <span class="heap-empty">min_heap = []</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Visited set + Push history side by side -->
+    <div style="display:flex; gap:16px; align-items:flex-start;">
+      <div class="card" style="flex:1;">
+        <h3>Visited Set</h3>
+        <div class="visited-area" id="visited-area">
+          <span style="color:#aaa; font-size:12px; font-family:'SF Mono',monospace;">visited = set()</span>
+        </div>
+      </div>
+
+      <div class="card" style="flex:1;">
+        <h3>Heap Push 历史</h3>
+        <div style="font-family:'SF Mono','Menlo',monospace; font-size:12px; color:#888; margin-top:-8px; margin-bottom:10px;">(matrix[newx][newy], newx, newy)</div>
+        <div id="push-history-area" style="font-family:'SF Mono','Menlo',monospace; font-size:13px; display:flex; flex-direction:column; gap:4px;">
+          <span style="color:#aaa;">（还没有 push）</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+const MATRIX = [[1,2,3],[4,5,6],[7,8,9]];
+const K = 5;
+const N = MATRIX.length;
+
+// ── Step builder ─────────────────────────────────────────────────────────
+function buildSteps() {
+  const steps = [];
+  let heap = [];
+  let visited = new Set();
+  let cellState = Array.from({length:N}, () => Array(N).fill('normal'));
+  let varI=null, varNum=null, varX=null, varY=null;
+  let varDx=null, varDy=null, varNewx=null, varNewy=null;
+  let poppingCell=null, pushingCell=null, neighborCell=null;
+  let neighborValid=null, newVisit=null, returnedNum=null;
+  const pushHistory = [];
+
+  function snap(line, info) {
+    steps.push({
+      line, info,
+      cellState: cellState.map(r => [...r]),
+      heap: heap.map(h => ({...h})),
+      visited: new Set(visited),
+      varI, varNum, varX, varY, varDx, varDy, varNewx, varNewy,
+      poppingCell: poppingCell ? {...poppingCell} : null,
+      pushingCell: pushingCell ? {...pushingCell} : null,
+      neighborCell: neighborCell ? {...neighborCell} : null,
+      neighborValid, newVisit, returnedNum,
+      pushHistory: pushHistory.map(h => ({...h})),
+    });
+  }
+
+  function heapPush(item) {
+    heap.push(item);
+    let i = heap.length - 1;
+    while (i > 0) {
+      const p = Math.floor((i-1)/2);
+      if (heap[p].val > heap[i].val) { [heap[p],heap[i]] = [heap[i],heap[p]]; i = p; }
+      else break;
+    }
+  }
+
+  function heapPop() {
+    if (heap.length === 1) return heap.pop();
+    const top = heap[0];
+    heap[0] = heap.pop();
+    let i = 0;
+    while (true) {
+      const l=2*i+1, r=2*i+2; let s=i;
+      if (l < heap.length && heap[l].val < heap[s].val) s = l;
+      if (r < heap.length && heap[r].val < heap[s].val) s = r;
+      if (s !== i) { [heap[i],heap[s]] = [heap[s],heap[i]]; i = s; }
+      else break;
+    }
+    return top;
+  }
+
+  // Init
+  snap(3, '第 3 行：n = len(matrix) = 3');
+
+  pushHistory.push({val: MATRIX[0][0], x:0, y:0});
+  heapPush({val: MATRIX[0][0], x:0, y:0});
+  cellState[0][0] = 'in-heap';
+  snap(4, `第 4 行：min_heap = [(${MATRIX[0][0]}, 0, 0)]  把左上角推入堆`);
+
+  snap(5, '第 5 行：visited = set()');
+
+  visited.add('0,0');
+  newVisit = '0,0';
+  snap(6, '第 6 行：visited.add((0,0))  标记起点已访问');
+  newVisit = null;
+
+  // Main loop
+  for (let i = 0; i < K; i++) {
+    varI = i;
+    snap(7, `第 7 行：for i in range(k)，当前 i = ${i}`);
+
+    // heappop
+    poppingCell = {x: heap[0].x, y: heap[0].y};
+    snap(8, `第 8 行：heapq.heappop → 弹出堆顶 (${heap[0].val}, ${heap[0].x}, ${heap[0].y})`);
+    const popped = heapPop();
+    varNum = popped.val; varX = popped.x; varY = popped.y;
+    poppingCell = null;
+    cellState[popped.x][popped.y] = 'current';
+    snap(8, `num=${popped.val},  x=${popped.x},  y=${popped.y}`);
+
+    // Inner direction loop
+    for (const [dx, dy] of [[0,1],[1,0]]) {
+      varDx = dx; varDy = dy;
+      neighborCell = null; neighborValid = null;
+      snap(9, `第 9 行：检查方向 (dx=${dx}, dy=${dy})`);
+
+      varNewx = popped.x + dx;
+      varNewy = popped.y + dy;
+      const inBounds   = varNewx >= 0 && varNewx < N && varNewy >= 0 && varNewy < N;
+      const notVisited = !visited.has(`${varNewx},${varNewy}`);
+      const valid      = inBounds && notVisited;
+      if (inBounds) { neighborCell = {x:varNewx, y:varNewy}; neighborValid = valid; }
+      snap(10, `第 10-11 行：newx = ${varNewx},  newy = ${varNewy}`);
+
+      if (!inBounds) {
+        snap(12, `第 12 行：(${varNewx},${varNewy}) 越界，跳过`);
+        neighborCell = null; neighborValid = null;
+      } else if (!notVisited) {
+        snap(12, `第 12 行：(${varNewx},${varNewy}) 已在 visited 中，跳过`);
+        neighborCell = null; neighborValid = null;
+      } else {
+        snap(12, `第 12 行：(${varNewx},${varNewy}) 有效且未访问 ✓`);
+
+        visited.add(`${varNewx},${varNewy}`);
+        newVisit = `${varNewx},${varNewy}`;
+        snap(13, `第 13 行：visited.add((${varNewx},${varNewy}))`);
+        newVisit = null;
+
+        const pushVal = MATRIX[varNewx][varNewy];
+        pushingCell = {x:varNewx, y:varNewy};
+        pushHistory.push({val: pushVal, x:varNewx, y:varNewy});
+        heapPush({val: pushVal, x:varNewx, y:varNewy});
+        cellState[varNewx][varNewy] = 'in-heap';
+        snap(14, `第 14 行：heappush (${pushVal}, ${varNewx}, ${varNewy})`);
+        pushingCell = null; neighborCell = null; neighborValid = null;
+        snap(14, `heap: [${heap.map(h=>`(${h.val},${h.x},${h.y})`).join(', ')}]`);
+      }
+    }
+
+    varDx = null; varDy = null; varNewx = null; varNewy = null;
+    cellState[popped.x][popped.y] = 'consumed';
+  }
+
+  // Return
+  returnedNum = varNum;
+  cellState[varX][varY] = 'returned';
+  snap(15, `第 15 行：return num = ${varNum}  →  第 ${K} 小的元素是 ${varNum} ✓`);
+
+  return steps;
+}
+
+const STEPS = buildSteps();
+let cur = -1;
+
+// ── DOM builder ───────────────────────────────────────────────────────────
+function buildMatrixDOM() {
+  const area = document.getElementById('matrix-area');
+  const grid = document.createElement('div');
+  grid.className = 'matrix-grid';
+  grid.style.gridTemplateColumns = `repeat(${N}, 54px)`;
+  for (let x = 0; x < N; x++) {
+    for (let y = 0; y < N; y++) {
+      const cell = document.createElement('div');
+      cell.className = 'matrix-cell';
+      cell.id = `cell-${x}-${y}`;
+      const val = document.createElement('div');
+      val.className = 'cell-val';
+      val.textContent = MATRIX[x][y];
+      const coord = document.createElement('div');
+      coord.className = 'cell-coord';
+      coord.textContent = `(${x},${y})`;
+      cell.appendChild(val);
+      cell.appendChild(coord);
+      grid.appendChild(cell);
+    }
+  }
+  area.appendChild(grid);
+}
+
+// ── Render ────────────────────────────────────────────────────────────────
+function render() {
+  if (cur < 0) {
+    for (let x = 0; x < N; x++)
+      for (let y = 0; y < N; y++) {
+        const el = document.getElementById(`cell-${x}-${y}`);
+        if (el) el.className = 'matrix-cell';
+      }
+    document.getElementById('heap-area').innerHTML = '<span class="heap-empty">min_heap = []</span>';
+    document.getElementById('visited-area').innerHTML = `<span style="color:#aaa;font-size:12px;font-family:'SF Mono',monospace;">visited = set()</span>`;
+    renderCtrl(-1, STEPS.length, '');
+    document.getElementById('var-state').innerHTML = '<span class="var-dim">n=3  k=5</span>';
+    document.getElementById('push-history-area').innerHTML = '<span style="color:#aaa;">（还没有 push）</span>';
+    highlightLine(null);
+    return;
+  }
+
+  const s = STEPS[cur];
+  highlightLine(s.line);
+  renderCtrl(cur, STEPS.length, s.info);
+
+  // Variable bar
+  const parts = [];
+  if (s.varI    !== null) parts.push(`<span><span class="var-name">i</span> <span class="var-eq">=</span> <span class="var-val">${s.varI}</span></span>`);
+  if (s.varNum  !== null) parts.push(`<span><span class="var-name">num</span> <span class="var-eq">=</span> <span class="var-val">${s.varNum}</span></span>`);
+  if (s.varX    !== null) parts.push(`<span><span class="var-name">x</span> <span class="var-eq">=</span> <span class="var-val">${s.varX}</span></span>`);
+  if (s.varY    !== null) parts.push(`<span><span class="var-name">y</span> <span class="var-eq">=</span> <span class="var-val">${s.varY}</span></span>`);
+  if (s.varDx   !== null) parts.push(`<span><span class="fn">dx</span> <span class="var-eq">=</span> <span class="var-val">${s.varDx}</span></span>`);
+  if (s.varDy   !== null) parts.push(`<span><span class="fn">dy</span> <span class="var-eq">=</span> <span class="var-val">${s.varDy}</span></span>`);
+  if (s.varNewx !== null) parts.push(`<span><span class="fn">newx</span> <span class="var-eq">=</span> <span class="var-val">${s.varNewx}</span></span>`);
+  if (s.varNewy !== null) parts.push(`<span><span class="fn">newy</span> <span class="var-eq">=</span> <span class="var-val">${s.varNewy}</span></span>`);
+  let varHtml = parts.length > 0
+    ? parts.join('')
+    : '<span class="var-dim">n=3  k=5</span>';
+  if (s.returnedNum !== null)
+    varHtml += `<span style="color:#EF9F27;font-weight:600;">→ return ${s.returnedNum}</span>`;
+  document.getElementById('var-state').innerHTML = varHtml;
+
+  // Matrix cells
+  for (let x = 0; x < N; x++) {
+    for (let y = 0; y < N; y++) {
+      const el = document.getElementById(`cell-${x}-${y}`);
+      if (!el) continue;
+      let cls = 'matrix-cell';
+      if (s.poppingCell && s.poppingCell.x === x && s.poppingCell.y === y) {
+        cls += ' current';
+      } else if (s.pushingCell && s.pushingCell.x === x && s.pushingCell.y === y) {
+        cls += ' neighbor-valid';
+      } else if (s.neighborCell && s.neighborCell.x === x && s.neighborCell.y === y) {
+        cls += s.neighborValid ? ' neighbor-valid' : ' neighbor-invalid';
+      } else {
+        const st = s.cellState[x][y];
+        if (st !== 'normal') cls += ' ' + st;
+      }
+      el.className = cls;
+    }
+  }
+
+  // Heap
+  const heapArea = document.getElementById('heap-area');
+  if (s.heap.length === 0) {
+    heapArea.innerHTML = '<span class="heap-empty">min_heap = []</span>';
+  } else {
+    heapArea.innerHTML = '';
+    s.heap.forEach((h, idx) => {
+      const slot = document.createElement('div');
+      slot.className = 'heap-slot';
+      const nd = document.createElement('div');
+      let ndCls = 'heap-node';
+      if (s.poppingCell && s.poppingCell.x === h.x && s.poppingCell.y === h.y) ndCls += ' popping';
+      else if (s.pushingCell && s.pushingCell.x === h.x && s.pushingCell.y === h.y) ndCls += ' pushing';
+      nd.className = ndCls;
+      const valEl = document.createElement('div'); valEl.className = 'heap-val'; valEl.textContent = h.val;
+      const metaEl = document.createElement('div'); metaEl.className = 'heap-meta'; metaEl.textContent = `(${h.x},${h.y})`;
+      nd.appendChild(valEl); nd.appendChild(metaEl);
+      slot.appendChild(nd);
+      const lbl = document.createElement('div'); lbl.className = 'heap-label';
+      lbl.textContent = idx === 0 ? '堆顶(最小)' : `pos[${idx}]`;
+      slot.appendChild(lbl);
+      heapArea.appendChild(slot);
+    });
+  }
+
+  // Visited
+  const visitedArea = document.getElementById('visited-area');
+  if (s.visited.size === 0) {
+    visitedArea.innerHTML = `<span style="color:#aaa;font-size:12px;font-family:'SF Mono',monospace;">visited = set()</span>`;
+  } else {
+    visitedArea.innerHTML = '';
+    [...s.visited].forEach(v => {
+      const span = document.createElement('span');
+      span.className = 'visited-item' + (s.newVisit === v ? ' new-entry' : '');
+      span.textContent = `(${v})`;
+      visitedArea.appendChild(span);
+    });
+  }
+
+  // Push history
+  const phArea = document.getElementById('push-history-area');
+  if (!s.pushHistory || s.pushHistory.length === 0) {
+    phArea.innerHTML = '<span style="color:#aaa;">（还没有 push）</span>';
+  } else {
+    phArea.innerHTML = '';
+    s.pushHistory.forEach(h => {
+      const isActive = s.pushingCell && s.pushingCell.x === h.x && s.pushingCell.y === h.y;
+      const row = document.createElement('div');
+      row.style.cssText = `padding:4px 10px; border-radius:6px; transition:background 0.2s;` +
+        (isActive ? `background:#9333C0; color:#fff;` : `background:#f0eef8; color:#1a1a1a;`);
+      const punc  = isActive ? 'rgba(255,255,255,0.7)' : '#007EA8';
+      const vCol  = isActive ? '#fff' : '#C4501E';
+      const xyCol = isActive ? 'rgba(255,255,255,0.85)' : '#8B85D4';
+      row.innerHTML =
+        `<span style="color:${punc};">(</span>` +
+        `<span style="color:${vCol};">${h.val}</span>` +
+        `<span style="color:${punc};">,&nbsp;</span>` +
+        `<span style="color:${xyCol};">${h.x}</span>` +
+        `<span style="color:${punc};">,&nbsp;</span>` +
+        `<span style="color:${xyCol};">${h.y}</span>` +
+        `<span style="color:${punc};">)</span>`;
+      phArea.appendChild(row);
+    });
+  }
+}
+
+buildMatrixDOM();
+doReset();
+</script>
+</body>
+</html>

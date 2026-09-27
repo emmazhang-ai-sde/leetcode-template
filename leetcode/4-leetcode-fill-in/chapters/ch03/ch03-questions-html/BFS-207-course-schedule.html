@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>207. Course Schedule · 填空</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/fill-theme.css">
+<script src="../../assets/repo-corner.js" defer></script>
+</head>
+<body class="problem-page">
+<main class="problem-main">
+  <h1 class="prob-title">
+    <a id="probLink" href="https://leetcode.com/problems/course-schedule/description/" target="_blank" rel="noopener noreferrer">
+      <span class="prob-title__num" id="probNum">207.</span><span id="probName">Course Schedule</span>
+    </a>
+  </h1>
+  <table class="code-table" id="ct" aria-label="代码填空">
+    <tr><td class="ln">1</td><td class="lc"><span class="seg">from collections import deque</span></td></tr>
+    <tr><td class="ln">2</td><td class="lc"><span class="seg"></span></td></tr>
+    <tr><td class="ln">3</td><td class="lc"><span class="seg">class Solution:</span></td></tr>
+    <tr><td class="ln">4</td><td class="lc"><span class="seg">    def canFinish(self, numCourses: int, prerequisites: List[List[int]]) -&gt; bool:</span></td></tr>
+    <tr><td class="ln">5</td><td class="lc"><span class="seg">        graph = {i: [] for i in range(numCourses)}</span></td></tr>
+    <tr><td class="ln">6</td><td class="lc"><span class="seg">        indegree = </span><span class="blank-group"><input type="text" class="blank" data-answer="[0] * numCourses" data-answers='["[0] * numCourses","[0]*numCourses"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">[0] * numCourses</span></span></td></tr>
+    <tr><td class="ln">7</td><td class="lc"><span class="seg"></span></td></tr>
+    <tr><td class="ln">8</td><td class="lc"><span class="seg">        for a, b in prerequisites:</span></td></tr>
+    <tr><td class="ln">9</td><td class="lc"><span class="seg">            graph[</span><span class="blank-group"><input type="text" class="blank" data-answer="b" data-answers='["b"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">b</span></span><span class="seg">].append(</span><span class="blank-group"><input type="text" class="blank" data-answer="a" data-answers='["a"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">a</span></span><span class="seg">)</span></td></tr>
+    <tr><td class="ln">10</td><td class="lc"><span class="seg">            indegree[</span><span class="blank-group"><input type="text" class="blank" data-answer="a" data-answers='["a"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">a</span></span><span class="seg">] += 1</span></td></tr>
+    <tr><td class="ln">11</td><td class="lc"><span class="seg"></span></td></tr>
+    <tr><td class="ln">12</td><td class="lc"><span class="seg">        queue = deque([i for i in range(numCourses) if </span><span class="blank-group"><input type="text" class="blank" data-answer="indegree[i] == 0" data-answers='["indegree[i] == 0","indegree[i]==0"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">indegree[i] == 0</span></span><span class="seg">])</span></td></tr>
+    <tr><td class="ln">13</td><td class="lc"><span class="seg">        count = 0</span></td></tr>
+    <tr><td class="ln">14</td><td class="lc"><span class="seg"></span></td></tr>
+    <tr><td class="ln">15</td><td class="lc"><span class="seg">        while len(queue) &gt; 0:</span></td></tr>
+    <tr><td class="ln">16</td><td class="lc"><span class="seg">            curr = queue.popleft()</span></td></tr>
+    <tr><td class="ln">17</td><td class="lc"><span class="seg">            count += </span><span class="blank-group"><input type="text" class="blank" data-answer="1" data-answers='["1"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">1</span></span></td></tr>
+    <tr><td class="ln">18</td><td class="lc"><span class="seg">            for next_course in graph[curr]:</span></td></tr>
+    <tr><td class="ln">19</td><td class="lc"><span class="seg">                indegree[next_course] -= </span><span class="blank-group"><input type="text" class="blank" data-answer="1" data-answers='["1"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">1</span></span></td></tr>
+    <tr><td class="ln">20</td><td class="lc"><span class="seg">                if </span><span class="blank-group"><input type="text" class="blank" data-answer="indegree[next_course] == 0" data-answers='["indegree[next_course] == 0","indegree[next_course]==0"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">indegree[next_course] == 0</span></span><span class="seg">:</span></td></tr>
+    <tr><td class="ln">21</td><td class="lc"><span class="seg">                    queue.append(</span><span class="blank-group"><input type="text" class="blank" data-answer="next_course" data-answers='["next_course"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">next_course</span></span><span class="seg">)</span></td></tr>
+    <tr><td class="ln">22</td><td class="lc"><span class="seg"></span></td></tr>
+    <tr><td class="ln">23</td><td class="lc"><span class="seg">        return count == </span><span class="blank-group"><input type="text" class="blank" data-answer="numCourses" data-answers='["numCourses"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">numCourses</span></span></td></tr>
+  </table>
+</main>
+<script src="../../assets/fill-blanks.js"></script>
+<script src="../../assets/fill-core.js"></script>
+</body>
+</html>

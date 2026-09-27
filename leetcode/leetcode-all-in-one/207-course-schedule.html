@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>207. Course Schedule — BFS Topological Sort Animation</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+  .phase-badge { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 11px; font-weight: 700; margin-bottom: 6px; }
+  .phase-badge.p1 { background: rgba(93,202,165,0.15); color: #1D9E75; }
+  .phase-badge.p2 { background: rgba(139,133,212,0.2); color: #5550a0; }
+  .phase-badge.p3 { background: rgba(249,203,66,0.35); color: #8a6d00; }
+  .divider { border: none; border-top: 1px solid #f0f0f0; margin: 8px 0; }
+  #svg-graph { display: block; width: 100%; max-height: 300px; }
+
+  /* Queue / 拓扑序列表：两处共用同一套 chip 样式，颜色区分 */
+  .chip-items { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; min-height: 26px; }
+  .q-item { padding: 2px 10px; border-radius: 5px; background: rgba(249,203,66,0.35); font-family: 'SF Mono', monospace; font-size: 12px; font-weight: 700; }
+  .q-item.head { background: rgba(249,203,66,0.6); box-shadow: 0 0 0 1.5px #d4a800 inset; }
+  .res-item { padding: 2px 10px; border-radius: 5px; background: rgba(175,169,236,0.35); font-family: 'SF Mono', monospace; font-size: 12px; font-weight: 700; color: #5550a0; }
+  .q-arrow { color: #aaa; font-size: 11px; }
+  .q-empty { color: #aaa; font-style: italic; font-size: 12px; }
+
+  /* In-degree 数组 */
+  .deg-grid { display: flex; gap: 8px; flex-wrap: wrap; }
+  .deg-cell { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 10px; border-radius: 8px; background: #f5f5f5; font-family: 'SF Mono', monospace; min-width: 30px; transition: background 0.15s; }
+  .deg-cell.zero { background: rgba(93,202,165,0.2); }
+  .deg-cell.active { background: rgba(249,203,66,0.55); }
+  .deg-c { font-size: 9.5px; color: #888; }
+  .deg-v { font-size: 15px; font-weight: 800; color: #1a1a1a; }
+  .graph-state {
+    margin: 0 0 10px;
+    padding: 7px 9px;
+    border-radius: 7px;
+    background: #f6f6f3;
+    color: #4f4f49;
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 12px;
+    line-height: 1.45;
+    white-space: pre;
+    overflow-x: auto;
+  }
+
+  .course-input-row {
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 12px;
+    color: #5f5f5a;
+  }
+  .course-input-row code {
+    background: #f6f6f3;
+    border: 1px solid #ecebe5;
+    border-radius: 6px;
+    padding: 3px 8px;
+    color: #2C2C2A;
+  }
+
+  .course-state-tabs {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .course-state-tab {
+    border: 1px solid #dfded8;
+    background: #fff;
+    color: #4f4f49;
+    border-radius: 8px;
+    padding: 5px 11px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .course-state-tab:hover {
+    background: #f7f6f1;
+  }
+  .course-state-tab.active {
+    background: #2C2C2A;
+    border-color: #2C2C2A;
+    color: #fff;
+  }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '207. Course Schedule — BFS Topological Sort Animation',
+  link: 'https://leetcode.com/problems/course-schedule/',
+  legend: [
+    { color: '#e8e6df', extra: 'border:1px solid #b4b2a9;width:11px;height:11px;border-radius:50%;', label: 'Pending（入度未清零）' },
+    { color: '#F9CB42', extra: 'width:11px;height:11px;border-radius:50%;', label: '入度已清零，在 Queue 里等待' },
+    { color: '#5DCAA5', extra: 'width:11px;height:11px;border-radius:50%;', label: '当前处理 curr' },
+    { color: '#AFA9EC', extra: 'width:11px;height:11px;border-radius:50%;', label: '已处理完（settled）' },
+    { color: '#1D9E75', extra: 'border-radius:2px;width:14px;height:3px;', label: '正在检查/建立的边' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+  <!-- Left: code panel — 三个阶段，行号在三块之间连续 -->
+  <script>
+  renderCodeBox({
+    blocks: [
+      { html: '<div class="phase-badge p1" id="badge-p1">Phase 1 — 建图 + 算入度</div>' },
+      { code: `
+class Solution:
+    def canFinish(self, numCourses: int, prerequisites: List[List[int]]) -> bool:
+        graph = collections.defaultdict(list)
+        degree = [0 for i in range(numCourses)]
+
+        for i,j in prerequisites:
+            graph[j].append(i)
+            degree[i] +=1` },
+      { html: '<hr class="divider"><div class="phase-badge p2" id="badge-p2">Phase 2 — 入度为 0 的课先入队</div>' },
+      { code: `
+
+        queue = collections.deque([])
+        res = []
+        for course in range(numCourses):
+            if degree[course] == 0:
+                queue.append(course)
+                res.append(course)` },
+      { html: '<hr class="divider"><div class="phase-badge p3" id="badge-p3">Phase 3 — BFS 逐层处理 Queue</div>' },
+      { code: `
+
+        while len(queue) > 0:
+            size = len(queue)
+            for _ in range(size):
+                curr = queue.popleft()
+                for next in graph[curr]:
+                    degree[next]-=1
+                    if degree[next] == 0:
+                        queue.append(next)
+                        res.append(next)
+
+        return len(res) == numCourses` },
+    ],
+  });
+  </script>
+
+  <!-- Right: viz panel -->
+  <div class="viz-panel">
+
+    <div class="card">
+      <h3>课程依赖图（先修课 → 后续课）</h3>
+      <svg id="svg-graph" viewBox="0 0 380 320">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#b4b2a9"></path>
+          </marker>
+          <marker id="arrow-active" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#1D9E75"></path>
+          </marker>
+        </defs>
+        <g id="graph-dyn"></g>
+      </svg>
+    </div>
+
+    <div class="card">
+      <h3>degree[]（入度数组）</h3>
+      <div class="graph-state" id="graph-state">graph = {}</div>
+      <div class="deg-grid" id="degree-display"></div>
+    </div>
+
+    <div class="card">
+      <h3>BFS Queue</h3>
+      <div class="chip-items" id="queue-display"><span class="q-empty">空</span></div>
+    </div>
+
+    <div class="card">
+      <h3>res[]（拓扑序 / 学习顺序）</h3>
+      <div class="chip-items" id="res-display"><span class="q-empty">空</span></div>
+    </div>
+
+  </div>
+</div><!-- /.main -->
+</div><!-- /.content-wrapper -->
+
+<script>
+// ── 题目数据 ──────────────────────────────────────────────────────────────
+// numCourses = 6，prerequisites[k] = [i, j]：要修 i 必须先修 j（跟代码里
+// for i,j in prerequisites 变量名对应）。菱形依赖：0 是唯一无先修课的课，
+// 1/2 都依赖 0，3 同时依赖 1 和 2（入度 2，演示"多条边汇入才清零"），
+// 4/5 都依赖 3。结果可以修完（DAG 无环）。
+const NUM_COURSES = 6;
+const PREREQS = [[1,0],[2,0],[3,1],[3,2],[4,3],[5,3]];
+const INPUT_LABEL = `Input: numCourses = ${NUM_COURSES}, prerequisites = ${JSON.stringify(PREREQS)}`;
+
+const ctrlRow = document.querySelector('.page-header .ctrl');
+if (ctrlRow && !document.getElementById('course-input-row')) {
+  const inputRow = document.createElement('div');
+  inputRow.className = 'header-row course-input-row';
+  inputRow.id = 'course-input-row';
+  inputRow.innerHTML = `<code>${INPUT_LABEL}</code>`;
+  ctrlRow.insertAdjacentElement('afterend', inputRow);
+
+  const tabRow = document.createElement('div');
+  tabRow.className = 'header-row course-state-tabs';
+  tabRow.id = 'course-state-tabs';
+  tabRow.innerHTML =
+    '<button type="button" class="course-state-tab" data-state="phase1">Phase 1 — 建图 + 算入度</button>' +
+    '<button type="button" class="course-state-tab" data-state="phase2">Phase 2 完成状态</button>';
+  tabRow.addEventListener('click', event => {
+    const tab = event.target.closest('.course-state-tab');
+    if (tab) jumpCourseState(tab.dataset.state);
+  });
+  inputRow.insertAdjacentElement('afterend', tabRow);
+}
+
+// SVG 位置：按拓扑层次摆成菱形，先修课在上，依赖越往下越多
+const POS = {
+  0: { x: 190, y: 36  },
+  1: { x: 95,  y: 128 }, 2: { x: 285, y: 128 },
+  3: { x: 190, y: 220 },
+  4: { x: 95,  y: 288 }, 5: { x: 285, y: 288 }
+};
+const NODE_R = 22;
+
+// ── 真的跑一遍算法生成每一步快照，不手算 ──────────────────────────────────
+function buildSteps() {
+  const steps = [];
+  function snap(o) { steps.push(Object.assign({
+    line: null, phase: 0, degree: [], queue: [], res: [],
+    curr: null, activeEdge: null, checking: null, builtEdges: [], info: ''
+  }, o)); }
+
+  const graph = {};
+  const degree = new Array(NUM_COURSES).fill(0);
+  const builtEdges = [];
+
+  snap({
+    phase: 0, degree: [...degree],
+    info: `开始！canFinish(numCourses=${NUM_COURSES}, prerequisites=${JSON.stringify(PREREQS)})。\n` +
+      `用 Kahn 算法（BFS 拓扑排序）判断能不能修完所有课：给每门课记一个"入度"（还差几门先修课没修），入度清零就能修，最后能不能凑齐所有课就是答案。`
+  });
+
+  // ---- Phase 1：建图 + 算入度 ----
+  snap({ line: 3, phase: 1, degree: [...degree], info: 'graph = defaultdict(list)：准备邻接表，记录每门课解锁了哪些后续课。' });
+  snap({ line: 4, phase: 1, degree: [...degree], info: `degree = [0]*${NUM_COURSES}：入度数组，一开始都设成 0。` });
+  snap({ line: 6, phase: 1, degree: [...degree], info: '开始遍历 prerequisites，逐条建图。' });
+
+  for (const [i, j] of PREREQS) {
+    graph[j] = graph[j] || [];
+    graph[j].push(i);
+    builtEdges.push([j, i]);
+    snap({
+      line: 7, phase: 1, degree: [...degree], activeEdge: [j, i], builtEdges: [...builtEdges],
+      info: `(i=${i}, j=${j})：graph[${j}].append(${i})，连一条 ${j} → ${i} 的边（先修课 ${j} 解锁课程 ${i}）。`
+    });
+    degree[i] += 1;
+    snap({
+      line: 8, phase: 1, degree: [...degree], activeEdge: [j, i], builtEdges: [...builtEdges],
+      info: `degree[${i}] += 1 → ${degree[i]}：课程 ${i} 还差 ${degree[i]} 门先修课没修。`
+    });
+  }
+
+  // ---- Phase 2：入度为 0 的课先入队 ----
+  let queue = [], res = [];
+  snap({ line: 10, phase: 2, degree: [...degree], builtEdges: [...builtEdges], queue: [...queue], res: [...res], info: 'queue = deque([])：准备 BFS 队列。' });
+  snap({ line: 11, phase: 2, degree: [...degree], builtEdges: [...builtEdges], queue: [...queue], res: [...res], info: 'res = []：记录课程的学习顺序（拓扑序）。' });
+  snap({ line: 12, phase: 2, degree: [...degree], builtEdges: [...builtEdges], queue: [...queue], res: [...res], info: '扫一遍所有课程，把入度为 0（没有先修课）的先放进队列。' });
+
+  for (let c = 0; c < NUM_COURSES; c++) {
+    snap({
+      line: 13, phase: 2, degree: [...degree], builtEdges: [...builtEdges], queue: [...queue], res: [...res], checking: c,
+      info: `course=${c}：degree[${c}] == 0？${degree[c] === 0 ? '是 → 入队' : '否，还差 ' + degree[c] + ' 门 → 跳过'}`
+    });
+    if (degree[c] === 0) {
+      queue.push(c);
+      res.push(c);
+      snap({
+        line: 15, phase: 2, degree: [...degree], builtEdges: [...builtEdges], queue: [...queue], res: [...res], checking: c,
+        info: `queue.append(${c})，res.append(${c})：课程 ${c} 入队，记入学习顺序第 ${res.length} 位。`
+      });
+    }
+  }
+
+  // ---- Phase 3：BFS 逐层处理 ----
+  snap({
+    line: 17, phase: 3, degree: [...degree], builtEdges: [...builtEdges], queue: [...queue], res: [...res],
+    info: `进入主循环：while len(queue) > 0 → 队列里还有 ${queue.length} 门课，继续。`
+  });
+
+  let level = 1;
+  while (queue.length > 0) {
+    const size = queue.length;
+    snap({
+      line: 18, phase: 3, degree: [...degree], builtEdges: [...builtEdges], queue: [...queue], res: [...res],
+      info: `size = len(queue) = ${size}：这一层（Level ${level}）要处理 ${size} 门课。`
+    });
+
+    for (let k = 0; k < size; k++) {
+      const curr = queue.shift();
+      snap({
+        line: 20, phase: 3, degree: [...degree], builtEdges: [...builtEdges], queue: [...queue], res: [...res], curr,
+        info: `curr = queue.popleft() = ${curr}：开始处理课程 ${curr}（绿色高亮），看看它解锁了哪些后续课。`
+      });
+
+      const neis = graph[curr] || [];
+      if (!neis.length) {
+        snap({
+          line: 21, phase: 3, degree: [...degree], builtEdges: [...builtEdges], queue: [...queue], res: [...res], curr,
+          info: `graph[${curr}] 是空的——课程 ${curr} 没有解锁任何后续课程。`
+        });
+      }
+      for (const nx of neis) {
+        degree[nx] -= 1;
+        snap({
+          line: 22, phase: 3, degree: [...degree], builtEdges: [...builtEdges], queue: [...queue], res: [...res], curr,
+          activeEdge: [curr, nx], checking: nx,
+          info: `next = ${nx}，degree[${nx}] -= 1 → ${degree[nx]}：课程 ${curr} 修完了，课程 ${nx} 的先修课要求少了一个。`
+        });
+        if (degree[nx] === 0) {
+          queue.push(nx);
+          res.push(nx);
+          snap({
+            line: 24, phase: 3, degree: [...degree], builtEdges: [...builtEdges], queue: [...queue], res: [...res], curr,
+            activeEdge: [curr, nx], checking: nx,
+            info: `degree[${nx}] == 0 → 是！课程 ${nx} 的先修课全部修完，queue.append(${nx})，res.append(${nx})。`
+          });
+        } else {
+          snap({
+            line: 23, phase: 3, degree: [...degree], builtEdges: [...builtEdges], queue: [...queue], res: [...res], curr,
+            activeEdge: [curr, nx], checking: nx,
+            info: `degree[${nx}] == 0 → 否，还差 ${degree[nx]} 门先修课，先不入队。`
+          });
+        }
+      }
+    }
+    level++;
+    snap({
+      line: 17, phase: 3, degree: [...degree], builtEdges: [...builtEdges], queue: [...queue], res: [...res],
+      info: queue.length
+        ? `回到 while 条件：队列还有 ${queue.length} 门课，继续下一层。`
+        : `回到 while 条件：queue 空了，主循环结束。`
+    });
+  }
+
+  snap({
+    line: 27, phase: 3, degree: [...degree], builtEdges: [...builtEdges], queue: [...queue], res: [...res],
+    info: `return len(res) == numCourses → ${res.length} == ${NUM_COURSES} → ${res.length === NUM_COURSES}。\n` +
+      `✅ 所有课程都能按这个顺序修完：[${res.join(', ')}]。`
+  });
+
+  return steps;
+}
+
+const STEPS = buildSteps();
+let cur = -1;
+
+const COURSE_STATE_TARGETS = {
+  phase1: STEPS.map((s, i) => s.phase === 1 ? i : -1).filter(i => i >= 0).pop(),
+  phase2: STEPS.map((s, i) => s.phase === 2 ? i : -1).filter(i => i >= 0).pop(),
+};
+
+function jumpCourseState(state) {
+  const target = COURSE_STATE_TARGETS[state];
+  if (target == null || target < 0) return;
+  cur = target;
+  renderAll();
+}
+
+function syncCourseStateTabs() {
+  document.querySelectorAll('.course-state-tab').forEach(btn => {
+    btn.classList.toggle('active', cur === COURSE_STATE_TARGETS[btn.dataset.state]);
+  });
+}
+
+// ── 渲染 ─────────────────────────────────────────────────────────────────
+function mkEl(tag) { return document.createElementNS('http://www.w3.org/2000/svg', tag); }
+
+function nodeState(s, c) {
+  if (c === s.curr) return 'curr';
+  if (s.res.includes(c)) return s.queue.includes(c) ? 'queued' : 'settled';
+  return 'pending';
+}
+
+function renderGraph(s) {
+  const g = document.getElementById('graph-dyn');
+  g.innerHTML = '';
+  const graphState = Array.from({ length: NUM_COURSES }, (_, c) => {
+    const outs = s.builtEdges.filter(([from]) => from === c).map(([, to]) => to);
+    const prefix = c === 0 ? 'graph = {' : '         ';
+    const suffix = c === NUM_COURSES - 1 ? '}' : ',';
+    return `${prefix}${c}: [${outs.join(', ')}]${suffix}`;
+  }).join('\n');
+  document.getElementById('graph-state').textContent = graphState;
+
+  for (const [a, b] of s.builtEdges) {
+    const pa = POS[a], pb = POS[b];
+    const isActive = s.activeEdge && s.activeEdge[0] === a && s.activeEdge[1] === b;
+    const dx = pb.x - pa.x, dy = pb.y - pa.y;
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+    const ux = dx / dist, uy = dy / dist;
+    const line = mkEl('line');
+    line.setAttribute('x1', pa.x + ux * NODE_R); line.setAttribute('y1', pa.y + uy * NODE_R);
+    line.setAttribute('x2', pb.x - ux * NODE_R); line.setAttribute('y2', pb.y - uy * NODE_R);
+    line.setAttribute('stroke', isActive ? '#1D9E75' : '#c8c6be');
+    line.setAttribute('stroke-width', isActive ? '2.5' : '1.5');
+    line.setAttribute('marker-end', isActive ? 'url(#arrow-active)' : 'url(#arrow)');
+    g.appendChild(line);
+  }
+
+  for (let c = 0; c < NUM_COURSES; c++) {
+    const p = POS[c];
+    const state = nodeState(s, c);
+    let fill = '#e8e6df', stroke = '#b4b2a9', strokeW = 1;
+    if (state === 'curr') { fill = '#5DCAA5'; stroke = '#1D9E75'; strokeW = 2.5; }
+    else if (state === 'queued') { fill = '#F9CB42'; stroke = '#d4a800'; strokeW = 1.5; }
+    else if (state === 'settled') { fill = '#AFA9EC'; stroke = '#7771c8'; strokeW = 1.5; }
+
+    const circle = mkEl('circle');
+    circle.setAttribute('cx', p.x); circle.setAttribute('cy', p.y); circle.setAttribute('r', NODE_R);
+    circle.setAttribute('fill', fill); circle.setAttribute('stroke', stroke); circle.setAttribute('stroke-width', strokeW);
+    g.appendChild(circle);
+
+    const text = mkEl('text');
+    text.setAttribute('x', p.x); text.setAttribute('y', p.y);
+    text.setAttribute('text-anchor', 'middle'); text.setAttribute('dominant-baseline', 'central');
+    text.setAttribute('font-size', '14'); text.setAttribute('font-weight', '700'); text.setAttribute('fill', '#2C2C2A');
+    text.setAttribute('font-family', 'SF Mono, Menlo, monospace');
+    text.textContent = c;
+    g.appendChild(text);
+  }
+}
+
+function renderDegree(s) {
+  document.getElementById('degree-display').innerHTML = Array.from({ length: NUM_COURSES }, (_, c) => {
+    const v = s.degree[c];
+    const cls = 'deg-cell' + (v === 0 ? ' zero' : '') + (s.checking === c ? ' active' : '');
+    return `<div class="${cls}"><span class="deg-c">course ${c}</span><span class="deg-v">${v}</span></div>`;
+  }).join('');
+}
+
+function chipRow(list, cls) {
+  if (!list.length) return '<span class="q-empty">空</span>';
+  return list.map((v, i) =>
+    `<span class="${cls}${cls === 'q-item' && i === 0 ? ' head' : ''}">${v}</span>` +
+    (i < list.length - 1 ? '<span class="q-arrow">→</span>' : '')
+  ).join('');
+}
+
+function renderAll() {
+  const step = cur >= 0 ? STEPS[cur] : null;
+  const s = step || { degree: new Array(NUM_COURSES).fill(0), queue: [], res: [], curr: null, activeEdge: null, checking: null, builtEdges: [], phase: 0 };
+
+  renderGraph(s);
+  renderDegree(s);
+  document.getElementById('queue-display').innerHTML = chipRow(s.queue, 'q-item');
+  document.getElementById('res-display').innerHTML = chipRow(s.res, 'res-item');
+
+  document.getElementById('badge-p1').style.opacity = s.phase === 1 ? '1' : '0.4';
+  document.getElementById('badge-p2').style.opacity = s.phase === 2 ? '1' : '0.4';
+  document.getElementById('badge-p3').style.opacity = s.phase === 3 ? '1' : '0.4';
+
+  highlightLine(step ? step.line : null);
+  renderCtrl(cur, STEPS.length, step ? step.info : `点 Next 开始：canFinish(numCourses=${NUM_COURSES}, prerequisites=${JSON.stringify(PREREQS)})`);
+  syncCourseStateTabs();
+}
+
+var render = renderAll;
+doReset();
+
+// 刷新后回到刷新前的位置；按 pathname 存，避免跟其他动画页互相影响。
+(function rememberScrollPosition() {
+  const key = 'lc-scroll:' + location.pathname;
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+
+  const restore = () => {
+    const y = Number(sessionStorage.getItem(key) || 0);
+    if (y > 0) window.scrollTo(0, y);
+  };
+  requestAnimationFrame(() => {
+    restore();
+    requestAnimationFrame(restore);
+  });
+
+  let t = null;
+  window.addEventListener('scroll', () => {
+    clearTimeout(t);
+    t = setTimeout(() => sessionStorage.setItem(key, String(window.scrollY)), 80);
+  }, { passive: true });
+  window.addEventListener('beforeunload', () => {
+    sessionStorage.setItem(key, String(window.scrollY));
+  });
+})();
+</script>
+</body>
+</html>

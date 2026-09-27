@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>102. Binary Tree Level Order Traversal</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  svg { display: block; width: 100%; max-height: 240px; }
+
+  /* Queue（deque）：front 在左。None 也真实入队——这是模板的重点 */
+  .q-row { display: flex; align-items: center; gap: 6px; min-height: 44px; flex-wrap: wrap; }
+  .q-cell { min-width: 44px; height: 44px; padding: 0 6px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; font-family: var(--ink-mono); background: rgba(120,160,225,0.3); color: #1a1a1a; transition: all 0.2s; }
+  .q-cell.none { background: #f0f0f0; color: #999; font-size: 12.5px; font-weight: 600; }
+  .q-empty { font-size: 12px; color: #aaa; font-family: var(--ink-mono); }
+  .q-hint { font-size: 11px; color: #aaa; margin-top: 6px; font-family: var(--ink-mono); }
+  .q-curr { margin-top: 10px; font-family: var(--ink-mono); font-size: 13px; }
+  .q-curr .cell { display: inline-flex; min-width: 36px; height: 30px; padding: 0 9px; border-radius: 7px; align-items: center; justify-content: center; font-weight: 700; background: rgba(249,203,66,0.55); margin-left: 6px; }
+  .q-curr .cell.none { background: #f0f0f0; color: #999; font-size: 12px; }
+  .q-curr .cell.stale { opacity: 0.45; }
+
+  /* levelRes：本层收集 */
+  .lr-row { display: flex; gap: 6px; min-height: 44px; align-items: center; }
+  .lr-cell { width: 44px; height: 44px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; font-family: var(--ink-mono); background: rgba(93,202,165,0.3); color: #1a1a1a; transition: all 0.2s; }
+  .lr-cell.newest { background: rgba(93,202,165,0.55); transform: scale(1.08); }
+  .lr-empty { font-size: 12px; color: #aaa; font-family: var(--ink-mono); }
+
+  /* res：一层一行 */
+  .res-list { display: flex; flex-direction: column; gap: 6px; min-height: 44px; }
+  .res-line { font-family: var(--ink-mono); font-size: 14.5px; font-weight: 700; color: #1a1a1a; background: rgba(93,202,165,0.22); border-radius: 7px; padding: 5px 12px; width: max-content; transition: all 0.2s; }
+  .res-line.newest { background: rgba(93,202,165,0.5); transform: scale(1.05); }
+  .res-empty { font-size: 12px; color: #aaa; font-family: var(--ink-mono); }
+
+  .queue-result-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: stretch; }
+
+  /* 变量读数 */
+  .node-vars { margin-top: 8px; display: flex; justify-content: center; flex-wrap: wrap; gap: 6px 18px; font-family: var(--ink-mono); font-size: 13px; }
+  .fn-tag { font-family: var(--ink-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.04em; padding: 2px 8px; border-radius: 5px; background: rgba(199,146,234,0.18); color: #6b3fa0; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '102. Binary Tree Level Order Traversal',
+  link: 'https://leetcode.com/problems/binary-tree-level-order-traversal/',
+  legend: [
+    { color: 'rgba(249,203,66,0.55)', label: 'curr — 刚出队，正在处理' },
+    { color: 'rgba(120,160,225,0.3)', label: '在队列中等待' },
+    { color: 'rgba(93,202,165,0.4)', label: '已收进 levelRes / res' },
+    { color: '#f0f0f0', extra: 'border:1px solid #ccc;', label: 'None（空孩子也照样入队）' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+  <script>
+  renderCodeBox({
+    prereq: `
+# Definition for a binary tree node.
+# class TreeNode:
+#     def __init__(self, val=0, left=None, right=None):
+#         self.val = val
+#         self.left = left
+#         self.right = right`,
+    code: `
+class Solution:
+    def levelOrder(self, root: Optional[TreeNode]) -> List[List[int]]:
+        res = []
+        self.bfs(root, res)
+        return res;
+
+    def bfs(self, node, res):
+        import collections
+        queue = collections.deque()
+        queue.append(node)
+
+        while len(queue) > 0:
+            size = len(queue)
+            levelRes = []
+            for _ in range(size):
+                curr = queue.popleft()
+                if curr:
+                    levelRes.append(curr.val)
+                    queue.append(curr.left)
+                    queue.append(curr.right)
+            if levelRes:
+                res.append(levelRes)`,
+  });
+  </script>
+
+  <div class="viz-panel">
+    <div class="card">
+      <h3>Binary Tree</h3>
+      <svg id="tree-svg" viewBox="0 0 360 250"></svg>
+      <div class="node-vars" id="node-vars"></div>
+    </div>
+
+    <div class="queue-result-row">
+      <div class="card">
+        <h3>Queue（deque）· front 在左</h3>
+        <div class="q-row" id="queue-row"></div>
+        <div class="q-hint">popleft ← front · back → append</div>
+        <div class="q-curr" id="curr-var"></div>
+      </div>
+
+      <div class="card">
+        <h3>levelRes（本层收集）</h3>
+        <div class="lr-row" id="levelres-row"></div>
+        <h3 style="margin-top:14px;">res（最终答案）</h3>
+        <div class="res-list" id="res-list"></div>
+      </div>
+    </div>
+  </div>
+</div><!-- /.main -->
+</div><!-- /.content-wrapper -->
+
+<script>
+// ── Tree definition（LC 官方示例 root = [3,9,20,null,null,15,7]） ────────
+//        3
+//       / \
+//      9  20
+//         / \
+//        15  7
+const TREE = {
+  3:  { left: 9,    right: 20 },
+  9:  { left: null, right: null },
+  20: { left: 15,   right: 7 },
+  15: { left: null, right: null },
+  7:  { left: null, right: null },
+};
+const POS = {
+  3:  { x: 180, y: 36 },
+  9:  { x: 100, y: 116 },
+  20: { x: 260, y: 116 },
+  15: { x: 220, y: 196 },
+  7:  { x: 300, y: 196 },
+};
+const EDGES = [[3,9],[3,20],[20,15],[20,7]];
+const LEVEL_Y = [36, 116, 196]; // L1/L2/L3 层标签的纵坐标
+
+/* data-l 行号表（prereq 占 1-6，正文从 7 开始）。
+   按 ANIMATION_GUIDE.md：每一行会被执行的代码都要有自己的步，
+   循环头每轮重走，if 真假都停，函数调用行走两遍。 */
+const L = {
+  LEVELORDER: 8,   // def levelOrder(...)      进入外层函数
+  RES_INIT:   9,   // res = []
+  CALL_BFS:   10,  // self.bfs(root, res)      调用 + 返回各一次
+  RETURN:     11,  // return res;
+  BFS_DEF:    13,  // def bfs(...)             进入 bfs
+  IMPORT:     14,  // import collections
+  QUEUE_INIT: 15,  // queue = collections.deque()
+  APPEND_ROOT:16,  // queue.append(node)
+  WHILE:      18,  // while len(queue) > 0     每轮 + 最后失败那次
+  SIZE:       19,  // size = len(queue)
+  LEVELRES:   20,  // levelRes = []
+  FOR:        21,  // for _ in range(size)     每次迭代 + 耗尽那次
+  POP:        22,  // curr = queue.popleft()
+  CHECK:      23,  // if curr                  True / False 都停
+  ADDVAL:     24,  // levelRes.append(curr.val)
+  PUSH_LEFT:  25,  // queue.append(curr.left)
+  PUSH_RIGHT: 26,  // queue.append(curr.right)
+  IFLEVEL:    27,  // if levelRes              True / False 都停
+  APPENDRES:  28,  // res.append(levelRes)
+};
+
+// ── 真实模拟算法生成步骤（不手写步骤数组） ───────────────────────────────
+function fmtRes(res) { return '[' + res.map(r => '[' + r.join(', ') + ']').join(', ') + ']'; }
+function nodeText(v) { return v === null ? 'None' : '节点 ' + v; }
+
+function buildSteps() {
+  const steps = [];
+  let queue = null;      // null = 变量还没创建
+  let levelRes = null;
+  let res = null;
+  let done = [];         // 已被 levelRes 收下的节点
+  let curr;              // undefined = 还没赋过值；null = None；数字 = 节点
+  let currLive = false;  // curr 是否仍是"正在处理"（控制树上的黄色）
+  let size = null, level = 0, iter = null, fn = null;
+
+  function snap(line, info) {
+    steps.push({
+      line, info,
+      queue: queue ? [...queue] : null,
+      levelRes: levelRes ? [...levelRes] : null,
+      res: res ? res.map(r => [...r]) : null,
+      done: [...done],
+      curr, currLive, size, level, iter, fn,
+    });
+  }
+
+  snap(null, '点击 Next 开始：judge 调用 Solution().levelOrder(root)，root 指向根节点 3。');
+
+  // ---- levelOrder ----
+  fn = 'levelOrder';
+  snap(L.LEVELORDER, 'Line 8: 进入 levelOrder(self, root) — 参数 root = 节点 3。');
+  res = [];
+  snap(L.RES_INIT, 'Line 9: res = [] — 准备最终答案容器，一层对应里面的一个子列表。');
+  snap(L.CALL_BFS, 'Line 10: self.bfs(root, res) — 调用 bfs，把 root 和 res 一起传进去。res 是列表（可变对象），bfs 里就地往它塞，所以不需要返回值。');
+
+  // ---- bfs ----
+  fn = 'bfs';
+  snap(L.BFS_DEF, 'Line 13: 进入 bfs(self, node, res) — node = 节点 3；res 就是刚才那个空列表本身（同一个对象，不是拷贝）。');
+  snap(L.IMPORT, 'Line 14: import collections — 引入标准库，下一行要用它的 deque。');
+  queue = [];
+  snap(L.QUEUE_INIT, 'Line 15: queue = collections.deque() — 建一个空的双端队列。用 deque 是因为它的 popleft() 是 O(1)，普通 list 的 pop(0) 要挪整个数组，会退化成 O(n)。');
+  queue.push(3);
+  snap(L.APPEND_ROOT, 'Line 16: queue.append(node) — 根节点 3 入队。这就是 BFS 的种子，笔记里"BFS 初始的种子是什么"问的就是它。');
+
+  while (true) {
+    if (queue.length === 0) {
+      snap(L.WHILE, 'Line 18: len(queue) = 0，条件为 False → while 循环结束，bfs 执行完毕（函数没写 return，隐式返回 None）。');
+      break;
+    }
+    level += 1;
+    snap(L.WHILE, `Line 18: len(queue) = ${queue.length} > 0 为 True → 进入第 ${level} 轮循环，这一轮处理树的第 ${level} 层。`);
+
+    size = queue.length;
+    snap(L.SIZE, `Line 19: size = len(queue) = ${size} — 把本层的节点数先"冻结"下来。这是能分层的关键：下面的 for 只跑 ${size} 次，循环中间新入队的节点都留给下一轮。`);
+
+    levelRes = [];
+    snap(L.LEVELRES, 'Line 20: levelRes = [] — 每轮重新开一个空列表，装这一层的值。');
+
+    for (let i = 0; i < size; i++) {
+      iter = i + 1;
+      snap(L.FOR, `Line 21: for _ in range(size) — 第 ${iter}/${size} 次迭代开始（用 _ 是因为下标本身没用，只需要重复 ${size} 次）。`);
+
+      curr = queue.shift();
+      currLive = true;
+      snap(L.POP, `Line 22: curr = queue.popleft() — 从队首取出 ${nodeText(curr)}，队列还剩 ${queue.length} 个。`);
+
+      if (curr === null) {
+        snap(L.CHECK, 'Line 23: if curr — curr 是 None，判定为 False → 24 到 26 行整段跳过，这次迭代什么也不做。入队时不判空、出队时才过滤，这是这个模板的固定写法。');
+      } else {
+        snap(L.CHECK, `Line 23: if curr — curr = 节点 ${curr}，非空判定为 True → 进入分支。`);
+
+        levelRes.push(curr);
+        done.push(curr);
+        snap(L.ADDVAL, `Line 24: levelRes.append(curr.val) — 收下 ${curr}，levelRes = [${levelRes.join(', ')}]。`);
+
+        const { left, right } = TREE[curr];
+        queue.push(left);
+        snap(L.PUSH_LEFT, `Line 25: queue.append(curr.left) — ${left === null ? `节点 ${curr} 没有左孩子，None 也照样入队` : `左孩子 ${left} 入队`}，队列现在 ${queue.length} 个。`);
+
+        queue.push(right);
+        snap(L.PUSH_RIGHT, `Line 26: queue.append(curr.right) — ${right === null ? `节点 ${curr} 没有右孩子，None 也照样入队` : `右孩子 ${right} 入队`}，队列现在 ${queue.length} 个。`);
+      }
+      currLive = false;  // 本次迭代结束；curr 变量本身仍留着上次的值（Python 语义）
+    }
+
+    iter = null;
+    snap(L.FOR, `Line 21: range(size) 的 ${size} 次已经取完 → 本轮 for 结束，第 ${level} 层的 ${size} 个位置都处理过了。`);
+
+    if (levelRes.length) {
+      snap(L.IFLEVEL, `Line 27: if levelRes — levelRes = [${levelRes.join(', ')}] 非空，判定为 True。`);
+      res.push([...levelRes]);
+      snap(L.APPENDRES, `Line 28: res.append(levelRes) — 第 ${level} 层收工，res = ${fmtRes(res)}。`);
+    } else {
+      snap(L.IFLEVEL, 'Line 27: if levelRes — levelRes = [] 是空的，判定为 False → 28 行不执行。这一轮弹出来的全是 None（上一层叶子节点的空孩子），不能往 res 里塞一个空列表。笔记里"最后一轮 temp 可能为空，加入 res 前要判定"说的就是这里。');
+    }
+
+    size = null;
+    levelRes = null;
+  }
+
+  // ---- 回到 levelOrder ----
+  fn = 'levelOrder';
+  snap(L.CALL_BFS, 'Line 10: bfs 返回（返回值是 None，这里没接）。但 res 已经被就地填满了 — 传进去的和这里的是同一个列表对象。');
+  snap(L.RETURN, `Line 11: return res; — 把 ${fmtRes(res)} 交回给 judge。`);
+  snap(null, `✅ 层级遍历完成：一层一个子列表，答案 = ${fmtRes(res)}。`);
+
+  return steps;
+}
+
+const STEPS = buildSteps();
+let cur = -1;
+
+// ── Rendering ─────────────────────────────────────────────────────────────
+function renderTree(step) {
+  const svg = document.getElementById('tree-svg');
+  svg.innerHTML = '';
+  const mkEl = tag => document.createElementNS('http://www.w3.org/2000/svg', tag);
+  const q = step.queue || [];
+
+  // 左侧 L1/L2/L3 层标签：当前正在处理的那层点亮
+  LEVEL_Y.forEach((y, i) => {
+    const t = mkEl('text');
+    t.setAttribute('x', 18); t.setAttribute('y', y);
+    t.setAttribute('text-anchor', 'middle'); t.setAttribute('dominant-baseline', 'central');
+    t.setAttribute('font-size', '11'); t.setAttribute('font-weight', '700');
+    t.setAttribute('fill', step.level === i + 1 ? '#d4a800' : '#c9c9c9');
+    t.setAttribute('font-family', 'SF Mono, Menlo, monospace');
+    t.textContent = 'L' + (i + 1);
+    svg.appendChild(t);
+  });
+
+  for (const [a, b] of EDGES) {
+    const pa = POS[a], pb = POS[b];
+    const line = mkEl('line');
+    line.setAttribute('x1', pa.x); line.setAttribute('y1', pa.y);
+    line.setAttribute('x2', pb.x); line.setAttribute('y2', pb.y);
+    line.setAttribute('stroke', '#c8c6be');
+    line.setAttribute('stroke-width', '1.5');
+    svg.appendChild(line);
+  }
+
+  for (const id of [3, 9, 20, 15, 7]) {
+    const p = POS[id];
+    let fill = '#f5f5f5', stroke = '#c9c9c9', strokeW = 1.5;
+    if (step.currLive && id === step.curr) { fill = 'rgba(249,203,66,0.55)'; stroke = '#d4a800'; strokeW = 2.5; }
+    else if (step.done.includes(id)) { fill = 'rgba(93,202,165,0.4)'; stroke = '#1D9E75'; }
+    else if (q.includes(id)) { fill = 'rgba(120,160,225,0.3)'; stroke = '#3A6FD4'; }
+
+    const g = mkEl('g');
+    const circle = mkEl('circle');
+    circle.setAttribute('cx', p.x); circle.setAttribute('cy', p.y); circle.setAttribute('r', 22);
+    circle.setAttribute('fill', fill); circle.setAttribute('stroke', stroke); circle.setAttribute('stroke-width', strokeW);
+    g.appendChild(circle);
+
+    const text = mkEl('text');
+    text.setAttribute('x', p.x); text.setAttribute('y', p.y);
+    text.setAttribute('text-anchor', 'middle'); text.setAttribute('dominant-baseline', 'central');
+    text.setAttribute('font-size', '14'); text.setAttribute('font-weight', '700'); text.setAttribute('fill', '#1a1a1a');
+    text.setAttribute('font-family', 'SF Mono, Menlo, monospace');
+    text.textContent = id;
+    g.appendChild(text);
+    svg.appendChild(g);
+  }
+}
+
+function renderQueue(step) {
+  const el = document.getElementById('queue-row');
+  if (step.queue === null) {
+    el.innerHTML = '<span class="q-empty">queue 尚未创建（Line 15）</span>';
+  } else if (!step.queue.length) {
+    el.innerHTML = '<span class="q-empty">queue 为空</span>';
+  } else {
+    el.innerHTML = step.queue.map(v => v === null
+      ? '<div class="q-cell none">None</div>'
+      : `<div class="q-cell">${v}</div>`).join('');
+  }
+
+  // curr 忠实反映 Python 变量：迭代结束后它仍留着上次的值，只是淡显
+  const cv = document.getElementById('curr-var');
+  const stale = step.currLive ? '' : ' stale';
+  if (step.curr === undefined) {
+    cv.innerHTML = '<span class="var-name">curr</span><span class="var-eq"> = </span><span class="var-val">尚未赋值</span>';
+  } else if (step.curr === null) {
+    cv.innerHTML = `<span class="var-name">curr</span><span class="var-eq"> = </span><span class="cell none${stale}">None</span>`;
+  } else {
+    cv.innerHTML = `<span class="var-name">curr</span><span class="var-eq"> = </span><span class="cell${stale}">${step.curr}</span>`;
+  }
+}
+
+function renderLevelRes(step) {
+  const el = document.getElementById('levelres-row');
+  if (step.levelRes === null) {
+    el.innerHTML = '<span class="lr-empty">本层尚未开始（Line 20 时重置）</span>';
+  } else if (!step.levelRes.length) {
+    el.innerHTML = '<span class="lr-empty">levelRes = []</span>';
+  } else {
+    el.innerHTML = step.levelRes.map((v, i) =>
+      `<div class="lr-cell${step.line === L.ADDVAL && i === step.levelRes.length - 1 ? ' newest' : ''}">${v}</div>`
+    ).join('');
+  }
+}
+
+function renderRes(step) {
+  const el = document.getElementById('res-list');
+  if (step.res === null) {
+    el.innerHTML = '<span class="res-empty">res 尚未创建（Line 9）</span>';
+  } else if (!step.res.length) {
+    el.innerHTML = '<span class="res-empty">res = []</span>';
+  } else {
+    el.innerHTML = step.res.map((r, i) =>
+      `<div class="res-line${step.line === L.APPENDRES && i === step.res.length - 1 ? ' newest' : ''}">[${r.join(', ')}]</div>`
+    ).join('');
+  }
+}
+
+function renderVars(step) {
+  const dash = v => (v === null || v === undefined ? '—' : v);
+  document.getElementById('node-vars').innerHTML =
+    `<span class="fn-tag">${step.fn ? step.fn + '()' : '—'}</span>` +
+    `<div><span class="var-name">level</span><span class="var-eq"> = </span><span class="var-val">${step.level || '—'}</span></div>` +
+    `<div><span class="var-name">size</span><span class="var-eq"> = </span><span class="var-val">${dash(step.size)}</span></div>` +
+    `<div><span class="var-name">迭代</span><span class="var-eq"> = </span><span class="var-val">${step.iter && step.size ? step.iter + '/' + step.size : '—'}</span></div>` +
+    `<div><span class="var-name">len(queue)</span><span class="var-eq"> = </span><span class="var-val">${step.queue ? step.queue.length : '—'}</span></div>`;
+}
+
+function renderAll() {
+  const step = cur >= 0 ? STEPS[cur] : null;
+  const s = step || {
+    queue: null, levelRes: null, res: null, done: [],
+    curr: undefined, currLive: false, size: null, level: 0, iter: null, fn: null, line: null,
+  };
+
+  renderTree(s);
+  renderQueue(s);
+  renderLevelRes(s);
+  renderRes(s);
+  renderVars(s);
+  highlightLine(s.line);
+  renderCtrl(step ? cur : -1, STEPS.length, step ? step.info : '');
+}
+
+var render = renderAll;
+doReset();
+</script>
+</body>
+</html>

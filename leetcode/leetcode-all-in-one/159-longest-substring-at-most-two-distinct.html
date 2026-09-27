@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>159. Longest Substring with At Most Two Distinct Characters</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  /* ── String visualization ─── */
+  .str-row { display: flex; align-items: flex-end; gap: 6px; }
+  .str-cell { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .cell-box {
+    width: 44px; height: 44px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 700; font-family: 'SF Mono', monospace;
+    background: #f5f5f5; color: #1a1a1a;
+    transition: background 0.2s, transform 0.2s, opacity 0.2s;
+  }
+  .cell-box.in-window  { background: rgba(139,133,212,0.22); }
+  .cell-box.active-j   { background: rgba(249,203,66,0.50); transform: scale(1.08); }
+  .cell-box.shrinking  { background: rgba(93,202,165,0.45); }
+  .cell-box.done       { opacity: 0.28; }
+  .cell-idx { font-size: 11px; color: #aaa; font-family: 'SF Mono', monospace; }
+  .cell-ptr { font-size: 11px; font-weight: 700; font-family: 'SF Mono', monospace; height: 16px; line-height: 16px; white-space: nowrap; }
+  .ptr-i    { color: #3A6FD4; }
+  .ptr-j    { color: #B07800; }
+  .ptr-both { color: #C4501E; }
+
+  /* ── Window underline bar ─── */
+  .window-label {
+    text-align: center;
+    font-family: 'SF Mono', 'Menlo', monospace;
+    font-size: 13px;
+    color: #333;
+    min-height: 18px;
+    margin-top: 8px;
+  }
+  .win-pill {
+    display: inline-block;
+    background: rgba(139,133,212,0.22);
+    padding: 3px 10px;
+    border-radius: 6px;
+  }
+  .window-bar { display: flex; gap: 6px; height: 5px; margin-top: 5px; margin-bottom: 2px; }
+  .win-seg    { width: 44px; height: 5px; border-radius: 3px; background: transparent; transition: background 0.2s; }
+  .win-seg.in-window { background: rgba(139,133,212,0.55); }
+
+  /* ── Maps visualization ─── */
+  .maps-area {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-start;
+    min-height: 38px;
+  }
+  .map-entry {
+    display: flex; align-items: center; gap: 3px;
+    background: #f5f5f5; border-radius: 6px; padding: 4px 10px;
+    font-family: 'SF Mono', monospace; font-size: 13px;
+    transition: background 0.2s, opacity 0.2s;
+  }
+  .map-entry.dup  { background: rgba(247,140,108,0.35); }
+  .map-entry.extra { background: rgba(247,140,108,0.35); }
+  .map-entry.zero { opacity: 0.32; }
+  .map-key   { color: #9333C0; font-weight: 700; }
+  .map-colon { color: #888; margin: 0 1px; }
+  .map-val   { color: #C4501E; font-weight: 700; }
+
+  /* ── 159 page layout: centered top, exact half split below ───────────── */
+  .main.layout-grid.lc159-layout {
+    width: min(1320px, 100%);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    justify-content: stretch;
+    align-items: start;
+  }
+  .main.layout-grid.lc159-layout .code-half {
+    grid-column: 1;
+    grid-row: 1;
+    width: 100%;
+    min-width: 0;
+    justify-content: stretch;
+  }
+  .main.layout-grid.lc159-layout .viz-panel {
+    grid-column: 2;
+    grid-row: 1;
+    width: 100%;
+    min-width: 0;
+  }
+  .lc159-layout .code-stack,
+  .lc159-layout .step-info,
+  .lc159-layout .code-panel,
+  .lc159-layout .var-bar,
+  .lc159-layout .card {
+    width: 100%;
+    min-width: 0;
+  }
+  .lc159-layout .code-block { overflow-x: auto; }
+  .lc159-layout .str-row,
+  .lc159-layout .window-bar {
+    justify-content: center;
+  }
+
+  /* ── Input + Frequency Map stacked vertically, sized to content ─── */
+  .lc159-layout .viz-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    align-items: stretch;   /* both cards match the widest (the input row) */
+    width: fit-content;     /* shrink to content, don't stretch full width */
+  }
+  .lc159-layout .viz-cards > .card {
+    min-width: 0;
+  }
+  .maps-inline {
+    font-family: 'SF Mono', 'Menlo', monospace;
+    font-size: 13px;
+    color: #333;
+    margin-bottom: 14px;
+    min-height: 18px;
+    white-space: nowrap;
+  }
+
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '159. Longest Substring with At Most Two Distinct Characters',
+  examples: [
+    { id: 'eceba', label: 'eceba' },
+    { id: 'aabbc', label: 'aabbc' },
+  ],
+  legend: [
+    { color: 'rgba(249,203,66,0.50)', label: 's[j] — right pointer adds char' },
+    { color: 'rgba(139,133,212,0.22)', label: 'in window [i..j]' },
+    { color: 'rgba(93,202,165,0.45)', label: 's[i] being evicted' },
+    { color: 'rgba(247,140,108,0.35)', label: 'more than 2 distinct chars' },
+  ],
+});
+</script>
+<div class="main layout-grid lc159-layout">
+
+  <!-- ── Code half ── -->
+  <script>
+  renderCodeBox({
+    code: `
+class Solution:
+    def lengthOfLongestSubstringTwoDistinct(self, s: str) -> int:
+        i = 0
+        j = 0
+
+        maxLen = 0
+        maps = {}
+        for j in range(len(s)):
+            maps[s[j]] = maps.get(s[j], 0) + 1
+            while len(maps) > 2:
+                maps[s[i]] -= 1
+                if maps[s[i]] == 0:
+                    maps.pop(s[i])
+                i+=1
+            maxLen = max(maxLen, j-i+1)
+
+        return maxLen`,
+  });
+  </script>
+
+  <!-- ── Viz panel ── -->
+  <div class="viz-panel">
+
+    <div class="viz-cards">
+      <div class="card">
+        <h3 id="input-str-title">Input String  s = "eceba"</h3>
+        <div class="str-row" id="str-row"></div>
+        <div class="window-bar" id="window-bar"></div>
+        <div class="window-label" id="window-label"></div>
+        <div class="window-label" id="maxlen-label"></div>
+      </div>
+
+      <div class="card">
+        <h3>Frequency Map  maps</h3>
+        <div class="maps-inline" id="maps-inline"></div>
+        <div class="maps-area" id="maps-area">
+          <span style="font-size:12px;color:#aaa;font-family:'SF Mono',monospace;">maps = {}</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<script>
+let S = "eceba";
+const EXAMPLES = ["eceba", "aabbc"];
+
+// ── Step builder ──────────────────────────────────────────────────────────
+function buildSteps() {
+  const steps = [];
+  let i = null, j = null, maxLen = null;
+  let maps = {};
+  let mapsReady = false;
+  let shrinkIdx = null;
+  let popKey = null;
+
+  function snap(line, info) {
+    steps.push({ line, info, i, j, maxLen, maps: { ...maps }, mapsReady, shrinkIdx, popKey });
+  }
+
+  i = 0; shrinkIdx = null;
+  snap(3, 'i = 0  (left boundary of the sliding window)');
+  j = 0;
+  snap(4, 'j = 0  (right boundary before the loop starts)');
+  maxLen = 0;
+  snap(6, 'maxLen = 0  (best valid window length seen so far)');
+  maps = {};
+  mapsReady = true;
+  snap(7, 'maps = {}  (char → count inside current window)');
+
+  for (let jj = 0; jj < S.length; jj++) {
+    j = jj; shrinkIdx = null; popKey = null;
+    snap(8, `j = ${jj}  →  s[${jj}] = '${S[jj]}'  (right pointer advances)`);
+
+    maps[S[jj]] = (maps[S[jj]] || 0) + 1;
+    snap(9, `maps['${S[jj]}'] = ${maps[S[jj]]}; distinct chars = ${Object.keys(maps).length}`);
+
+    if (Object.keys(maps).length > 2) {
+      snap(10, `len(maps) = ${Object.keys(maps).length} > 2  →  enter while, shrink from left`);
+      while (Object.keys(maps).length > 2) {
+        shrinkIdx = i;
+        const leftChar = S[i];
+        maps[S[i]] -= 1;
+        snap(11, `maps['${leftChar}'] -= 1  →  ${maps[leftChar]}  (evict s[${i}] = '${leftChar}')`);
+        if (maps[leftChar] === 0) {
+          snap(12, `maps['${leftChar}'] == 0  →  remove this distinct char`);
+          popKey = leftChar;
+          delete maps[leftChar];
+          snap(13, `maps.pop('${leftChar}')  →  len(maps) = ${Object.keys(maps).length}`);
+          popKey = null;
+        } else {
+          snap(12, `maps['${leftChar}'] = ${maps[leftChar]}  →  keep '${leftChar}' in maps`);
+        }
+        i++;
+        shrinkIdx = null;
+        snap(14, `i += 1  →  i = ${i}  (left boundary shifts right)`);
+        if (Object.keys(maps).length > 2) {
+          snap(10, `len(maps) = ${Object.keys(maps).length} > 2  →  still too many, keep shrinking`);
+        }
+      }
+      snap(10, `len(maps) = ${Object.keys(maps).length} ≤ 2  →  valid window, exit while`);
+    } else {
+      snap(10, `len(maps) = ${Object.keys(maps).length} ≤ 2  →  valid, skip while`);
+    }
+
+    const oldMax = maxLen;
+    const winLen = jj - i + 1;
+    maxLen = Math.max(oldMax, winLen);
+    snap(15, `maxLen = max(${oldMax}, ${jj} − ${i} + 1) = max(${oldMax}, ${winLen}) = ${maxLen}`);
+  }
+
+  shrinkIdx = null;
+  snap(17, `return maxLen = ${maxLen}  →  longest substring with at most 2 distinct chars has length ${maxLen}`);
+  return steps;
+}
+
+let STEPS = buildSteps();
+let cur = -1;
+
+// ── Example switching ───────────────────────────────────────────────────────
+function loadExample(str) {
+  S = str;
+  STEPS = buildSteps();
+  const titleEl = document.getElementById('input-str-title');
+  if (titleEl) titleEl.textContent = `Input String  s = "${S}"`;
+  EXAMPLES.forEach(ex => {
+    const b = document.getElementById('ex-' + ex);
+    if (b) b.classList.toggle('auto-active', ex === str);
+  });
+  buildStringDOM();
+  doReset();
+  lockStableSizes(); // re-pin block sizes for the new example's steps
+}
+
+function formatMapsInline(maps) {
+  const entries = Object.entries(maps);
+  if (entries.length === 0) return '{}';
+  return `{ ${entries.map(([k, v]) => `'${k}': ${v}`).join(', ')} }`;
+}
+
+function renderVarBar(state) {
+  if (!state) {
+    document.getElementById('maxlen-label').innerHTML = '';
+    document.getElementById('maps-inline').innerHTML = '';
+    document.getElementById('window-label').innerHTML = '';
+    return;
+  }
+
+  document.getElementById('maps-inline').innerHTML = state.mapsReady
+    ? `<span class="var-name">maps</span><span class="var-eq"> = </span><span style="color:#333;">${formatMapsInline(state.maps)}</span>`
+    : '';
+  document.getElementById('maxlen-label').innerHTML = state.maxLen !== null
+    ? `<span class="var-name">maxLen</span><span class="var-eq"> = </span><span class="var-val">${state.maxLen}</span>`
+    : '';
+  document.getElementById('window-label').innerHTML = state.i !== null && state.j !== null
+    ? `<span class="win-pill">Window: <strong>"${S.slice(state.i, state.j + 1)}"</strong> (len ${state.j - state.i + 1})</span>`
+    : '';
+}
+
+// ── DOM init ──────────────────────────────────────────────────────────────
+function buildStringDOM() {
+  const row = document.getElementById('str-row');
+  const winBar = document.getElementById('window-bar');
+  row.innerHTML = '';
+  winBar.innerHTML = '';
+  for (let idx = 0; idx < S.length; idx++) {
+    const cell = document.createElement('div');
+    cell.className = 'str-cell';
+
+    const box = document.createElement('div');
+    box.className = 'cell-box';
+    box.id = `cell-${idx}`;
+    box.textContent = S[idx];
+    cell.appendChild(box);
+
+    const idxLbl = document.createElement('div');
+    idxLbl.className = 'cell-idx';
+    idxLbl.textContent = idx;
+    cell.appendChild(idxLbl);
+
+    const ptrI = document.createElement('div');
+    ptrI.className = 'cell-ptr';
+    ptrI.id = `ptri-${idx}`;
+    cell.appendChild(ptrI);
+
+    const ptrJ = document.createElement('div');
+    ptrJ.className = 'cell-ptr';
+    ptrJ.id = `ptrj-${idx}`;
+    cell.appendChild(ptrJ);
+
+    row.appendChild(cell);
+
+    const seg = document.createElement('div');
+    seg.className = 'win-seg';
+    seg.id = `win-${idx}`;
+    winBar.appendChild(seg);
+  }
+}
+
+// ── Render ────────────────────────────────────────────────────────────────
+function render() {
+  if (cur < 0) {
+    for (let idx = 0; idx < S.length; idx++) {
+      const box = document.getElementById(`cell-${idx}`);
+      if (box) box.className = 'cell-box';
+      const ptrI = document.getElementById(`ptri-${idx}`);
+      if (ptrI) { ptrI.textContent = ''; ptrI.className = 'cell-ptr'; }
+      const ptrJ = document.getElementById(`ptrj-${idx}`);
+      if (ptrJ) { ptrJ.textContent = ''; ptrJ.className = 'cell-ptr'; }
+      const seg = document.getElementById(`win-${idx}`);
+      if (seg) seg.className = 'win-seg';
+    }
+    renderVarBar(null);
+    document.getElementById('maps-area').innerHTML =
+      `<span style="font-size:12px;color:#aaa;font-family:'SF Mono',monospace;">maps = {}</span>`;
+    renderCtrl(-1, STEPS.length, '');
+    highlightLine(null);
+    return;
+  }
+
+  const s = STEPS[cur];
+  highlightLine(s.line);
+  renderCtrl(cur, STEPS.length, s.info);
+
+  // String cells
+  for (let idx = 0; idx < S.length; idx++) {
+    const box = document.getElementById(`cell-${idx}`);
+    const ptrI = document.getElementById(`ptri-${idx}`);
+    const ptrJ = document.getElementById(`ptrj-${idx}`);
+    const seg = document.getElementById(`win-${idx}`);
+    if (!box || !ptrI || !ptrJ) continue;
+
+    const isJ       = s.j !== null && idx === s.j;
+    const isI       = s.i !== null && idx === s.i;
+    const isShrink  = s.shrinkIdx !== null && idx === s.shrinkIdx;
+    const inWindow  = s.i !== null && s.j !== null && idx >= s.i && idx <= s.j;
+    const isDone    = s.i !== null && idx < s.i;
+
+    let cls = 'cell-box';
+    if      (isShrink)   cls += ' shrinking';
+    else if (isJ)        cls += ' active-j';
+    else if (inWindow)   cls += ' in-window';
+    else if (isDone)     cls += ' done';
+    box.className = cls;
+
+    // i row: pointer sits under cell[i], labelled with its value
+    if (isI) { ptrI.textContent = `i = ${s.i}`; ptrI.className = 'cell-ptr ptr-i'; }
+    else     { ptrI.textContent = '';           ptrI.className = 'cell-ptr'; }
+
+    // j row: pointer sits under cell[j], labelled with its value
+    if (isJ) { ptrJ.textContent = `j = ${s.j}`; ptrJ.className = 'cell-ptr ptr-j'; }
+    else     { ptrJ.textContent = '';           ptrJ.className = 'cell-ptr'; }
+
+    if (seg) seg.className = inWindow ? 'win-seg in-window' : 'win-seg';
+  }
+
+  renderVarBar(s);
+
+  // Maps
+  const ma = document.getElementById('maps-area');
+  const entries = Object.entries(s.maps);
+  if (entries.length === 0) {
+    ma.innerHTML = `<span style="font-size:12px;color:#aaa;font-family:'SF Mono',monospace;">maps = {}</span>`;
+  } else {
+    ma.innerHTML = entries.map(([k, v]) => {
+      let cls = 'map-entry';
+      if (Object.keys(s.maps).length > 2) cls += ' extra';
+      else if (v === 0) cls += ' zero';
+      if (s.popKey === k) cls += ' extra';
+      return `<div class="${cls}"><span class="map-key">'${k}'</span><span class="map-colon">:</span><span class="map-val">${v}</span></div>`;
+    }).join('');
+  }
+}
+
+loadExample("eceba");
+</script>
+</body>
+</html>

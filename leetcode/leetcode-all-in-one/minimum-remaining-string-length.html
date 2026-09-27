@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Minimum Remaining String Length</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  /* 图例挪到代码框下面后改纵向单列（ANIMATION_GUIDE 硬性规则） */
+  .legend-below { flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 0; max-width: none; }
+
+  /* seq 字符条 */
+  .seq-row { display: flex; align-items: flex-end; gap: 6px; flex-wrap: wrap; }
+  .seq-cell { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .seq-box { width: 44px; height: 44px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 700; font-family: var(--ink-mono); background: #f5f5f5; border: 1px solid #c9c9c9; color: var(--ink); transition: background 0.2s; }
+  .seq-box.curr { background: rgba(249,203,66,0.55); border-color: transparent; }
+  .seq-box.stay { background: rgba(120,160,225,0.3); border-color: transparent; }
+  .seq-box.gone { background: rgba(247,140,108,0.35); border-color: transparent; color: #9a5a44; text-decoration: line-through; }
+  .seq-idx { font-size: 11px; color: #aaa; font-family: var(--ink-mono); }
+  .seq-ptr { font-size: 10.5px; font-weight: 700; font-family: var(--ink-mono); color: #B07800; height: 14px; line-height: 14px; }
+
+  /* 剩余字符（栈） */
+  .stk-row { display: flex; align-items: flex-end; gap: 6px; flex-wrap: wrap; min-height: 62px; }
+  .stk-cell { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .stk-box { width: 44px; height: 44px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 700; font-family: var(--ink-mono); background: rgba(120,160,225,0.3); }
+  .stk-idx { font-size: 11px; color: #aaa; font-family: var(--ink-mono); }
+  .stk-top { font-size: 10.5px; font-weight: 700; font-family: var(--ink-mono); color: #3A6FD4; height: 14px; line-height: 14px; }
+  .stk-empty { font-size: 12px; color: #aaa; align-self: center; }
+
+  /* 消除记录 */
+  .del-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-height: 34px; font-family: var(--ink-mono); }
+  .del-chip { padding: 6px 10px; border-radius: 8px; font-size: 14px; font-weight: 700; background: rgba(247,140,108,0.35); }
+  .del-chip.newest { background: rgba(249,203,66,0.55); }
+  .del-empty { font-size: 12px; color: #aaa; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: 'Minimum Remaining String Length',
+  legend: [
+    { color: 'rgba(249,203,66,0.55)', label: '当前字符 / 刚发生的消除' },
+    { color: 'rgba(120,160,225,0.3)', label: '暂时留下的字符（想象成栈，length = 栈大小）' },
+    { color: 'rgba(247,140,108,0.35)', label: '已被消除（"AB" 或 "BB" 的一半）' },
+    { color: '#f5f5f5', extra: 'border:1px solid #c9c9c9;', label: '还没处理' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+  <script>
+  renderCodeBox({
+    code: `
+def getMinLength(seq):
+    length = 0
+
+    for char in seq:
+        if char == 'B' and length > 0:
+            length -= 1
+        else:
+            length += 1
+
+    return length`,
+  });
+  </script>
+  <script>
+  (function () {
+    const stack = document.querySelector('.code-stack');
+    stack.appendChild(document.getElementById('info'));
+    const legend = document.querySelector('.legend');
+    const legendRow = legend.parentElement;
+    legend.classList.add('legend-below');
+    stack.appendChild(legend);
+    legendRow.remove();
+  })();
+  </script>
+
+  <div class="viz-panel">
+    <div class="var-bar" id="var-bar"></div>
+
+    <div class="card">
+      <h3>seq = "BABBA"</h3>
+      <div class="seq-row" id="seq-row"></div>
+    </div>
+
+    <div class="card">
+      <h3>暂时留下的字符（length 数的就是它）</h3>
+      <div class="stk-row" id="stk-row"></div>
+    </div>
+
+    <div class="card">
+      <h3>消除记录（每次删掉的 "AB" / "BB"）</h3>
+      <div class="del-row" id="del-row"></div>
+    </div>
+  </div>
+</div><!-- /.main -->
+
+<!-- OA 题面：notes.js（problemToNotes）会把这块挪进 Notes 区当只读 Problem 卡 -->
+<div class="oa-layout">
+  <div class="card">
+    <span class="oa-tag">JPMorgan OA · HackerRank · 2026-08-08 · no official LeetCode number</span>
+    <h3>Problem</h3>
+    <p>You are given a string <code>seq</code> made up only of the characters <code>'A'</code> and <code>'B'</code>.</p>
+    <p>You may repeatedly perform the following operation:</p>
+    <ul>
+      <li>Delete any occurrence of the substring <code>"AB"</code> or <code>"BB"</code>.</li>
+      <li>After deletion, the remaining parts of the string are concatenated.</li>
+    </ul>
+    <p>Your task is to determine the minimum possible length of the string after performing any number of valid deletions.</p>
+    <p>A substring refers to a contiguous sequence of characters.</p>
+    <p>Return the minimum remaining length.</p>
+    <p><strong>Example</strong></p>
+    <p>For <code>seq = "BABBA"</code>, the output is <code>1</code>:</p>
+    <ul>
+      <li><code>"BABBA"</code> → delete <code>"AB"</code> → <code>"BBA"</code></li>
+      <li><code>"BBA"</code> → delete <code>"BB"</code> → <code>"A"</code></li>
+      <li>The minimum remaining length is <code>1</code>.</li>
+    </ul>
+    <p><strong>Key observation:</strong> whenever the current character is <code>'B'</code> and there is already a remaining character before it, the pair must be either <code>AB</code> or <code>BB</code> — both deletable. So we only need to track how many characters currently remain.</p>
+  </div>
+</div>
+</div><!-- /.content-wrapper -->
+
+<script>
+// ── Data ───────────────────────────────────────────────────────────────────
+const SEQ = 'BABBA';
+
+// 行号表（renderCodeBox 从 1 起连续编号，空行也占号）
+const L = { DEF: 1, INIT: 2, FOR: 4, IF: 5, DEC: 6, ELSE: 7, INC: 8, RET: 10 };
+
+// ── Step builder：真实模拟算法本身 ─────────────────────────────────────────
+function buildSteps() {
+  const steps = [];
+  let length = null;
+  let i = null;                       // 当前字符下标
+  let stack = [];                     // 可视化辅助：留下的字符 {c, idx}
+  let fate = SEQ.split('').map(() => 'todo');  // todo / stay / gone
+  let deleted = [];                   // 已消除的 "AB"/"BB"
+  let flash = false;                  // 本步刚发生消除（最新记录高亮）
+  let done = false;
+
+  function snap(line, info) {
+    steps.push({
+      line, info, length, i, done, flash,
+      stack: stack.map(e => ({ c: e.c, idx: e.idx })),
+      fate: fate.slice(), deleted: deleted.slice(),
+    });
+    flash = false;
+  }
+
+  snap(null, `初始状态：seq = "${SEQ}"，可以反复删除子串 "AB" / "BB" — 点击 Next 开始`);
+  snap(L.DEF, `Line 1: 进入 getMinLength(seq="${SEQ}")`);
+  length = 0;
+  snap(L.INIT, 'Line 2: length = 0 — 只需要数"现在还剩几个字符"，不用真的维护字符串');
+
+  for (let k = 0; k < SEQ.length; k++) {
+    i = k;
+    const ch = SEQ[k];
+    snap(L.FOR, `Line 4: 取下一个字符 — char = '${ch}'（下标 ${k}，第 ${k + 1}/${SEQ.length} 个）`);
+
+    const isB = ch === 'B';
+    const hasPrev = length > 0;
+    const hit = isB && hasPrev;
+    snap(L.IF, `Line 5: char == 'B' (${isB ? 'True' : 'False'}) and length > 0 (${hasPrev ? 'True' : 'False'}) → ${hit ? "True — 当前 'B' 和它前面剩下的那个字符必然拼成 \"AB\" 或 \"BB\"，可以消掉" : 'False — 消不了，这个字符只能留下'}`);
+
+    if (hit) {
+      const top = stack.pop();
+      fate[top.idx] = 'gone';
+      fate[k] = 'gone';
+      const pair = top.c + 'B';
+      deleted.push(pair);
+      length -= 1;
+      flash = true;
+      snap(L.DEC, `Line 6: length -= 1 → ${length} — 消除 "${pair}"（'${top.c}' 下标 ${top.idx} + 'B' 下标 ${k}）`);
+    } else {
+      snap(L.ELSE, 'Line 7: else 分支');
+      stack.push({ c: ch, idx: k });
+      fate[k] = 'stay';
+      length += 1;
+      snap(L.INC, `Line 8: length += 1 → ${length} — '${ch}' 暂时留下`);
+    }
+  }
+
+  i = null;
+  snap(L.FOR, 'Line 4: seq 遍历完毕，退出循环');
+  done = true;
+  snap(L.RET, `✅ Line 10: return length = ${length} — 最少剩 ${length} 个字符（剩下的是 "${stack.map(e => e.c).join('')}"），最终答案 = ${length}`);
+
+  return steps;
+}
+
+const STEPS = buildSteps();
+var cur = -1;
+
+// ── DOM init ───────────────────────────────────────────────────────────────
+(function buildDOM() {
+  document.getElementById('seq-row').innerHTML = SEQ.split('').map((c, idx) =>
+    `<div class="seq-cell"><div class="seq-box" id="seq-${idx}">${c}</div><div class="seq-idx">${idx}</div><div class="seq-ptr" id="seqp-${idx}"></div></div>`
+  ).join('');
+})();
+
+function renderVarBar(s) {
+  const v = t => (t === null || t === undefined) ? '-' : t;
+  const ch = s && s.i !== null ? `'${SEQ[s.i]}'` : '-';
+  return `<span><span class="var-name">char</span> <span class="var-eq">=</span> <span class="var-val">${ch}</span></span>` +
+    `<span><span class="var-name">length</span> <span class="var-eq">=</span> <span class="var-val">${v(s && s.length)}</span></span>` +
+    `<span style="color:#555;">已消除对数 <span class="var-eq">=</span> <strong>${s ? s.deleted.length : 0}</strong></span>`;
+}
+
+// ── Render（只读快照，无副作用）────────────────────────────────────────────
+function render() {
+  const s = cur < 0 ? null : STEPS[cur];
+  highlightLine(s ? s.line : null);
+  renderCtrl(cur < 0 ? -1 : cur, STEPS.length, s ? s.info : '');
+  document.getElementById('var-bar').innerHTML = renderVarBar(s);
+
+  SEQ.split('').forEach((c, idx) => {
+    const box = document.getElementById(`seq-${idx}`);
+    const ptr = document.getElementById(`seqp-${idx}`);
+    const isCur = s && s.i === idx;
+    const fate = s ? s.fate[idx] : 'todo';
+    box.className = 'seq-box' + (isCur ? ' curr' : fate === 'stay' ? ' stay' : fate === 'gone' ? ' gone' : '');
+    ptr.textContent = isCur ? '▲ char' : '';
+  });
+
+  const stk = document.getElementById('stk-row');
+  if (s && s.stack.length) {
+    stk.innerHTML = s.stack.map((e, j) =>
+      `<div class="stk-cell"><div class="stk-top">${j === s.stack.length - 1 ? '栈顶' : ''}</div><div class="stk-box">${e.c}</div><div class="stk-idx">${e.idx}</div></div>`
+    ).join('');
+  } else {
+    stk.innerHTML = '<span class="stk-empty">（空 — length = 0）</span>';
+  }
+
+  const del = document.getElementById('del-row');
+  if (s && s.deleted.length) {
+    del.innerHTML = s.deleted.map((p, j) =>
+      `<span class="del-chip${s.flash && j === s.deleted.length - 1 ? ' newest' : ''}">"${p}"</span>`
+    ).join('');
+  } else {
+    del.innerHTML = '<span class="del-empty">（还没有消除）</span>';
+  }
+}
+
+doReset();
+</script>
+</body>
+</html>

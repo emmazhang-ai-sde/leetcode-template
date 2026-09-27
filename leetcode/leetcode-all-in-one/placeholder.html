@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Animation Placeholder</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  .placeholder-layout {
+    max-width: 720px;
+    margin: 0 auto;
+  }
+  .placeholder-card {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 18px 20px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #555;
+  }
+  .placeholder-card strong {
+    color: #1a1a1a;
+  }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+<div class="content-wrapper">
+<script>
+const params = new URLSearchParams(location.search);
+const num = params.get('num') || '';
+const name = params.get('name') || 'LeetCode Problem';
+const link = params.get('link') || 'https://leetcode.com/problemset/';
+const title = num ? `${num}. ${name}` : name;
+document.title = title;
+renderHeader({
+  title,
+  link,
+  controls: false,
+});
+</script>
+  <div class="placeholder-layout">
+    <div class="placeholder-card">
+      <strong>Animation placeholder.</strong> This question is listed in the course map, but an interactive animation has not been added yet.
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  const key = 'lcn-placeholder-scroll:' + location.pathname + location.search;
+  try {
+    if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+  } catch (e) {}
+  function saveScroll() {
+    try { sessionStorage.setItem(key, String(window.scrollY || 0)); } catch (e) {}
+  }
+  function savedY() {
+    try { return Number(sessionStorage.getItem(key) || 0); } catch (e) { return 0; }
+  }
+  const restoreTarget = savedY();
+  let restoreUntil = restoreTarget ? Date.now() + 1800 : 0;
+  function restoreScroll() {
+    const y = restoreTarget || savedY();
+    if (!y) return;
+    const maxY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+    window.scrollTo(0, Math.min(y, maxY));
+  }
+  let ticking = false;
+  window.addEventListener('scroll', function () {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(function () {
+      ticking = false;
+      if (restoreTarget && Date.now() < restoreUntil && window.scrollY < restoreTarget) return;
+      saveScroll();
+    });
+  }, { passive: true });
+  window.addEventListener('pagehide', saveScroll);
+  document.addEventListener('DOMContentLoaded', restoreScroll);
+  window.addEventListener('load', function () {
+    restoreScroll();
+    [80, 250, 700, 1400].forEach(function (ms) { setTimeout(restoreScroll, ms); });
+  });
+})();
+</script>
+</body>
+</html>

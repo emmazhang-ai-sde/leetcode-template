@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>253. Meeting Rooms II</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  .meeting-layout {
+    --meeting-viz-width: 820px;
+    --meeting-label-width: 74px;
+  }
+  /* Panels hang off the shared center line: the code panel keeps its natural
+     width and ends at the center, the fixed-width viz panel starts at it
+     (shared justify-self end/start). */
+  .meeting-layout .viz-panel {
+    width: var(--meeting-viz-width);
+    min-width: 0;
+  }
+  .meeting-layout .code-stack,
+  .meeting-layout .step-info,
+  .meeting-layout .code-panel,
+  .meeting-layout .var-bar,
+  .meeting-layout .card {
+    width: 100%;
+    min-width: 0;
+  }
+  .meeting-layout .code-block { overflow-x: auto; }
+  .meeting-layout .step-info {
+    min-height: 48px;
+    padding: 8px 14px;
+  }
+  .meeting-layout .var-row { white-space: nowrap; }
+
+  .code-token.hot {
+    background: rgba(249,203,66,0.38);
+    border-radius: 4px;
+    padding: 1px 3px;
+  }
+  .code-note {
+    display: inline-flex;
+    align-items: center;
+    min-height: 18px;
+    margin-left: 12px;
+    padding: 2px 7px;
+    border-radius: 6px;
+    background: #f5f5f5;
+    color: #666;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 11px;
+    line-height: 14px;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+  .code-note:empty { display: none; }
+  .code-note.active {
+    background: rgba(249,203,66,0.42);
+    color: #5B4100;
+  }
+  .code-note.true-path {
+    background: rgba(93,202,165,0.32);
+    color: #246B55;
+  }
+
+  .interval-lane {
+    display: grid;
+    grid-template-columns: var(--meeting-label-width) minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .lane-label {
+    font-family: 'SF Mono', 'Menlo', monospace;
+    font-size: 12px;
+    color: #777;
+    text-align: right;
+    white-space: nowrap;
+  }
+  .lane-track {
+    position: relative;
+    height: 28px;
+    border-radius: 8px;
+    background: #f5f5f5;
+    overflow: hidden;
+  }
+  .meeting-block {
+    position: absolute;
+    top: 5px;
+    height: 18px;
+    border-radius: 6px;
+    background: rgba(139,133,212,0.28);
+    border: 1px solid rgba(139,133,212,0.62);
+    transition: background 0.2s, border-color 0.2s, transform 0.2s;
+  }
+  .meeting-block.active {
+    background: rgba(249,203,66,0.48);
+    border-color: rgba(176,120,0,0.55);
+    transform: translateY(-1px);
+  }
+  .meeting-block.live {
+    background: rgba(93,202,165,0.30);
+    border-color: rgba(47,146,113,0.58);
+  }
+  .meeting-block.peak {
+    background: rgba(247,140,108,0.42);
+    border-color: rgba(196,80,30,0.62);
+  }
+  .axis {
+    display: grid;
+    grid-template-columns: var(--meeting-label-width) minmax(0, 1fr);
+    gap: 10px;
+    align-items: start;
+    margin-top: 4px;
+  }
+  .axis-track {
+    position: relative;
+    height: 30px;
+  }
+  .tick {
+    position: absolute;
+    top: 0;
+    transform: translateX(-50%);
+    font-family: 'SF Mono', 'Menlo', monospace;
+    font-size: 11px;
+    color: #999;
+  }
+  .tick::before {
+    content: "";
+    display: block;
+    width: 1px;
+    height: 8px;
+    margin: 0 auto 3px;
+    background: #ddd;
+  }
+
+  .events-split {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+  .events-times-var {
+    font-family: 'SF Mono', 'Menlo', monospace;
+    font-size: 13px;
+    line-height: 30px;
+    white-space: nowrap;
+    display: grid;
+    grid-template-columns: max-content max-content;
+    column-gap: 6px;
+    align-items: start;
+  }
+  .times-label { color: #9333C0; }
+  .times-eq {
+    color: #007EA8;
+    margin-left: 3px;
+  }
+  .times-list { color: #333; }
+  .times-list-row {
+    height: 30px;
+    white-space: pre;
+  }
+  .event-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 106px;
+  }
+  .event-line {
+    display: flex;
+    gap: 8px;
+    min-height: 30px;
+    align-items: center;
+  }
+  .event-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 30px;
+    border-radius: 8px;
+    padding: 5px 9px;
+    background: #f5f5f5;
+    font-family: 'SF Mono', 'Menlo', monospace;
+    font-size: 12px;
+    color: #333;
+    transition: background 0.2s, opacity 0.2s, transform 0.2s;
+  }
+  .event-pill.active {
+    background: rgba(249,203,66,0.46);
+    transform: translateY(-1px);
+  }
+  .event-pill.done { opacity: 0.36; }
+  .event-pill.peak { background: rgba(247,140,108,0.38); }
+  .delta-start {
+    color: #9333C0;
+    font-weight: 800;
+  }
+  .delta-end {
+    color: #007EA8;
+    font-weight: 800;
+  }
+
+  .count-explain {
+    min-height: 38px;
+    margin-bottom: 12px;
+    border-radius: 8px;
+    background: #f5f5f5;
+    padding: 8px 10px;
+    font-family: 'SF Mono', 'Menlo', monospace;
+    font-size: 12px;
+    line-height: 1.45;
+    color: #555;
+  }
+  .count-explain strong { color: #C4501E; }
+  .count-meter {
+    display: grid;
+    grid-template-columns: repeat(3, 64px);
+    gap: 10px;
+    align-items: end;
+    min-height: 86px;
+  }
+  .count-cell {
+    height: 64px;
+    border-radius: 8px;
+    background: #f5f5f5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-family: 'SF Mono', 'Menlo', monospace;
+    color: #aaa;
+    transition: background 0.2s, transform 0.2s, color 0.2s;
+  }
+  .count-cell.filled {
+    background: rgba(139,133,212,0.24);
+    color: #1a1a1a;
+  }
+  .count-cell.peak {
+    background: rgba(247,140,108,0.42);
+    color: #1a1a1a;
+    transform: scale(1.05);
+  }
+  .count-num {
+    font-size: 22px;
+    font-weight: 800;
+  }
+  .count-caption {
+    font-size: 10px;
+    margin-top: 3px;
+  }
+
+  .answer-box {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 42px;
+    font-family: 'SF Mono', 'Menlo', monospace;
+    font-size: 13px;
+  }
+  .answer-pill {
+    border-radius: 8px;
+    padding: 7px 12px;
+    background: #f5f5f5;
+    font-size: 18px;
+    font-weight: 800;
+    color: #aaa;
+  }
+  .answer-pill.ready {
+    background: rgba(93,202,165,0.36);
+    color: #246B55;
+  }
+  .answer-pill.updating {
+    background: rgba(247,140,108,0.38);
+    color: #7A2E16;
+  }
+
+  @media (max-width: 1540px) {
+    .main.layout-grid.meeting-layout {
+      grid-template-columns: var(--meeting-viz-width);
+      width: var(--meeting-viz-width);
+      justify-content: center;
+    }
+    .main.layout-grid.meeting-layout .code-half {
+      grid-column: 1;
+      grid-row: 1;
+      justify-self: center;
+    }
+    .main.layout-grid.meeting-layout .viz-panel {
+      grid-column: 1;
+      grid-row: 2;
+      justify-self: center;
+    }
+  }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '253. Meeting Rooms II',
+  link: 'https://leetcode.com/problems/meeting-rooms-ii/',
+  legend: [
+    { color: 'rgba(139,133,212,0.28)', label: 'meeting interval' },
+    { color: 'rgba(249,203,66,0.46)', label: 'current event' },
+    { color: 'rgba(93,202,165,0.30)', label: 'currently using a room' },
+    { color: 'rgba(247,140,108,0.38)', label: 'new maximum rooms' },
+  ],
+});
+</script>
+<div class="main layout-grid meeting-layout">
+
+  <!-- Code panel. raw: lines 10-11 keep their code-token wrappers (JS
+       highlights them); append: inline code-note pills after lines 8-12. -->
+  <script>
+  renderCodeBox({
+    code: `
+class Solution:
+    def minMeetingRooms(self, intervals: List[List[int]]) -> int:
+        times = []
+        for inter in intervals:
+            times.append((inter[0], 1))
+            times.append((inter[1], -1))
+        ans, count = 0, 0
+        times.sort()
+        for t in times:
+            count += t[1]
+            ans = max(ans, count)
+        return ans`,
+    raw: {
+      10: '            <span class="code-token" data-token="count"><span class="va">count</span></span> <span class="op">+=</span> <span class="code-token" data-token="t-delta"><span class="va">t</span><span class="op">[</span><span class="nu">1</span><span class="op">]</span></span>',
+      11: '            <span class="code-token" data-token="ans"><span class="va">ans</span></span> <span class="op">=</span> <span class="fn">max</span><span class="op">(</span><span class="va">ans</span><span class="op">,</span> <span class="va">count</span><span class="op">)</span>',
+    },
+    append: {
+      8: '<span class="code-note true-path">same time: end -1 before start +1</span>',
+      9: '<span class="code-note" id="line9-note"></span>',
+      10: '<span class="code-note" id="line10-note"></span>',
+      11: '<span class="code-note" id="line11-note"></span>',
+      12: '<span class="code-note true-path">minimum rooms = peak active meetings</span>',
+    },
+  });
+  </script>
+
+  <div class="viz-panel">
+    <div class="var-bar" id="var-bar">
+      <span class="var-row"></span>
+      <span class="var-row"></span>
+      <span class="var-row"></span>
+      <span class="var-row"></span>
+    </div>
+
+    <div class="card">
+      <h3>Input Intervals  intervals = [[0, 30], [5, 10], [15, 20]]</h3>
+      <div id="intervals"></div>
+      <div class="axis">
+        <div></div>
+        <div class="axis-track" id="axis"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Sweep Events  times</h3>
+      <div class="events-split">
+        <div class="events-times-var" id="events-times-var"></div>
+        <div class="event-row" id="events"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Active Meetings  count</h3>
+      <div class="count-explain" id="count-explain"></div>
+      <div class="count-meter" id="count-meter"></div>
+    </div>
+
+    <div class="card">
+      <h3>Answer  ans</h3>
+      <div class="answer-box" id="answer-box"></div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script>
+const INTERVALS = [[0, 30], [5, 10], [15, 20]];
+const RAW_EVENTS = INTERVALS.flatMap(([start, end], idx) => [
+  { time: start, delta: 1, type: 'start', interval: idx },
+  { time: end, delta: -1, type: 'end', interval: idx },
+]);
+const SORTED_EVENTS = [...RAW_EVENTS].sort((a, b) => a.time - b.time || a.delta - b.delta);
+const MIN_TIME = 0;
+const MAX_TIME = 30;
+
+function eventText(e) {
+  return `(${e.time}, ${e.delta})`;
+}
+
+function formatEvents(events) {
+  if (!events.length) return '[]';
+  return `[${events.map(eventText).join(', ')}]`;
+}
+
+function activeIntervalsAfter(eventIndex) {
+  const active = new Set();
+  for (let idx = 0; idx <= eventIndex; idx++) {
+    const e = SORTED_EVENTS[idx];
+    if (e.delta === 1) active.add(e.interval);
+    else active.delete(e.interval);
+  }
+  return [...active];
+}
+
+function buildSteps() {
+  const steps = [];
+  let times = [];
+  let ans = null;
+  let count = null;
+  let loopInterval = null;
+  let activeEvent = null;
+  let processed = -1;
+  let sorted = false;
+  let activeIntervals = [];
+  let peakIntervals = [];
+  let countBefore = null;
+  let ansBefore = null;
+  let result = null;
+
+  function snap(line, info) {
+    steps.push({
+      line,
+      info,
+      times: [...times],
+      ans,
+      count,
+      loopInterval,
+      activeEvent,
+      processed,
+      sorted,
+      activeIntervals: [...activeIntervals],
+      peakIntervals: [...peakIntervals],
+      countBefore,
+      ansBefore,
+      result,
+    });
+  }
+
+  snap(3, 'times = []  (turn every interval into two sweep-line events)');
+
+  INTERVALS.forEach((inter, idx) => {
+    loopInterval = idx;
+    snap(4, `inter = [${inter[0]}, ${inter[1]}]  (read meeting ${idx})`);
+    times.push({ time: inter[0], delta: 1, type: 'start', interval: idx });
+    snap(5, `append (${inter[0]}, 1): one meeting starts, so count will go up`);
+    times.push({ time: inter[1], delta: -1, type: 'end', interval: idx });
+    snap(6, `append (${inter[1]}, -1): one meeting ends, so count will go down`);
+  });
+
+  loopInterval = null;
+  ans = 0;
+  count = 0;
+  snap(7, 'ans, count = 0, 0  (ans stores the peak active meetings)');
+
+  times = [...SORTED_EVENTS];
+  sorted = true;
+  snap(8, 'times.sort()  (Python sorts tuple by time, then delta)');
+
+  for (let idx = 0; idx < times.length; idx++) {
+    const event = times[idx];
+    activeEvent = idx;
+    countBefore = null;
+    ansBefore = null;
+    peakIntervals = [];
+    snap(9, `t = ${eventText(event)}  (${event.type} of meeting ${event.interval})`);
+
+    countBefore = count;
+    count += event.delta;
+    processed = idx;
+    activeIntervals = activeIntervalsAfter(idx);
+    snap(10, `count += ${event.delta}  ->  ${countBefore} ${event.delta >= 0 ? '+' : '-'} ${Math.abs(event.delta)} = ${count}`);
+
+    ansBefore = ans;
+    ans = Math.max(ans, count);
+    if (ans > ansBefore) {
+      peakIntervals = [...activeIntervals];
+      snap(11, `ans = max(${ansBefore}, ${count}) = ${ans}  (need ${ans} rooms at this moment)`);
+    } else {
+      snap(11, `ans = max(${ansBefore}, ${count}) = ${ans}  (peak does not change)`);
+    }
+  }
+
+  activeEvent = null;
+  peakIntervals = [];
+  result = ans;
+  snap(12, `return ans = ${ans}  (minimum rooms equals the maximum overlap)`);
+  return steps;
+}
+
+const STEPS = buildSteps();
+let cur = -1;
+
+function xPct(t) {
+  return ((t - MIN_TIME) / (MAX_TIME - MIN_TIME)) * 100;
+}
+
+function renderVarBar(state) {
+  const empty = '<span class="var-row"></span>';
+  if (!state) {
+    document.getElementById('var-bar').innerHTML = empty.repeat(4);
+    return;
+  }
+
+  const current = state.activeEvent !== null && state.sorted ? SORTED_EVENTS[state.activeEvent] : null;
+  const rows = [
+    `<span class="var-row"><span class="var-name">times</span><span class="var-eq"> = </span><span style="color:#333;">${formatEvents(state.times)}</span></span>`,
+    state.ans !== null
+      ? `<span class="var-row"><span class="var-name">ans</span><span class="var-eq"> = </span><span class="var-val">${state.ans}</span></span>`
+      : empty,
+    state.count !== null
+      ? `<span class="var-row"><span class="var-name">count</span><span class="var-eq"> = </span><span class="var-val">${state.count}</span></span>`
+      : empty,
+    current
+      ? `<span class="var-row"><span class="var-name">t</span><span class="var-eq"> = </span><span class="var-val">${eventText(current)}</span></span>`
+      : empty,
+  ];
+  document.getElementById('var-bar').innerHTML = rows.join('');
+}
+
+function buildIntervalDOM() {
+  const wrap = document.getElementById('intervals');
+  wrap.innerHTML = '';
+  INTERVALS.forEach(([start, end], idx) => {
+    const lane = document.createElement('div');
+    lane.className = 'interval-lane';
+
+    const label = document.createElement('div');
+    label.className = 'lane-label';
+    label.textContent = `[${start}, ${end}]`;
+    lane.appendChild(label);
+
+    const track = document.createElement('div');
+    track.className = 'lane-track';
+    const block = document.createElement('div');
+    block.className = 'meeting-block';
+    block.id = `interval-${idx}`;
+    block.style.left = `${xPct(start)}%`;
+    block.style.width = `${Math.max(5, xPct(end) - xPct(start))}%`;
+    track.appendChild(block);
+    lane.appendChild(track);
+    wrap.appendChild(lane);
+  });
+
+  const axis = document.getElementById('axis');
+  axis.innerHTML = '';
+  [0, 5, 10, 15, 20, 30].forEach(t => {
+    const tick = document.createElement('div');
+    tick.className = 'tick';
+    tick.style.left = `${xPct(t)}%`;
+    tick.textContent = t;
+    axis.appendChild(tick);
+  });
+}
+
+function renderTimesVariable(events) {
+  if (!events.length) {
+    return `<span><span class="times-label">times</span><span class="times-eq">=</span></span><span class="times-list">[]</span>`;
+  }
+
+  const rows = INTERVALS.map((_, intervalIdx) => {
+    const rowEvents = events
+      .filter(e => e.interval === intervalIdx)
+      .sort((a, b) => a.time - b.time);
+    if (!rowEvents.length) return '';
+    return rowEvents.map(eventText).join(', ');
+  });
+  const nonEmptyRows = rows.filter(Boolean);
+
+  return `<span><span class="times-label">times</span><span class="times-eq">=</span></span>` +
+    `<div class="times-list">` +
+      nonEmptyRows.map((row, idx) => {
+        const prefix = idx === 0 ? '[' : ' ';
+        const suffix = idx === nonEmptyRows.length - 1 ? ']' : ',';
+        return `<div class="times-list-row">${prefix}${row}${suffix}</div>`;
+      }).join('') +
+    `</div>`;
+}
+
+function renderEvents(state) {
+  const holder = document.getElementById('events');
+  const timesVar = document.getElementById('events-times-var');
+  const events = state && state.sorted ? SORTED_EVENTS : (state ? state.times : []);
+  timesVar.innerHTML = renderTimesVariable(events);
+  if (!events.length) {
+    holder.innerHTML = `<span style="font-size:12px;color:#aaa;font-family:'SF Mono',monospace;">times = []</span>`;
+    return;
+  }
+
+  function renderPill(e, idx) {
+    let cls = 'event-pill';
+    if (state && state.sorted && idx === state.activeEvent) cls += ' active';
+    if (state && state.sorted && idx <= state.processed) cls += ' done';
+    if (state && state.peakIntervals.includes(e.interval)) cls += ' peak';
+    const deltaCls = e.delta === 1 ? 'delta-start' : 'delta-end';
+    const sign = e.delta === 1 ? '+1' : '-1';
+    return `<span class="${cls}"><span>${e.time}</span><span class="${deltaCls}">${sign}</span></span>`;
+  }
+
+  holder.innerHTML = INTERVALS.map((_, intervalIdx) => {
+    const rowEvents = events
+      .map((e, idx) => ({ e, idx }))
+      .filter(item => item.e.interval === intervalIdx)
+      .sort((a, b) => a.e.time - b.e.time);
+    return `<div class="event-line">${rowEvents.map(item => renderPill(item.e, item.idx)).join('')}</div>`;
+  }).join('');
+}
+
+function renderIntervals(state) {
+  INTERVALS.forEach((_, idx) => {
+    const block = document.getElementById(`interval-${idx}`);
+    let cls = 'meeting-block';
+    if (state && state.activeIntervals.includes(idx)) cls += ' live';
+    if (state && state.loopInterval === idx) cls += ' active';
+    if (state && state.sorted && state.activeEvent !== null && SORTED_EVENTS[state.activeEvent].interval === idx) cls += ' active';
+    if (state && state.peakIntervals.includes(idx)) cls += ' peak';
+    block.className = cls;
+  });
+}
+
+function renderCount(state) {
+  const meter = document.getElementById('count-meter');
+  const explain = document.getElementById('count-explain');
+  const count = state && state.count !== null ? state.count : 0;
+  const ans = state && state.ans !== null ? state.ans : 0;
+  explain.innerHTML = renderCountExplain(state);
+  meter.innerHTML = [1, 2, 3].map(n => {
+    let cls = 'count-cell';
+    if (count >= n) cls += ' filled';
+    if (count >= n && ans === count && state && state.ansBefore !== null && state.ans > state.ansBefore) cls += ' peak';
+    return `<div class="${cls}"><div class="count-num">${n}</div><div class="count-caption">room ${n}</div></div>`;
+  }).join('');
+}
+
+function renderCountExplain(state) {
+  if (!state || state.count === null) {
+    return 'count tracks active meetings; ans keeps the highest count seen.';
+  }
+  if (state.activeEvent !== null && state.countBefore !== null) {
+    const e = SORTED_EVENTS[state.activeEvent];
+    const action = e.delta === 1 ? 'start event' : 'end event';
+    return `t = <strong>${eventText(e)}</strong> (${action}); count = ${state.countBefore} + (${e.delta}) = <strong>${state.count}</strong>`;
+  }
+  return `count = <strong>${state.count}</strong>, ans = <strong>${state.ans}</strong>`;
+}
+
+function renderCodeAnnotations(state) {
+  const line9 = document.getElementById('line9-note');
+  const line10 = document.getElementById('line10-note');
+  const line11 = document.getElementById('line11-note');
+  document.querySelectorAll('.code-token').forEach(el => el.classList.remove('hot'));
+  [line9, line10, line11].forEach(note => {
+    if (!note) return;
+    note.textContent = '';
+    note.classList.remove('active');
+  });
+  if (!state || state.activeEvent === null) return;
+
+  const e = SORTED_EVENTS[state.activeEvent];
+  if (line9) {
+    line9.textContent = `current t = ${eventText(e)}`;
+    line9.classList.add('active');
+  }
+  if (state.line === 10 || state.countBefore !== null) {
+    document.querySelectorAll('[data-token="count"], [data-token="t-delta"]').forEach(el => el.classList.add('hot'));
+  }
+  if (line10 && state.countBefore !== null) {
+    line10.textContent = `t[1] = ${e.delta}; count: ${state.countBefore} -> ${state.count}`;
+    line10.classList.add('active');
+  }
+  if (state.line === 11 || state.ansBefore !== null) {
+    document.querySelectorAll('[data-token="ans"]').forEach(el => el.classList.add('hot'));
+  }
+  if (line11 && state.ansBefore !== null) {
+    line11.textContent = `ans: max(${state.ansBefore}, ${state.count}) = ${state.ans}`;
+    line11.classList.add('active');
+  }
+}
+
+function renderAnswer(state) {
+  const box = document.getElementById('answer-box');
+  if (!state || state.ans === null) {
+    box.innerHTML = `<span class="answer-pill">?</span><span style="color:#aaa;">waiting...</span>`;
+    return;
+  }
+  const isFinal = state.result !== null;
+  const updated = state.ansBefore !== null && state.ans > state.ansBefore;
+  const cls = isFinal ? 'ready' : (updated ? 'updating' : '');
+  box.innerHTML = `<span class="answer-pill ${cls}">${state.ans}</span><span>${isFinal ? 'rooms needed' : 'current peak rooms'}</span>`;
+}
+
+function render() {
+  if (cur < 0) {
+    renderVarBar(null);
+    renderEvents(null);
+    renderIntervals(null);
+    renderCount(null);
+    renderAnswer(null);
+    renderCodeAnnotations(null);
+    renderCtrl(-1, STEPS.length, '');
+    highlightLine(null);
+    return;
+  }
+
+  const state = STEPS[cur];
+  highlightLine(state.line);
+  renderCtrl(cur, STEPS.length, state.info);
+  renderVarBar(state);
+  renderEvents(state);
+  renderIntervals(state);
+  renderCount(state);
+  renderAnswer(state);
+  renderCodeAnnotations(state);
+}
+
+buildIntervalDOM();
+doReset();
+</script>
+</body>
+</html>

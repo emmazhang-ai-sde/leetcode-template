@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>46. Permutations</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  /* nums 数组：格子 + 下面的 index / i 指针行。跟 78 不同：这里没有 index 这个
+     按值传的参数，唯一的指针是 for 循环自己的 i；locked 也不是"下标小于 index
+     不能回头"，而是"这个下标已经在 visited 里，本层不能再选"。 */
+  .nums-row { display: flex; gap: 8px; }
+  .num-cell { width: 52px; height: 46px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+              font-family: var(--ink-mono); font-size: 17px; font-weight: 700; color: #1a1a1a;
+              background: #f5f5f5; border: 1px solid #c9c9c9; transition: background 0.2s, opacity 0.2s, transform 0.15s; }
+  .num-cell.at-i { background: rgba(249,203,66,0.55); border-color: rgba(200,160,30,0.6); transform: translateY(-2px); }
+  .num-cell.locked { opacity: 0.32; }
+  .num-idx-row { display: flex; gap: 8px; margin-top: 4px; }
+  .num-idx { width: 52px; text-align: center; font-family: var(--ink-mono); font-size: 10.5px; color: #aaa; }
+  .num-ptr-row { display: flex; gap: 8px; margin-top: 3px; min-height: 18px; }
+  .num-ptr { width: 52px; height: 18px; line-height: 18px; text-align: center;
+             font-family: var(--ink-mono); font-size: 11px; font-weight: 700; white-space: nowrap; }
+  .num-ptr .p-i { color: #C4501E; }
+
+  /* temp chips：当前正在拼的那个排列（Lyon 的变量名叫 temp，不叫 path） */
+  .temp-label { margin: 16px 0 8px; }
+  .temp-row { display: flex; gap: 6px; align-items: center; min-height: 34px; }
+  .temp-chip { min-width: 34px; height: 32px; padding: 0 10px; border-radius: 7px; display: flex; align-items: center; justify-content: center;
+               font-family: var(--ink-mono); font-size: 14px; font-weight: 700; color: #1a1a1a;
+               background: rgba(120,160,225,0.3); transition: background 0.2s, transform 0.15s; }
+  .temp-chip.just-pushed { background: rgba(249,203,66,0.55); transform: scale(1.08); }
+  .temp-chip.ghost { background: transparent; border: 1.5px dashed #d0a0a0; color: #c08080; }
+  .temp-empty { font-family: var(--ink-mono); font-size: 13px; color: #bbb; }
+  .temp-val { margin-top: 10px; font-family: var(--ink-mono); font-size: 12.5px; }
+  .visited-val { margin-top: 4px; font-family: var(--ink-mono); font-size: 12.5px; }
+
+  /* 递归树：6 个排列 = 6 片叶子，比 78 的 4 片宽，viewBox 相应放宽 */
+  #tree-svg { display: block; width: 540px; height: 312px; }
+  .edge { stroke: #d5d5d5; stroke-width: 2; }
+  .edge.on-path { stroke: #3A6FD4; stroke-width: 3; }
+  .edge-tag { font-family: var(--ink-mono); font-size: 10px; fill: #b0b0b0; }
+  .edge-tag.on-path { fill: #3A6FD4; font-weight: 700; }
+  .node-box { fill: #f5f5f5; stroke: #c9c9c9; stroke-width: 1; transition: fill 0.2s; }
+  .node-box.n-current { stroke: #1a1a1a; stroke-width: 2.5; }
+  .node-box.n-stack   { stroke: rgba(90,130,200,0.55); }
+  .node-box.n-done    { fill: rgba(93,202,165,0.4); stroke: rgba(60,160,125,0.5); }
+  .node-text { font-family: var(--ink-mono); font-size: 12px; font-weight: 700; fill: #1a1a1a; }
+  .node-text.dim { fill: #b5b5b5; }
+
+  .chain-nums-row { display: flex; gap: 16px; align-items: flex-start; }
+
+  .fn-tag { display: inline-block; padding: 1px 8px; border-radius: 5px; background: rgba(199,146,234,0.18);
+            color: #6b3fa0; font-family: var(--ink-mono); font-size: 12px; font-weight: 700; }
+  .fn-note { margin-left: 8px; font-family: -apple-system, sans-serif; font-size: 11px; color: #aaa; }
+  .var-row.var-result { white-space: normal; max-width: 300px; line-height: 1.6; }
+
+  /* 调用链：一层一行、按深度缩进，底色就是这次调用在代码面板里的高亮底色 */
+  .call-chain { display: flex; flex-direction: column; gap: 4px; min-height: 132px; }
+  .chain-row { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 10px;
+               border-radius: 7px; font-family: var(--ink-mono); font-size: 12px;
+               color: #1a1a1a; white-space: nowrap; align-self: flex-start;
+               transition: box-shadow 0.15s; }
+  .chain-row.top { box-shadow: 0 0 0 1.5px #1a1a1a; font-weight: 700; }
+  .chain-i { color: #C4501E; font-weight: 700; }
+  .chain-dim { color: #8a8a8a; font-weight: 400; }
+  .chain-empty { font-family: var(--ink-mono); font-size: 12px; color: #bbb; }
+
+  /* 颜色图例从页头搬到代码框下面（跟 step-info 一起塞进 .code-stack），
+     一行一条，跟页头那种居中横排 flex-wrap 分开来 */
+  .legend-below { flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 0; max-width: none; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '46. Permutations',
+  link: 'https://leetcode.com/problems/permutations/',
+  legend: [
+    { color: 'rgba(249,203,66,0.30)', extra: 'box-shadow:inset 0 0 0 2px #1a1a1a;', label: '黑框 = 正在执行这一行的那次调用' },
+    { color: 'rgba(120,160,225,0.22)', label: '还在调用栈上的帧 — 每次调用一种颜色，代码高亮行 / 调用链 / 树节点同色' },
+    { color: 'rgba(93,202,165,0.4)', label: 'dfs 已经返回（子树走完）— 只有 temp 长度=3 的叶子会被真正收进 res' },
+    { color: '#f5f5f5', extra: 'border:1px solid #c9c9c9;', label: '还没访问到' },
+    { color: '#3A6FD4', extra: 'border-radius:2px;width:14px;height:3px;', label: '根 → 当前帧（就是调用栈）' },
+    { color: 'rgba(249,203,66,0.55)', label: 'nums 里 i 指着的那个下标' },
+    { color: '#f5f5f5', extra: 'opacity:0.4;border:1px solid #c9c9c9;', label: '变暗 = 这个下标已经在 visited 里，本层不能再选' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+  <script>
+  renderCodeBox({
+    code: `
+class Solution:
+    def permute(self, nums: List[int]) -> List[List[int]]:
+        temp = []
+        res = []
+        visited = set()
+        self.dfs(nums, temp, res, visited)
+        return res;
+
+
+    def dfs(self, nums, temp, res, visited):
+        if len(temp) == len(nums):
+            res.append(temp + [])  #deepcopy
+            return
+
+        for i in range(0, len(nums)):
+            if i in visited:
+                continue
+            num = nums[i]
+            visited.add(i)
+            temp.append(num)
+            self.dfs(nums, temp, res, visited)
+            visited.remove(i)
+            temp.pop(-1)`,
+  });
+  </script>
+
+  <!-- 步骤说明 + 颜色图例从页头搬到代码框下面：先搬 #info（保持在 code-panel
+       下面），再搬页头的 .legend（顺序排在 info 后面），最后把页头里现在空掉的
+       那行 .header-row 删掉，别留一条空的居中 flex 行占位置 -->
+  <script>
+  (function () {
+    const stack = document.querySelector('.code-stack');
+    stack.appendChild(document.getElementById('info'));
+    const legend = document.querySelector('.legend');
+    const legendRow = legend.parentElement;
+    legend.classList.add('legend-below');
+    stack.appendChild(legend);
+    legendRow.remove();
+  })();
+  </script>
+
+  <div class="viz-panel">
+    <div class="chain-nums-row">
+      <div class="card">
+        <h3>调用链 — 现在这行代码是谁在跑</h3>
+        <div class="call-chain" id="call-chain"></div>
+      </div>
+
+      <div class="var-bar" id="var-bar"></div>
+
+      <div class="card">
+        <h3>nums — 从哪里挑</h3>
+        <div class="nums-row" id="nums-row"></div>
+        <div class="num-idx-row" id="nums-idx-row"></div>
+        <div class="num-ptr-row" id="nums-ptr-row"></div>
+        <h3 class="temp-label">temp — 当前正在拼的排列</h3>
+        <div class="temp-row" id="temp-row"></div>
+        <div class="temp-val" id="temp-val"></div>
+        <div class="visited-val" id="visited-val"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>递归树 — 每个叶子就是一个排列</h3>
+      <svg id="tree-svg" viewBox="0 0 540 312"></svg>
+    </div>
+  </div>
+</div><!-- /.main -->
+</div><!-- /.content-wrapper -->
+
+<script>
+// ── 例子：LeetCode 46 官方 Example 1 ──────────────────────────────────────
+const NUMS = [1, 2, 3];
+
+// 递归树写死成常量。跟 78 不同：这里只有 temp 长度 = 3 的叶子才是真正的答案，
+// 中间节点（长度 1 / 2）只是路过的 dfs 调用，不会被收进 res——但它们仍然是
+// 一次真实的调用，一样要出现在树上和调用链里。
+// 叶子按"实际收集顺序"从左到右摆 6 个格子；深度 2 的节点只有一个孩子，
+// x 直接跟它对齐；深度 1 的节点取自己两个孩子的中点；根取三个孩子的首尾中点。
+const SLOT = 86, X0 = 50, Y0 = 34, DY = 76;
+const px = (slot) => X0 + slot * SLOT;
+const py = (depth) => Y0 + depth * DY;
+const NODES = [
+  { id: '',      path: [],        depth: 0, x: px(2.5), y: py(0), parent: null,  pick: null },
+  { id: '1',     path: [1],       depth: 1, x: px(0.5), y: py(1), parent: '',    pick: 1 },
+  { id: '1,2',   path: [1, 2],    depth: 2, x: px(0),   y: py(2), parent: '1',   pick: 2 },
+  { id: '1,2,3', path: [1, 2, 3], depth: 3, x: px(0),   y: py(3), parent: '1,2', pick: 3 },
+  { id: '1,3',   path: [1, 3],    depth: 2, x: px(1),   y: py(2), parent: '1',   pick: 3 },
+  { id: '1,3,2', path: [1, 3, 2], depth: 3, x: px(1),   y: py(3), parent: '1,3', pick: 2 },
+  { id: '2',     path: [2],       depth: 1, x: px(2.5), y: py(1), parent: '',    pick: 2 },
+  { id: '2,1',   path: [2, 1],    depth: 2, x: px(2),   y: py(2), parent: '2',   pick: 1 },
+  { id: '2,1,3', path: [2, 1, 3], depth: 3, x: px(2),   y: py(3), parent: '2,1', pick: 3 },
+  { id: '2,3',   path: [2, 3],    depth: 2, x: px(3),   y: py(2), parent: '2',   pick: 3 },
+  { id: '2,3,1', path: [2, 3, 1], depth: 3, x: px(3),   y: py(3), parent: '2,3', pick: 1 },
+  { id: '3',     path: [3],       depth: 1, x: px(4.5), y: py(1), parent: '',    pick: 3 },
+  { id: '3,1',   path: [3, 1],    depth: 2, x: px(4),   y: py(2), parent: '3',   pick: 1 },
+  { id: '3,1,2', path: [3, 1, 2], depth: 3, x: px(4),   y: py(3), parent: '3,1', pick: 2 },
+  { id: '3,2',   path: [3, 2],    depth: 2, x: px(5),   y: py(2), parent: '3',   pick: 2 },
+  { id: '3,2,1', path: [3, 2, 1], depth: 3, x: px(5),   y: py(3), parent: '3,2', pick: 1 },
+];
+const NODE_BY_ID = {};
+NODES.forEach(n => { NODE_BY_ID[n.id] = n; });
+const NODE_W = 72, NODE_H = 28;
+
+/* 16 次 dfs 调用 = 16 种底色（比 78 的 8 色多一倍，色相拉得更开一些，
+   相邻兄弟节点也能一眼分开）。索引 = 节点在 NODES 里的下标，跟真实调用顺序
+   （先序遍历）完全一致。 */
+const CALL_TINT = [
+  'rgba(126,158,221,0.24)',
+  'rgba(117,209,163,0.26)',
+  'rgba(227,192,109,0.30)',
+  'rgba(216,143,121,0.26)',
+  'rgba(180,131,216,0.26)',
+  'rgba(127,196,210,0.28)',
+  'rgba(209,166,117,0.30)',
+  'rgba(219,148,184,0.24)',
+  'rgba(152,121,216,0.24)',
+  'rgba(161,210,137,0.26)',
+  'rgba(216,208,121,0.30)',
+  'rgba(224,133,133,0.24)',
+  'rgba(217,140,217,0.24)',
+  'rgba(117,209,186,0.28)',
+  'rgba(182,218,108,0.28)',
+  'rgba(216,151,173,0.24)',
+];
+const PERMUTE_TINT = 'rgba(150,150,150,0.18)';   // 外层 permute()，不是 dfs
+const FRAME_IDX = {};
+NODES.forEach((n, k) => { FRAME_IDX[n.id] = k; });
+const tintOf = (id) => (id == null ? PERMUTE_TINT : CALL_TINT[FRAME_IDX[id]]);
+
+/* 行号表：正文从 1 开始，空行也占号（8/9/14 是空行）。
+   按 ANIMATION_GUIDE：每行可执行代码 ≥ 1 步，if/for 头每轮都停（True 和 False
+   都停），函数调用行走两遍（发起 + 返回），def 行进入时也停。 */
+const L = {
+  PERMUTE:  2,   // def permute(self, nums)
+  TEMP:     3,   // temp = []
+  RES:      4,   // res = []
+  VISITED:  5,   // visited = set()
+  CALL:     6,   // self.dfs(nums, temp, res, visited)   调用 + 返回各一次
+  RETURN:   7,   // return res;
+  DFS:     10,   // def dfs(self, nums, temp, res, visited)
+  IFLEN:   11,   // if len(temp) == len(nums):   True / False 各停一次
+  APPEND:  12,   // res.append(temp + [])  #deepcopy
+  RETI:    13,   // return（长度够了，提前返回）
+  FOR:     15,   // for i in range(0, len(nums))   每轮 + 取空各一次
+  IFVIS:   16,   // if i in visited:   True / False 各停一次
+  CONT:    17,   // continue（只在 True 时真的走到）
+  NUM:     18,   // num = nums[i]
+  ADD:     19,   // visited.add(i)
+  PUSH:    20,   // temp.append(num)
+  RECURSE: 21,   // self.dfs(nums, temp, res, visited)   调用 + 返回各一次
+  REMOVE:  22,   // visited.remove(i)
+  POP:     23,   // temp.pop(-1)
+};
+
+const fmt = (a) => '[' + a.join(', ') + ']';
+const fmtSet = (s) => '{' + [...s].sort((a, b) => a - b).join(', ') + '}';
+
+// ── 真跑一遍 Lyon 的解法生成步骤 ──────────────────────────────────────────
+function buildSteps() {
+  const steps = [];
+  let temp = [];         // 当前正在拼的排列（会被 append/pop 反复改）
+  let res = [];          // 已收集的排列
+  let visited = new Set();  // 已经用过的下标；全程只有一份，四个形参里唯一会被增删的
+  let stack = [];         // 调用栈：[{ id, i }]（没有 index，只存每层自己的 i）
+  let done = [];          // 已经返回的帧（子树走完）
+  let pushed = false;
+  let popped = null;
+  let fn = null;
+
+  function snap(line, info) {
+    const top = stack.length ? stack[stack.length - 1] : null;
+    steps.push({
+      line, info, fn,
+      temp: [...temp],
+      res: res.map(r => [...r]),
+      stack: stack.map(f => ({ id: f.id, i: f.i, callTemp: f.callTemp, callRes: f.callRes, callVisited: f.callVisited })),
+      done: [...done],
+      visited: [...visited],
+      i: top && top.i != null ? top.i : null,
+      pushed, popped,
+    });
+    pushed = false; popped = null;
+  }
+
+  snap(null, 'DFS 按位置逐个填 temp：每层从下标 0 重新扫一遍 nums，跳过已经用过的，' +
+    '直到 temp 长度等于 nums 长度就是一个完整排列。3 个不同元素共有 3! = 6 个排列。');
+  fn = 'permute';
+  snap(L.PERMUTE, 'Line 2: 进入 permute(nums=[1, 2, 3]) — 入口函数，准备好 temp / res / visited 三样东西交给 dfs。');
+  temp = [];
+  snap(L.TEMP, 'Line 3: temp = [] — 当前正在拼的排列。');
+  res = [];
+  snap(L.RES, 'Line 4: res = [] — 收集答案，最终会装下 3! = 6 个排列。');
+  visited = new Set();
+  snap(L.VISITED, 'Line 5: visited = set() — 记录哪些下标已经在 temp 里了；这一个 set 全程只有一份，' +
+    '四个形参里唯一会被增删的。');
+  snap(L.CALL, 'Line 6: self.dfs(nums, temp, res, visited) — 四个参数原样传下去，进入递归。');
+
+  function dfs() {
+    const id = temp.join(',');
+    // 冻结这一帧被调用那一刻的 temp/res/visited——之后 temp/res/visited 会继续被
+    // 更深的调用改，这份拷贝不会跟着变，用来在调用链卡片里显示"当时传参"
+    const frame = { id, i: null, callTemp: [...temp], callRes: res.map(r => [...r]), callVisited: [...visited] };
+    stack.push(frame);
+    fn = 'dfs';
+    snap(L.DFS, 'Line 10: 进入 dfs(...) — 当前 temp = ' + fmt(temp) + '，visited = ' + fmtSet(visited) + '。');
+
+    if (temp.length === NUMS.length) {
+      snap(L.IFLEN, 'Line 11: len(temp)=' + temp.length + ' == len(nums)=' + NUMS.length +
+        ' → True — temp 已经排满了，这是一个完整排列，不用再往下挑。');
+      const copy = [...temp];
+      res.push(copy);
+      snap(L.APPEND, 'Line 12: res.append(temp + []) — 拷一份存进 res：' + fmt(copy) +
+        '。必须拷：temp 后面还会被 pop 改，直接存进去的话已经收好的排列会跟着一起变。');
+      snap(L.RETI, 'Line 13: return — 长度够了直接返回，这一层不会再打开 for 循环。');
+    } else {
+      snap(L.IFLEN, 'Line 11: len(temp)=' + temp.length + ' != len(nums)=' + NUMS.length +
+        ' → False — 还没拼满，继续往下试下一个位置。');
+      for (let i = 0; i < NUMS.length; i++) {
+        frame.i = i;
+        snap(L.FOR, 'Line 15: for i in range(0, 3) → i = ' + i +
+          ' — 每一层都是从下标 0 重新扫一遍，不像 78 Subsets 那样只往后走。');
+
+        if (visited.has(i)) {
+          snap(L.IFVIS, 'Line 16: ' + i + ' in visited → True — 下标 ' + i + '（nums[' + i + ']=' +
+            NUMS[i] + '）已经用在当前排列里了，跳过。');
+          snap(L.CONT, 'Line 17: continue — 不选它，回到 for 头试下一个下标。');
+          frame.i = i;
+          continue;
+        }
+        snap(L.IFVIS, 'Line 16: ' + i + ' in visited → False — 下标 ' + i + ' 还没用过，可以选。');
+
+        const num = NUMS[i];
+        snap(L.NUM, 'Line 18: num = nums[' + i + '] = ' + num + '。');
+
+        visited.add(i);
+        snap(L.ADD, 'Line 19: visited.add(' + i + ') — 标记下标 ' + i + ' 用过了，visited 变成 ' +
+          fmtSet(visited) + '。');
+
+        temp.push(num);
+        pushed = true;
+        snap(L.PUSH, 'Line 20: temp.append(num) — temp 变成 ' + fmt(temp) + '。');
+
+        snap(L.RECURSE, 'Line 21: self.dfs(nums, temp, res, visited) — 带着现在的 temp / visited 往下一层，' +
+          '继续找下一个位置。');
+        dfs();
+        fn = 'dfs';
+        snap(L.RECURSE, 'Line 21: dfs 返回 — 以 ' + fmt(temp) + ' 开头、下标 ' + i +
+          ' 已用的这棵子树全部收完了，回到 temp=' + fmt(temp) + ' 这一层。');
+
+        visited.delete(i);
+        snap(L.REMOVE, 'Line 22: visited.remove(' + i + ') — 回溯：把下标 ' + i + ' 从 visited 里去掉，' +
+          'visited 变成 ' + fmtSet(visited) + '。');
+
+        const gone = temp.pop();
+        popped = gone;
+        snap(L.POP, 'Line 23: temp.pop(-1) — 把 ' + gone + ' 弹掉，temp 退回 ' + fmt(temp) +
+          '。add → append → 递归 → remove → pop 五步一组，退回原样后 i 才能往后挪去试下一个下标。');
+      }
+      frame.i = null;
+      snap(L.FOR, 'Line 15: range(0, 3) 已经走完 — 这一层所有下标都试过了，dfs(...) 到此结束，返回上一层。');
+    }
+
+    stack.pop();
+    done.push(id);
+  }
+
+  dfs();
+
+  fn = 'permute';
+  snap(L.CALL, 'Line 6: dfs 返回 — 整棵递归树走完，16 次调用对应 6 个排列。');
+  snap(L.RETURN, 'Line 7: return res; — 把收集好的 res 交回去。');
+  fn = null;
+  snap(null, '✅ permute 返回 [' + res.map(fmt).join(', ') + ']，共 ' + res.length + ' 个排列（3! = 6）。' +
+    '对照 78 Subsets：那边每进一个节点就收一个、靠 index 保证只往后挑；这边只有 temp 长度=3 的叶子才收，' +
+    '没有 index，靠 visited 挡住已经用过的位置，所以每层都要从下标 0 重新扫一遍。');
+  return steps;
+}
+
+const STEPS = buildSteps();
+let cur = -1;
+
+// ── 渲染（只读快照，无副作用；Prev / Reset / lockStableSizes 干跑都靠这点）──
+function renderNums(s) {
+  const row = document.getElementById('nums-row');
+  const idxRow = document.getElementById('nums-idx-row');
+  const ptrRow = document.getElementById('nums-ptr-row');
+  row.innerHTML = NUMS.map((v, k) => {
+    const cls = ['num-cell'];
+    if (s.i === k) cls.push('at-i');
+    if (s.visited.indexOf(k) >= 0) cls.push('locked');
+    return '<div class="' + cls.join(' ') + '">' + v + '</div>';
+  }).join('');
+  idxRow.innerHTML = NUMS.map((v, k) => '<div class="num-idx">' + k + '</div>').join('');
+  ptrRow.innerHTML = NUMS.map((v, k) =>
+    '<div class="num-ptr">' + (s.i === k ? '<span class="p-i">↑i</span>' : '') + '</div>').join('');
+}
+
+function renderTemp(s) {
+  const row = document.getElementById('temp-row');
+  if (!s.temp.length && s.popped == null) {
+    row.innerHTML = '<span class="temp-empty">（还没选任何元素）</span>';
+  } else {
+    let html = s.temp.map((v, k) => {
+      const last = k === s.temp.length - 1;
+      return '<div class="temp-chip' + (last && s.pushed ? ' just-pushed' : '') + '">' + v + '</div>';
+    }).join('');
+    if (s.popped != null) html += '<div class="temp-chip ghost">' + s.popped + '</div>';
+    row.innerHTML = html;
+  }
+  document.getElementById('temp-val').innerHTML =
+    '<span class="var-name">temp</span><span class="var-eq"> = </span>' +
+    '<span class="var-val">' + fmt(s.temp) + '</span>';
+  document.getElementById('visited-val').innerHTML =
+    '<span class="var-name">visited</span><span class="var-eq"> = </span>' +
+    '<span class="var-val">' + fmtSet(s.visited) + '</span>';
+}
+
+const stackIds = (s) => s.stack.map(f => f.id);
+
+function nodeState(s, id) {
+  if (s.done.indexOf(id) >= 0) return 'n-done';
+  const at = stackIds(s).indexOf(id);
+  if (at >= 0) return at === s.stack.length - 1 ? 'n-current' : 'n-stack';
+  return '';
+}
+
+function renderTree(s) {
+  const parts = [];
+  const ids = stackIds(s);
+  NODES.forEach(n => {
+    if (n.parent == null) return;
+    const p = NODE_BY_ID[n.parent];
+    const onPath = ids.indexOf(n.id) >= 0 && ids.indexOf(n.parent) >= 0;
+    const x1 = p.x, y1 = p.y + NODE_H / 2, x2 = n.x, y2 = n.y - NODE_H / 2;
+    parts.push('<line class="edge' + (onPath ? ' on-path' : '') + '" x1="' + x1 + '" y1="' + y1 +
+      '" x2="' + x2 + '" y2="' + y2 + '"/>');
+    parts.push('<text class="edge-tag' + (onPath ? ' on-path' : '') + '" x="' + ((x1 + x2) / 2 + 7) +
+      '" y="' + ((y1 + y2) / 2 + 4) + '">+' + n.pick + '</text>');
+  });
+  NODES.forEach(n => {
+    const st = nodeState(s, n.id);
+    const onStack = st === 'n-current' || st === 'n-stack';
+    const fill = onStack ? ' style="fill:' + tintOf(n.id) + '"' : '';
+    parts.push('<g>' +
+      '<rect class="node-box ' + st + '"' + fill + ' x="' + (n.x - NODE_W / 2) + '" y="' + (n.y - NODE_H / 2) +
+        '" width="' + NODE_W + '" height="' + NODE_H + '" rx="7"/>' +
+      '<text class="node-text' + (st ? '' : ' dim') + '" x="' + n.x + '" y="' + (n.y + 4) +
+        '" text-anchor="middle">' + fmt(n.path) + '</text>' +
+      '</g>');
+  });
+  document.getElementById('tree-svg').innerHTML = parts.join('');
+}
+
+function renderVars(s) {
+  const row = (name, val) => '<span class="var-row"><span class="var-name">' + name +
+    '</span><span class="var-eq"> = </span><span class="var-val">' + val + '</span></span>';
+  document.getElementById('var-bar').innerHTML =
+    '<span class="var-row"><span class="fn-tag">' + (s.fn ? s.fn + '()' : '—') +
+      '</span><span class="fn-note">当前所在函数</span></span>' +
+    row('nums', fmt(NUMS)) +
+    row('temp', fmt(s.temp)) +
+    row('visited', fmtSet(s.visited)) +
+    '<span class="var-row var-result"><span class="var-name">res</span>' +
+      '<span class="var-eq"> = </span><span class="var-val">[' +
+      s.res.map(fmt).join(', ') + ']</span></span>' +
+    '<span class="var-row"><span class="var-name">i</span><span class="var-eq"> = </span>' +
+      '<span class="var-val">' + (s.i == null ? '-' : s.i) + '</span>' +
+      '<span class="fn-note">for 循环局部变量，不是形参</span></span>';
+}
+
+/* 调用链卡片：从最外层往里一层一层列，缩进 = 递归深度。temp/res/visited 全程
+   都是同一份对象、会一直被更深的调用改下去，所以每一帧的 dfs(...) 不能写"现在"
+   的值——要写这一帧当初被调用那一刻冻结下来的快照（frame.callTemp 等，dfs()
+   进来时立刻拷贝的那份），不然外层的行会跟着内层的变化一起变。nums 从没变过，
+   留名字不写值。每帧自己的 i 才是真正独立的一份，另外用 chain-i 单独标出来。 */
+function renderChain(s) {
+  const host = document.getElementById('call-chain');
+  if (!s.fn) {
+    host.innerHTML = '<span class="chain-empty">还没开始 / 已经全部返回</span>';
+    return;
+  }
+  const val = (v) => '<span class="var-val">' + v + '</span>';
+  const rows = [];
+  rows.push({ id: null, text: 'permute(nums)', depth: 0, top: !s.stack.length });
+  s.stack.forEach((f, k) => {
+    const node = NODE_BY_ID[f.id];
+    const dfsArgs = 'nums, temp=' + val(fmt(f.callTemp)) +
+      ', res=' + val('[' + f.callRes.map(fmt).join(', ') + ']') +
+      ', visited=' + val(fmtSet(f.callVisited));
+    rows.push({
+      id: f.id, depth: k + 1, top: k === s.stack.length - 1,
+      text: 'dfs(' + dfsArgs + ')',
+      i: f.i, node: fmt(node.path),
+    });
+  });
+  host.innerHTML = rows.map(r =>
+    '<div class="chain-row' + (r.top ? ' top' : '') + '"' +
+      ' style="background:' + tintOf(r.id) + ';margin-left:' + (r.depth * 18) + 'px">' +
+      '<span>' + r.text + '</span>' +
+      (r.i != null ? '<span class="chain-i">i = ' + r.i + '</span>' : '') +
+      (r.node ? '<span class="chain-dim">→ 节点 ' + r.node + '</span>' : '') +
+    '</div>').join('');
+}
+
+function tintLine(s) {
+  document.querySelectorAll('.code-line').forEach(el => { el.style.background = ''; });
+  if (s.line == null || !s.fn) return;
+  const el = document.querySelector('.code-line[data-l="' + s.line + '"]');
+  if (!el) return;
+  el.style.background = tintOf(s.stack.length ? s.stack[s.stack.length - 1].id : null);
+}
+
+const EMPTY = { temp: [], res: [], stack: [], done: [], visited: [], index: null, i: null,
+                pushed: false, popped: null, line: null, fn: null };
+
+function renderAll() {
+  const step = cur >= 0 ? STEPS[cur] : null;
+  const s = step || EMPTY;
+
+  renderChain(s);
+  renderNums(s);
+  renderTemp(s);
+  renderTree(s);
+  renderVars(s);
+  highlightLine(s.line);
+  tintLine(s);
+  renderCtrl(cur, STEPS.length, step ? step.info :
+    '点 Next 开始：nums = [1, 2, 3]，求出它的全部排列（3! = 6 个）。');
+}
+
+var render = renderAll;
+doReset();
+</script>
+</body>
+</html>

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LeetCode Check-in</title>
+<!-- =====================================================================
+     checkin.html — Check-in 汇总页（2026-08-05 从 Life OS 的
+     LeetCode · Practice 视图整页移过来，Life OS 侧入口已删）。
+     数据仍走 Life OS 后端 /api/leetcode/*（同源），后端不在时整页降级成
+     一张提示卡。视觉从 Life OS 的奶白圆卡换成本站 LC Notes 定稿的
+     Ink & Border。
+
+     2026-08-07 拆成三件套：样式 → checkin.css，脚本 → checkin.js，
+     本文件只剩 markup（跟 notes.css / notes.js、cards/ 一个路数）。
+
+     2026-08-11：撤下页面自带的 CHECK-IN 打卡表单 + Scoring Rubric 卡
+     （连带 Due for Review / All Items / Agenda 里"回填表单"的按钮和点击
+     一起去掉，见 checkin.js）——打卡改到题目页做（notes.js 同一份
+     ckForm 组件），这页只剩只读的 Calendar（Monthly / Biweekly 两张卡）/
+     Due for Review / All Items 四张卡 + Delete。
+     ===================================================================== -->
+<link rel="stylesheet" href="shared.css">
+<!-- 复用 LC Notes 的 Ink & Border 组件类（lcn-card / lcn-btn / lcn-input …），
+     本页自己的布局样式用 lch- 前缀，不碰动画页样式 -->
+<link rel="stylesheet" href="notes.css">
+<link rel="stylesheet" href="checkin.css">
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+
+<div class="content-wrapper">
+  <div class="lch-wrap">
+
+    <!-- 页头：只剩居中标题（日期行、统计 chips、Rubric 下拉都按用户要求删了） -->
+    <div class="lch-head">
+      <h1 class="lch-title">LeetCode · Check-in</h1>
+    </div>
+
+    <div class="lcn-card lch-offline" id="chOffline" hidden>
+      <h3>Backend not running</h3>
+      <p>Check-in data lives in the Life OS backend (<code>life.db</code>).<br>
+         Start it with <code>./run.sh</code>, then reload this page.</p>
+    </div>
+
+    <div class="lch-wide-blocks" id="chWideBlocks">
+      <!-- 选型定稿（mockups/lc-notes/checkin-weekly-mockup.html W2 +
+           checkin-calendar-mockup.html Option D）。2026-09-02 起两个视图拆成
+           两张卡同时显示（原来一张卡、卡头 Biweekly/Monthly 切换）：
+           上面 Monthly = 整月柱状图 + 统计块，下面 Biweekly = Agenda 两周
+           上下摞、一天一节列出当天打过的题。各自一对 ‹ › 独立翻页。 -->
+      <div class="lcn-card lch-cal-card" id="chMonthCard">
+        <div class="lch-cal-head">
+          <h3>Check-in Calendar · Monthly</h3>
+          <span class="lch-cal-nav" id="chMonthNav">
+            <button type="button" id="chMonthPrev">‹</button>
+            <span class="lch-cal-lab" id="chMonthLab"></span>
+            <button type="button" id="chMonthNext">›</button>
+          </span>
+        </div>
+        <div id="chMonthBody"></div>
+      </div>
+      <div class="lcn-card lch-cal-card" id="chCalCard">
+        <div class="lch-cal-head">
+          <h3>Check-in Calendar · Biweekly</h3>
+          <span class="lch-cal-nav" id="chWeekNav">
+            <button type="button" id="chWeekPrev">‹</button>
+            <span class="lch-cal-lab" id="chWeekLab"></span>
+            <button type="button" id="chWeekNext">›</button>
+          </span>
+        </div>
+        <div id="chCalBody"></div>
+      </div>
+      <div class="lcn-card" id="chDueCard">
+        <h3>Due for Review</h3>
+        <div class="lch-scroll lch-due-scroll" id="chDue"></div>
+        <div id="chUpWrap" style="display:none">
+          <div class="lch-sub-h">Next 7 days</div>
+          <div class="lch-scroll lch-due-scroll" id="chUpcoming"></div>
+        </div>
+      </div>
+      <div class="lcn-card">
+        <h3>All Items</h3>
+        <div class="lch-scroll lch-items-scroll" id="chItems"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- 删除确认：lcn-safe / lcn-danger-sub 是 notes.css 里现成的防误删配对
+     （安全动作 = 绿色主按钮在右，删除 = 左侧降级描边） -->
+<div class="lcn-modal-ov" id="chConfirmOv" style="display:none">
+  <div class="lcn-modal" role="alertdialog" aria-label="Confirm">
+    <div class="lcn-modal-msg" id="chConfirmMsg"></div>
+    <div class="lcn-modal-btns">
+      <button class="lcn-btn-sub lcn-danger-sub" id="chConfirmDel">Delete</button>
+      <button class="lcn-btn lcn-safe" id="chConfirmKeep">Keep</button>
+    </div>
+  </div>
+</div>
+
+<div class="lch-toast" id="chToast"></div>
+
+<script src="checkin.js"></script>
+</body>
+</html>

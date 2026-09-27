@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reorder W/D/L Characters</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  .oa-layout { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+  .oa-layout .card { width: 100%; min-width: 0; line-height: 1.7; }
+  .oa-layout .card p { margin: 0 0 10px; }
+  .oa-layout .card p:last-child { margin-bottom: 0; }
+  .oa-layout .card ul, .oa-layout .card ol { margin: 0 0 10px 20px; }
+  .oa-layout .card li { margin-bottom: 8px; }
+  .oa-layout .card code { background: var(--ink-chip); border-radius: 4px; padding: 1px 5px; font-family: var(--ink-mono); font-size: 12.5px; }
+  .oa-tag { display: inline-block; font-family: var(--ink-mono); font-size: 11px; letter-spacing: .03em; background: var(--ink-chip); border: var(--ink-border); border-radius: 6px; padding: 2px 8px; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: 'Reorder W/D/L Characters',
+  controls: false,
+});
+</script>
+
+<div class="oa-layout">
+  <div class="card">
+    <span class="oa-tag">TikTok OA · 2026-08-08 · no official LeetCode number</span>
+    <h3>Problem</h3>
+    <p>Rearrange the characters of <code>inputStr</code> according to the following algorithm:</p>
+    <ol>
+      <li>Begin with an empty string <code>output = ""</code>.</li>
+      <li>If <code>inputStr</code> does <strong>not</strong> contain any <code>W</code>s, go to step 3. Otherwise remove one <code>W</code> from <code>inputStr</code>, append it to <code>output</code>, then go to step 3.</li>
+      <li>Same as step 2, but for <code>D</code>, then go to step 4.</li>
+      <li>Same as step 2, but for <code>L</code>, then go to step 5.</li>
+      <li>If <code>inputStr</code> is empty, stop. Otherwise go back to step 2.</li>
+    </ol>
+    <p>Return <code>output</code> once the algorithm finishes.</p>
+    <p><strong>Note:</strong> a solution up to <code>O(inputStr.length^2)</code> fits the time limit — no need to over-optimize.</p>
+    <p><strong>Example</strong></p>
+    <p>For <code>inputStr = "LDWDL"</code>, <code>solution(inputStr) = "WDLDL"</code>.</p>
+  </div>
+</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>64. Minimum Path Sum</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  /* memo 直接画在 3×3 网格上：每格小字 = grid 值（题目给的），大字 = memo 值
+     （从左上走到这一格的最小路径和）。Lyon 这版是 top-down：第一行第一列先填，
+     其余格子递归到哪算到哪 */
+  .grid-wrap { display: inline-flex; flex-direction: column; gap: 6px; }
+  .grid-row { display: flex; gap: 6px; }
+  .grid-cell { width: 66px; height: 62px; border-radius: 9px; display: flex; flex-direction: column;
+               align-items: center; justify-content: center; gap: 2px;
+               background: #f5f5f5; border: 1px solid #c9c9c9; transition: background 0.2s, box-shadow 0.15s; }
+  .grid-cell .g-val { font-family: var(--ink-mono); font-size: 10.5px; color: #999; }
+  .grid-cell .m-val { font-family: var(--ink-mono); font-size: 19px; font-weight: 700; color: #1a1a1a; line-height: 1; }
+  .grid-cell.c-none .m-val { color: #c4c4c4; }
+  .grid-cell.c-done { background: rgba(93,202,165,0.4); border-color: rgba(60,160,125,0.5); }
+  .grid-cell.c-cur { box-shadow: 0 0 0 2px #1a1a1a; }
+  .grid-corner { display: flex; gap: 6px; margin-left: 0; }
+  .grid-idx-row { display: flex; gap: 6px; margin-top: 4px; }
+  .grid-idx { width: 66px; text-align: center; font-family: var(--ink-mono); font-size: 10.5px; color: #aaa; }
+  .grid-body { display: flex; gap: 6px; align-items: flex-start; }
+  .grid-idx-col { display: flex; flex-direction: column; gap: 6px; }
+  .grid-idx-col .grid-idx { width: 16px; height: 62px; line-height: 62px; text-align: right; }
+  .grid-idx-corner { width: 16px; }
+  /* memo 一个键一行（white-space: pre 保留 fmtMemoLines 里的换行和缩进） */
+  .memo-val { margin-top: 12px; font-family: var(--ink-mono); font-size: 12.5px; white-space: pre; max-width: 560px; line-height: 1.6; }
+
+  /* 递归树：节点里写 (i, j)，边上标 left / top 说明是哪一句发起的调用 */
+  #tree-svg { display: block; }
+  .edge { stroke: #d5d5d5; stroke-width: 2; }
+  .edge.on-path { stroke: #3A6FD4; stroke-width: 3; }
+  .edge-tag { font-family: var(--ink-mono); font-size: 9.5px; fill: #b0b0b0; }
+  .edge-tag.on-path { fill: #3A6FD4; font-weight: 700; }
+  .node-box { fill: #f5f5f5; stroke: #c9c9c9; stroke-width: 1; transition: fill 0.2s; }
+  .node-box.n-hit { stroke-dasharray: 3 2; }
+  .node-box.n-current { stroke: #1a1a1a; stroke-width: 2.5; }
+  .node-box.n-stack   { stroke: rgba(90,130,200,0.55); }
+  .node-box.n-stack.n-hit, .node-box.n-current.n-hit { stroke-dasharray: 3 2; }
+  .node-box.n-done    { fill: rgba(93,202,165,0.4); stroke: rgba(60,160,125,0.5); }
+  .node-text { font-family: var(--ink-mono); font-size: 11.5px; font-weight: 700; fill: #1a1a1a; }
+  .node-text.dim { fill: #b5b5b5; }
+
+  /* 四个块排成 2×2：左列 变量栏 / grid+memo，右列 调用链 / 递归树。同一列
+     等宽（列宽取两块里较宽的）、同一行等高，四个块的边线互相对齐 */
+  .viz-grid { display: grid; grid-template-columns: max-content max-content; gap: 16px; align-items: stretch; }
+  .viz-grid > .card, .viz-grid > .var-bar { min-width: 0; width: auto; }
+
+  .fn-tag { display: inline-block; padding: 1px 8px; border-radius: 5px; background: rgba(199,146,234,0.18);
+            color: #6b3fa0; font-family: var(--ink-mono); font-size: 12px; font-weight: 700; }
+  .fn-note { margin-left: 8px; font-family: -apple-system, sans-serif; font-size: 11px; color: #aaa; }
+  /* 变量名占固定宽度（最长的是 memo[i,j]，9 个字符），让每行的 = 对齐 */
+  #var-bar .var-name { display: inline-block; min-width: 9ch; }
+
+  /* 调用链：一层一行、按深度缩进，底色 = 这一帧的格子 (i, j) 的颜色 */
+  .call-chain { display: flex; flex-direction: column; gap: 4px; min-height: 132px; }
+  .chain-row { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 10px;
+               border-radius: 7px; font-family: var(--ink-mono); font-size: 12px;
+               color: #1a1a1a; white-space: nowrap; align-self: flex-start;
+               transition: box-shadow 0.15s; }
+  .chain-row.top { box-shadow: 0 0 0 1.5px #1a1a1a; font-weight: 700; }
+  .chain-i { color: #C4501E; font-weight: 700; }
+  .chain-dim { color: #8a8a8a; font-weight: 400; }
+  .chain-empty { font-family: var(--ink-mono); font-size: 12px; color: #bbb; }
+  .chain-note { margin-top: 10px; font-family: -apple-system, sans-serif; font-size: 11.5px; color: #888; line-height: 1.6; max-width: 460px; }
+
+  .legend-below { flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 0; max-width: none; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '64. Minimum Path Sum',
+  link: 'https://leetcode.com/problems/minimum-path-sum/',
+  legend: [
+    { color: 'rgba(249,203,66,0.30)', extra: 'box-shadow:inset 0 0 0 2px #1a1a1a;', label: '黑框 = 正在执行这一行的那次调用（网格上 = 这一步在读 / 写的格子）' },
+    { color: 'rgba(120,160,225,0.22)', label: '每个格子 (i, j) 一种颜色 — 代码高亮行 / 调用链 / 树节点 / 网格同色；同一格不管被调几次都是同一色' },
+    { color: '#f5f5f5', extra: 'border:1.5px dashed #888;', label: '虚线框 = 这次调用命中 memo，直接返回、不再展开' },
+    { color: 'rgba(93,202,165,0.4)', label: 'dp 已返回（子树走完）/ 网格里这一格的 memo 值已定' },
+    { color: '#f5f5f5', extra: 'border:1px solid #c9c9c9;', label: '还没调用到 / 还没进 memo（网格小字 = grid 值，大字 = memo 值）' },
+    { color: '#3A6FD4', extra: 'border-radius:2px;width:14px;height:3px;', label: '根 → 当前帧（就是调用栈）' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+  <script>
+  renderCodeBox({
+    code: `
+class Solution:
+    def minPathSum(self, grid: List[List[int]]) -> int:
+        memo = {}
+        row = len(grid)
+        col = len(grid[0])
+
+        sums = 0
+        for j in range(col):
+            sums += grid[0][j]
+            memo[0,j] = sums
+
+        sums = 0
+        for i in range(row):
+            sums += grid[i][0]
+            memo[i,0] = sums
+
+        def dp(i,j,memo):
+            if (i,j) in memo:
+                return memo[i,j]
+
+            left = dp(i,j-1,memo)
+            top = dp(i-1,j,memo)
+
+            memo[i,j] = min(left,top) + grid[i][j]
+
+            return memo[i,j]
+
+        return dp(row-1,col-1,memo)`,
+  });
+  </script>
+
+  <script>
+  (function () {
+    const stack = document.querySelector('.code-stack');
+    stack.appendChild(document.getElementById('info'));
+    const legend = document.querySelector('.legend');
+    const legendRow = legend.parentElement;
+    legend.classList.add('legend-below');
+    stack.appendChild(legend);
+    legendRow.remove();
+  })();
+  </script>
+
+  <div class="viz-panel">
+    <div class="viz-grid">
+      <div class="var-bar" id="var-bar"></div>
+      <div class="card">
+        <h3>调用链 — 现在这行代码是谁在跑</h3>
+        <div class="call-chain" id="call-chain"></div>
+        <div class="chain-note">memo 是所有层共用的同一个 dict（只写名字不写值）；i、j 按值传，每层各有一份；left / top 是每层自己的局部变量，等子调用返回才有值。</div>
+      </div>
+
+      <div class="card">
+        <h3>grid + memo — 走到每一格的最小路径和</h3>
+        <div class="grid-corner"><div class="grid-idx-corner"></div><div class="grid-idx-row" id="grid-idx-row"></div></div>
+        <div class="grid-body">
+          <div class="grid-idx-col" id="grid-idx-col"></div>
+          <div class="grid-wrap" id="grid-wrap"></div>
+        </div>
+        <div class="memo-val" id="memo-val"></div>
+      </div>
+
+      <div class="card">
+        <h3>递归树 — 每个节点是一次 dp(i, j) 调用</h3>
+        <svg id="tree-svg"></svg>
+      </div>
+    </div>
+  </div>
+</div><!-- /.main -->
+</div><!-- /.content-wrapper -->
+
+<script>
+// ── 例子：LeetCode 64 官方 Example 1 ──────────────────────────────────────
+const GRID = [[1, 3, 1], [1, 5, 1], [4, 2, 1]];
+const ROW = GRID.length, COL = GRID[0].length;
+
+/* 行号表：正文从 1 开始，空行也占号（6/11/16/20/23/25/27 是空行）。
+   按 ANIMATION_GUIDE：每行可执行代码 ≥ 1 步，if/for 头每轮都停（True 和 False
+   都停），函数调用行走两遍（发起 + 返回），def 行进入时也停。 */
+const L = {
+  MPS:      2,   // def minPathSum(self, grid)   进入时一步
+  MEMO:     3,   // memo = {}
+  ROW:      4,   // row = len(grid)
+  COL:      5,   // col = len(grid[0])
+  SUMS1:    7,   // sums = 0
+  FORJ:     8,   // for j in range(col):   每轮 + 取空各一次
+  ADDJ:     9,   // sums += grid[0][j]
+  SETJ:    10,   // memo[0,j] = sums
+  SUMS2:   12,   // sums = 0
+  FORI:    13,   // for i in range(row):   每轮 + 取空各一次
+  ADDI:    14,   // sums += grid[i][0]
+  SETI:    15,   // memo[i,0] = sums
+  DP:      17,   // def dp(i,j,memo)   minPathSum 里"定义"时一步；每次进入 dp 也一步
+  IFMEMO:  18,   // if (i,j) in memo:   True / False 各停一次
+  RETMEMO: 19,   // return memo[i,j]（命中）
+  LEFT:    21,   // left = dp(i,j-1,memo)   调用 + 返回各一次
+  TOP:     22,   // top = dp(i-1,j,memo)   调用 + 返回各一次
+  SET:     24,   // memo[i,j] = min(left,top) + grid[i][j]
+  RET:     26,   // return memo[i,j]
+  CALL:    28,   // return dp(row-1,col-1,memo)   调用 + 返回各一次
+};
+
+/* 色板按格子 (i, j) 分：memo 的意义就是"同一格只算一次"，所以同一格的所有调用
+   （第一次真算的 + 后面命中 memo 的）都用同一种底色。下标 = i * COL + j。 */
+const CALL_TINT = [
+  'rgba(126,158,221,0.24)',
+  'rgba(117,209,163,0.26)',
+  'rgba(227,192,109,0.30)',
+  'rgba(216,143,121,0.26)',
+  'rgba(180,131,216,0.26)',
+  'rgba(127,196,210,0.28)',
+  'rgba(209,166,117,0.30)',
+  'rgba(219,148,184,0.24)',
+  'rgba(152,121,216,0.24)',
+];
+const OUTER_TINT = 'rgba(150,150,150,0.18)';   // 外层 minPathSum()，不是 dp
+const tintOf = (i, j) => i == null ? OUTER_TINT : CALL_TINT[(i * COL + j) % CALL_TINT.length];
+
+const key = (i, j) => i + ',' + j;
+const fmtKey = (k) => '(' + k.split(',').join(', ') + ')';
+const fmtGrid = (g) => '[' + g.map(r => '[' + r.join(',') + ']').join(',') + ']';
+const fmtMemo = (memo, order) => order.length
+  ? '{' + order.map(k => fmtKey(k) + ': ' + memo[k]).join(', ') + '}'
+  : '{}';
+// memo 卡用的多行版：一个键一行（步骤说明文字里仍用单行的 fmtMemo）
+const fmtMemoLines = (memo, order) => order.length
+  ? '{\n' + order.map(k => '  ' + fmtKey(k) + ': ' + memo[k]).join(',\n') + '\n}'
+  : '{}';
+
+// 递归树的节点：buildSteps() 跑算法时按调用顺序 push 进来，layoutTree() 再算坐标
+const NODES = [];
+
+// ── 真跑一遍 Lyon 的解法生成步骤 ──────────────────────────────────────────
+function buildSteps() {
+  const steps = [];
+  const memo = {};        // 全程只有一份，所有层共用；键 "i,j" 对应 Python 的 (i, j)
+  const memoOrder = [];   // Python dict 的插入顺序
+  let memoExists = false; // Line 3 之前 memo 还不存在
+  let stack = [];         // dp 调用栈：[{ id, i, j, kind, left, top }]
+  let done = [];          // 已经返回的调用 id
+  let fn = null;
+  let row = null, col = null, sums = null;
+  let outerI = null, outerJ = null;   // minPathSum 里两个初始化循环的 i / j
+  let ret = null;
+  let hot = null;         // 这一步被读 / 写的格子 "i,j"
+  let callCount = 0;
+
+  function setMemo(k, v) {
+    if (!(k in memo)) memoOrder.push(k);
+    memo[k] = v;
+  }
+
+  function snap(line, info) {
+    const top = stack.length ? stack[stack.length - 1] : null;
+    steps.push({
+      line, info, fn, ret, hot, row, col, sums, outerI, outerJ,
+      memo: memoExists ? Object.assign({}, memo) : null,
+      memoOrder: [...memoOrder],
+      stack: stack.map(f => Object.assign({}, f)),
+      done: [...done],
+      i: top ? top.i : outerI,
+      j: top ? top.j : outerJ,
+      left: top ? top.left : null,
+      top: top ? top.top : null,
+    });
+    hot = null;
+  }
+
+  snap(null, 'Top-down DP：dp(i, j) = 从左上角走到格子 (i, j) 的最小路径和。只能往右或往下走，' +
+    '所以到 (i, j) 只能从左边 (i, j-1) 或上面 (i-1, j) 来——取便宜的那个再加上自己。' +
+    '第一行、第一列只有一条路，先直接填好；其余格子递归现算，结果记进 memo。grid = ' + fmtGrid(GRID) + '。');
+
+  fn = 'minPathSum';
+  snap(L.MPS, 'Line 2: 进入 minPathSum(grid=' + fmtGrid(GRID) + ') — 3×3 的网格，目标是右下角 (2, 2)。');
+  memoExists = true;
+  snap(L.MEMO, 'Line 3: memo = {} — 空字典，键是 (i, j) 元组，之后所有层的 dp 共用这同一份。');
+  row = ROW;
+  snap(L.ROW, 'Line 4: row = len(grid) = ' + ROW + '。');
+  col = COL;
+  snap(L.COL, 'Line 5: col = len(grid[0]) = ' + COL + '。');
+
+  sums = 0;
+  snap(L.SUMS1, 'Line 7: sums = 0 — 准备沿第一行累加：第一行的格子只能从左边一路走过来，路径和就是前缀和。');
+  for (let j = 0; j < COL; j++) {
+    outerJ = j;
+    snap(L.FORJ, 'Line 8: for j in range(' + COL + ') → j = ' + j + '。');
+    sums += GRID[0][j];
+    snap(L.ADDJ, 'Line 9: sums += grid[0][' + j + '] = ' + GRID[0][j] + ' → sums = ' + sums + '。');
+    setMemo(key(0, j), sums); hot = key(0, j);
+    snap(L.SETJ, 'Line 10: memo[0, ' + j + '] = ' + sums + ' — 第一行第 ' + j + ' 格的最小路径和直接定下来。');
+  }
+  outerJ = null;
+  snap(L.FORJ, 'Line 8: range(' + COL + ') 已经走完 — 第一行填好了：' + fmtMemo(memo, memoOrder) + '。');
+
+  sums = 0;
+  snap(L.SUMS2, 'Line 12: sums = 0 — 再沿第一列累加：第一列的格子只能从上面一路走下来。');
+  for (let i = 0; i < ROW; i++) {
+    outerI = i;
+    snap(L.FORI, 'Line 13: for i in range(' + ROW + ') → i = ' + i + '。');
+    sums += GRID[i][0];
+    snap(L.ADDI, 'Line 14: sums += grid[' + i + '][0] = ' + GRID[i][0] + ' → sums = ' + sums + '。');
+    setMemo(key(i, 0), sums); hot = key(i, 0);
+    snap(L.SETI, 'Line 15: memo[' + i + ', 0] = ' + sums +
+      (i === 0 ? ' — (0, 0) 在第一行循环里已经写过 1，这里重写成同样的 1，没影响。' : ' — 第一列第 ' + i + ' 格定下来。'));
+  }
+  outerI = null;
+  snap(L.FORI, 'Line 13: range(' + ROW + ') 已经走完 — 第一行 + 第一列都有了，剩下 ' + ((ROW - 1) * (COL - 1)) +
+    ' 格靠递归现算。');
+
+  snap(L.DP, 'Line 17: def dp(i,j,memo) — 这里只是定义内层函数，还没调用；它是闭包，能直接看到外面的 grid。');
+  snap(L.CALL, 'Line 28: 调用 dp(row-1, col-1, memo) = dp(' + (ROW - 1) + ', ' + (COL - 1) + ', memo) — 从右下角倒着往回问。');
+
+  function dp(i, j, parentId, via) {
+    const id = callCount++;
+    const k = key(i, j);
+    const kind = (k in memo) ? 'hit' : 'full';
+    const parent = parentId == null ? null : NODES[parentId];
+    const node = { id, i, j, parent: parentId, kind, via, depth: parent ? parent.depth + 1 : 0, children: [] };
+    NODES.push(node);
+    if (parent) parent.children.push(node);
+    const frame = { id, i, j, kind, left: null, top: null };
+    stack.push(frame);
+    fn = 'dp';
+    snap(L.DP, 'Line 17: 进入 dp(i=' + i + ', j=' + j + ', memo) — ' +
+      (kind === 'full' ? '走到格子 (' + i + ', ' + j + ') 最少花多少？' : '格子 (' + i + ', ' + j + ') 又被问到了。'));
+
+    if (k in memo) {
+      hot = k;
+      snap(L.IFMEMO, 'Line 18: (' + i + ', ' + j + ') in memo → True — 这一格已经有答案 memo[' + i + ', ' + j + '] = ' + memo[k] +
+        (i === 0 || j === 0 ? '（第一行/第一列初始化时填的）' : '（刚才递归算出来的）') + '，不用再展开。');
+      hot = k;
+      snap(L.RETMEMO, 'Line 19: return memo[' + i + ', ' + j + '] = ' + memo[k] + ' — 直接交回上一层。' +
+        (i === 0 || j === 0 ? ' 正因为第一行第一列都预填了，i-1 / j-1 永远不会越界到 -1。' : ''));
+      stack.pop(); done.push(id);
+      return memo[k];
+    }
+    snap(L.IFMEMO, 'Line 18: (' + i + ', ' + j + ') in memo → False — 这一格还没算过，去问左边和上面。');
+
+    snap(L.LEFT, 'Line 21: 调用 dp(' + i + ', ' + (j - 1) + ', memo) — 先问左边那一格 (' + i + ', ' + (j - 1) + ') 最少要多少。');
+    const left = dp(i, j - 1, id, 'left');
+    fn = 'dp';
+    frame.left = left;
+    snap(L.LEFT, 'Line 21: dp(' + i + ', ' + (j - 1) + ') 返回 ' + left + '，left = ' + left + ' — 从左边走过来的最小代价。');
+
+    snap(L.TOP, 'Line 22: 调用 dp(' + (i - 1) + ', ' + j + ', memo) — 再问上面那一格 (' + (i - 1) + ', ' + j + ')。');
+    const top = dp(i - 1, j, id, 'top');
+    fn = 'dp';
+    frame.top = top;
+    snap(L.TOP, 'Line 22: dp(' + (i - 1) + ', ' + j + ') 返回 ' + top + '，top = ' + top + ' — 从上面走下来的最小代价。');
+
+    const v = Math.min(left, top) + GRID[i][j];
+    setMemo(k, v); hot = k;
+    snap(L.SET, 'Line 24: memo[' + i + ', ' + j + '] = min(left, top) + grid[' + i + '][' + j + '] = min(' + left + ', ' + top + ') + ' +
+      GRID[i][j] + ' = ' + v + ' — 从' + (left <= top ? '左边' : '上面') + '来更便宜，再加上这一格自己的 ' + GRID[i][j] + '。');
+    hot = k;
+    snap(L.RET, 'Line 26: return memo[' + i + ', ' + j + '] = ' + v + ' — 交回上一层；以后再有人问 (' + i + ', ' + j + ')，Line 18 直接命中。');
+    stack.pop(); done.push(id);
+    return v;
+  }
+
+  const r = dp(ROW - 1, COL - 1, null, null);
+  fn = 'minPathSum';
+  ret = r;
+  const nFull = NODES.filter(n => n.kind === 'full').length;
+  const nHit = NODES.filter(n => n.kind === 'hit').length;
+  snap(L.CALL, 'Line 28: dp(' + (ROW - 1) + ', ' + (COL - 1) + ') 返回 ' + r + '，return ' + r + ' — 整棵递归树走完：' +
+    NODES.length + ' 次调用里 ' + nFull + ' 次真算，' + nHit + ' 次命中 memo。');
+  fn = null;
+  snap(null, '✅ minPathSum 返回 ' + r + '，最终答案 = ' + r + '（1 → 3 → 1 → 1 → 1）。' +
+    '每一格只真算一次，复杂度 O(row × col)；memo 里每格的值就是 bottom-up 版 dp 表的同一张表，只是填表顺序是"被问到才填"。');
+  return steps;
+}
+
+const STEPS = buildSteps();
+let cur = -1;
+
+// ── 递归树坐标：叶子按调用顺序从左到右排格子，内部节点取首尾孩子中点，y 按深度 ──
+const SLOT = 64, X0 = 34, Y0 = 22, DY = 52;
+const NODE_W = 50, NODE_H = 24;
+function layoutTree() {
+  let slot = 0;
+  let maxDepth = 0;
+  function place(n) {
+    n.children.forEach(place);
+    if (!n.children.length) n.x = X0 + (slot++) * SLOT;
+    else n.x = (n.children[0].x + n.children[n.children.length - 1].x) / 2;
+    n.y = Y0 + n.depth * DY;
+    if (n.depth > maxDepth) maxDepth = n.depth;
+  }
+  place(NODES[0]);
+  const w = X0 * 2 + (slot - 1) * SLOT;
+  const h = Y0 * 2 + maxDepth * DY;
+  const svg = document.getElementById('tree-svg');
+  svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+  svg.style.width = w + 'px';
+  svg.style.height = h + 'px';
+}
+layoutTree();
+
+// ── 渲染（只读快照，无副作用；Prev / Reset / lockStableSizes 干跑都靠这点）──
+function renderGrid(s) {
+  const top = s.stack.length ? s.stack[s.stack.length - 1] : null;
+  const onStack = {};
+  s.stack.forEach(f => { onStack[key(f.i, f.j)] = true; });
+  const rows = [];
+  for (let i = 0; i < ROW; i++) {
+    const cells = [];
+    for (let j = 0; j < COL; j++) {
+      const k = key(i, j);
+      const cls = ['grid-cell'];
+      let mv = '·';
+      let style = '';
+      if (s.memo && k in s.memo) { mv = s.memo[k]; cls.push('c-done'); }
+      else cls.push('c-none');
+      if (onStack[k] && !(s.memo && k in s.memo)) { mv = '?'; style = ' style="background:' + tintOf(i, j) + '"'; }
+      if (s.hot === k || (top && top.i === i && top.j === j)) cls.push('c-cur');
+      cells.push('<div class="' + cls.join(' ') + '"' + style + '>' +
+        '<div class="g-val">grid ' + GRID[i][j] + '</div><div class="m-val">' + mv + '</div></div>');
+    }
+    rows.push('<div class="grid-row">' + cells.join('') + '</div>');
+  }
+  document.getElementById('grid-wrap').innerHTML = rows.join('');
+  document.getElementById('grid-idx-row').innerHTML =
+    Array.from({ length: COL }, (_, j) => '<div class="grid-idx">j=' + j + '</div>').join('');
+  document.getElementById('grid-idx-col').innerHTML =
+    Array.from({ length: ROW }, (_, i) => '<div class="grid-idx">' + i + '</div>').join('');
+  document.getElementById('memo-val').innerHTML =
+    '<span class="var-name">memo</span><span class="var-eq"> = </span>' +
+    '<span class="var-val">' + (s.memo ? fmtMemoLines(s.memo, s.memoOrder) : '—') + '</span>';
+}
+
+const stackIds = (s) => s.stack.map(f => f.id);
+
+function nodeState(s, id) {
+  if (s.done.indexOf(id) >= 0) return 'n-done';
+  const at = stackIds(s).indexOf(id);
+  if (at >= 0) return at === s.stack.length - 1 ? 'n-current' : 'n-stack';
+  return '';
+}
+
+function renderTree(s) {
+  const parts = [];
+  const ids = stackIds(s);
+  NODES.forEach(n => {
+    if (n.parent == null) return;
+    const p = NODES[n.parent];
+    const onPath = ids.indexOf(n.id) >= 0 && ids.indexOf(n.parent) >= 0;
+    const x1 = p.x, y1 = p.y + NODE_H / 2, x2 = n.x, y2 = n.y - NODE_H / 2;
+    parts.push('<line class="edge' + (onPath ? ' on-path' : '') + '" x1="' + x1 + '" y1="' + y1 +
+      '" x2="' + x2 + '" y2="' + y2 + '"/>');
+    parts.push('<text class="edge-tag' + (onPath ? ' on-path' : '') + '" x="' + ((x1 + x2) / 2 + (n.via === 'left' ? -22 : 5)) +
+      '" y="' + ((y1 + y2) / 2 + 3) + '">' + n.via + '</text>');
+  });
+  NODES.forEach(n => {
+    const st = nodeState(s, n.id);
+    const onStack = st === 'n-current' || st === 'n-stack';
+    const cls = ['node-box', st];
+    if (n.kind === 'hit') cls.push('n-hit');
+    const fill = onStack ? ' style="fill:' + tintOf(n.i, n.j) + '"' : '';
+    parts.push('<g>' +
+      '<rect class="' + cls.join(' ') + '"' + fill + ' x="' + (n.x - NODE_W / 2) + '" y="' + (n.y - NODE_H / 2) +
+        '" width="' + NODE_W + '" height="' + NODE_H + '" rx="6"/>' +
+      '<text class="node-text' + (st ? '' : ' dim') + '" x="' + n.x + '" y="' + (n.y + 4) +
+        '" text-anchor="middle">(' + n.i + ',' + n.j + ')</text>' +
+      '</g>');
+  });
+  document.getElementById('tree-svg').innerHTML = parts.join('');
+}
+
+function renderVars(s) {
+  const row = (name, val, note) => '<span class="var-row"><span class="var-name">' + name +
+    '</span><span class="var-eq"> = </span><span class="var-val">' + val + '</span>' +
+    (note ? '<span class="fn-note">' + note + '</span>' : '') + '</span>';
+  const top = s.stack.length ? s.stack[s.stack.length - 1] : null;
+  const memoIJ = (top && s.memo && key(top.i, top.j) in s.memo) ? s.memo[key(top.i, top.j)] : '-';
+  const d = (v) => v == null ? '-' : v;
+  document.getElementById('var-bar').innerHTML =
+    '<span class="var-row"><span class="fn-tag">' + (s.fn ? s.fn + '()' : '—') +
+      '</span><span class="fn-note">当前所在函数</span></span>' +
+    row('row', d(s.row)) +
+    row('col', d(s.col)) +
+    row('sums', d(s.sums), '初始化用的前缀和') +
+    row('i', d(s.i)) +
+    row('j', d(s.j)) +
+    row('left', d(s.left), 'dp 局部变量') +
+    row('top', d(s.top), 'dp 局部变量') +
+    row('memo[i,j]', memoIJ) +
+    row('ret', d(s.ret));
+}
+
+/* 调用链卡片：从最外层往里一层一层列，缩进 = 递归深度。memo 全程是同一份 dict，
+   按 CH4 规范只写名字不写值；i、j 按值传、每层各一份，写具体数值；left / top
+   是每层自己的局部变量，子调用返回后才有值，另外用 chain-i 标出来。 */
+function renderChain(s) {
+  const host = document.getElementById('call-chain');
+  if (!s.fn) {
+    host.innerHTML = '<span class="chain-empty">还没开始 / 已经全部返回</span>';
+    return;
+  }
+  const val = (v) => '<span class="var-val">' + v + '</span>';
+  const rows = [];
+  const outerLocal = s.outerJ != null ? 'j = ' + s.outerJ : s.outerI != null ? 'i = ' + s.outerI : null;
+  rows.push({ i: null, j: null, depth: 0, top: !s.stack.length,
+              text: 'minPathSum(grid)', local: outerLocal, tag: null });
+  s.stack.forEach((f, k) => {
+    const locals = [];
+    if (f.left != null) locals.push('left = ' + f.left);
+    if (f.top != null) locals.push('top = ' + f.top);
+    rows.push({
+      i: f.i, j: f.j, depth: k + 1, top: k === s.stack.length - 1,
+      text: 'dp(i=' + val(f.i) + ', j=' + val(f.j) + ', memo)',
+      local: locals.length ? locals.join(', ') : null,
+      tag: f.kind === 'hit' ? '命中 memo' : null,
+    });
+  });
+  host.innerHTML = rows.map(r =>
+    '<div class="chain-row' + (r.top ? ' top' : '') + '"' +
+      ' style="background:' + tintOf(r.i, r.j) + ';margin-left:' + (r.depth * 18) + 'px">' +
+      '<span>' + r.text + '</span>' +
+      (r.local ? '<span class="chain-i">' + r.local + '</span>' : '') +
+      (r.tag ? '<span class="chain-dim">→ ' + r.tag + '</span>' : '') +
+    '</div>').join('');
+}
+
+function tintLine(s) {
+  document.querySelectorAll('.code-line').forEach(el => { el.style.background = ''; });
+  if (s.line == null || !s.fn) return;
+  const el = document.querySelector('.code-line[data-l="' + s.line + '"]');
+  if (!el) return;
+  const top = s.stack.length ? s.stack[s.stack.length - 1] : null;
+  el.style.background = top ? tintOf(top.i, top.j) : tintOf(null, null);
+}
+
+const EMPTY = { line: null, info: null, fn: null, ret: null, hot: null, row: null, col: null, sums: null,
+                outerI: null, outerJ: null, memo: null, memoOrder: [], stack: [], done: [],
+                i: null, j: null, left: null, top: null };
+
+function renderAll() {
+  const step = cur >= 0 ? STEPS[cur] : null;
+  const s = step || EMPTY;
+
+  renderChain(s);
+  renderGrid(s);
+  renderTree(s);
+  renderVars(s);
+  highlightLine(s.line);
+  tintLine(s);
+  renderCtrl(cur, STEPS.length, step ? step.info :
+    '点 Next 开始：grid = ' + fmtGrid(GRID) + '，只能往右或往下走，求左上到右下的最小路径和。');
+}
+
+var render = renderAll;
+doReset();
+</script>
+</body>
+</html>

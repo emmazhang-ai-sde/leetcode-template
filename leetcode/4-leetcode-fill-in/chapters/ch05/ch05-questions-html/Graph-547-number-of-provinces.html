@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>547. Number of Provinces · 填空</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/fill-theme.css">
+<script src="../../assets/repo-corner.js" defer></script>
+</head>
+<body class="problem-page">
+<main class="problem-main">
+  <h1 class="prob-title">
+    <a id="probLink" href="https://leetcode.com/problems/number-of-provinces/description/" target="_blank" rel="noopener noreferrer">
+      <span class="prob-title__num" id="probNum">547.</span><span id="probName">Number of Provinces</span>
+    </a>
+  </h1>
+
+  <div style="margin-bottom: 16px;">
+    <button type="button" id="btnToggleAnswers" aria-pressed="false">显示参考答案</button>
+    <span class="copy-toast" id="copyToast" aria-live="polite"></span>
+  </div>
+
+  <!-- BFS -->
+  <p style="font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#888780;margin:0 0 6px;">BFS</p>
+  <div class="code-with-actions">
+    <div class="code-widget">
+      <div class="code-area">
+        <table class="code-table" id="ct-bfs" aria-label="BFS 代码填空">
+<tr><td class="ln">1</td><td class="lc"><span class="seg">class Solution:</span></td></tr>
+<tr><td class="ln">2</td><td class="lc"><span class="seg">    def findCircleNum(self, isConnected: List[List[int]]) -&gt; int:</span></td></tr>
+<tr><td class="ln">3</td><td class="lc"><span class="seg">        visited = set()</span></td></tr>
+<tr><td class="ln">4</td><td class="lc"><span class="seg">        ans = 0</span></td></tr>
+<tr><td class="ln">5</td><td class="lc"><span class="seg">        for i in range(len(isConnected)):</span></td></tr>
+<tr><td class="ln">6</td><td class="lc"><span class="seg">            if i in </span><span class="blank-group"><input type="text" class="blank" data-answer="visited" data-answers='["visited"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">visited</span></span><span class="seg">:</span></td></tr>
+<tr><td class="ln">7</td><td class="lc"><span class="seg">                continue</span></td></tr>
+<tr><td class="ln">8</td><td class="lc"><span class="seg">            ans += </span><span class="blank-group"><input type="text" class="blank" data-answer="1" data-answers='["1"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">1</span></span></td></tr>
+<tr><td class="ln">9</td><td class="lc"><span class="seg">            self.bfs(i, visited, isConnected)</span></td></tr>
+<tr><td class="ln">10</td><td class="lc"><span class="seg">        return ans</span></td></tr>
+<tr><td class="ln">11</td><td class="lc"><span class="seg"></span></td></tr>
+<tr><td class="ln">12</td><td class="lc"><span class="seg">    def bfs(self, i, visited, isConnected):</span></td></tr>
+<tr><td class="ln">13</td><td class="lc"><span class="seg">        import collections</span></td></tr>
+<tr><td class="ln">14</td><td class="lc"><span class="seg">        queue = collections.deque(</span><span class="blank-group"><input type="text" class="blank" data-answer="[i]" data-answers='["[i]"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">[i]</span></span><span class="seg">)</span></td></tr>
+<tr><td class="ln">15</td><td class="lc"><span class="seg">        visited.add(</span><span class="blank-group"><input type="text" class="blank" data-answer="i" data-answers='["i"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">i</span></span><span class="seg">)</span></td></tr>
+<tr><td class="ln">16</td><td class="lc"><span class="seg">        while queue:</span></td></tr>
+<tr><td class="ln">17</td><td class="lc"><span class="seg">            curr = queue.popleft()</span></td></tr>
+<tr><td class="ln">18</td><td class="lc"><span class="seg">            for neighbor in range(len(isConnected)):</span></td></tr>
+<tr><td class="ln">19</td><td class="lc"><span class="seg">                if </span><span class="blank-group"><input type="text" class="blank" data-answer="isConnected[curr][neighbor]" data-answers='["isConnected[curr][neighbor]"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">isConnected[curr][neighbor]</span></span><span class="seg"> and </span><span class="blank-group"><input type="text" class="blank" data-answer="neighbor not in visited" data-answers='["neighbor not in visited"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">neighbor not in visited</span></span><span class="seg">:</span></td></tr>
+<tr><td class="ln">20</td><td class="lc"><span class="seg">                    visited.add(neighbor)</span></td></tr>
+<tr><td class="ln">21</td><td class="lc"><span class="seg">                    queue.append(</span><span class="blank-group"><input type="text" class="blank" data-answer="neighbor" data-answers='["neighbor"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">neighbor</span></span><span class="seg">)</span></td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="controls">
+      <button type="button" class="btn-primary" id="check-bfs">Check all</button>
+      <button type="button" id="reset-bfs">Reset</button>
+      <button type="button" id="reveal-bfs">Reveal</button>
+      <button type="button" id="copy-bfs">Copy</button>
+      <span class="score" id="score-bfs"></span>
+    </div>
+  </div>
+
+  <!-- DFS -->
+  <p style="font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#888780;margin:24px 0 6px;">DFS</p>
+  <div class="code-with-actions">
+    <div class="code-widget">
+      <div class="code-area">
+        <table class="code-table" id="ct-dfs" aria-label="DFS 代码填空">
+<tr><td class="ln">1</td><td class="lc"><span class="seg">class Solution:</span></td></tr>
+<tr><td class="ln">2</td><td class="lc"><span class="seg">    def findCircleNum(self, isConnected: List[List[int]]) -&gt; int:</span></td></tr>
+<tr><td class="ln">3</td><td class="lc"><span class="seg">        visited = set()</span></td></tr>
+<tr><td class="ln">4</td><td class="lc"><span class="seg">        ans = 0</span></td></tr>
+<tr><td class="ln">5</td><td class="lc"><span class="seg">        for i in range(len(isConnected)):</span></td></tr>
+<tr><td class="ln">6</td><td class="lc"><span class="seg">            if i in </span><span class="blank-group"><input type="text" class="blank" data-answer="visited" data-answers='["visited"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">visited</span></span><span class="seg">:</span></td></tr>
+<tr><td class="ln">7</td><td class="lc"><span class="seg">                continue</span></td></tr>
+<tr><td class="ln">8</td><td class="lc"><span class="seg">            ans += </span><span class="blank-group"><input type="text" class="blank" data-answer="1" data-answers='["1"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">1</span></span></td></tr>
+<tr><td class="ln">9</td><td class="lc"><span class="seg">            self.dfs(i, visited, isConnected)</span></td></tr>
+<tr><td class="ln">10</td><td class="lc"><span class="seg">        return ans</span></td></tr>
+<tr><td class="ln">11</td><td class="lc"><span class="seg"></span></td></tr>
+<tr><td class="ln">12</td><td class="lc"><span class="seg">    def dfs(self, i, visited, isConnected):</span></td></tr>
+<tr><td class="ln">13</td><td class="lc"><span class="seg"></span></td></tr>
+<tr><td class="ln">14</td><td class="lc"><span class="seg">        for neighbor in range(</span><span class="blank-group"><input type="text" class="blank" data-answer="len(isConnected)" data-answers='["len(isConnected)"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">len(isConnected)</span></span><span class="seg">):</span></td></tr>
+<tr><td class="ln">15</td><td class="lc"><span class="seg">            if isConnected[i][neighbor] and </span><span class="blank-group"><input type="text" class="blank" data-answer="neighbor not in visited" data-answers='["neighbor not in visited"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">neighbor not in visited</span></span><span class="seg">:</span></td></tr>
+<tr><td class="ln">16</td><td class="lc"><span class="seg">                visited.add(</span><span class="blank-group"><input type="text" class="blank" data-answer="neighbor" data-answers='["neighbor"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">neighbor</span></span><span class="seg">)</span></td></tr>
+<tr><td class="ln">17</td><td class="lc"><span class="seg">                self.dfs(</span><span class="blank-group"><input type="text" class="blank" data-answer="neighbor" data-answers='["neighbor"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">neighbor</span></span><span class="seg">, visited, isConnected)</span></td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="controls">
+      <button type="button" class="btn-primary" id="check-dfs">Check all</button>
+      <button type="button" id="reset-dfs">Reset</button>
+      <button type="button" id="reveal-dfs">Reveal</button>
+      <button type="button" id="copy-dfs">Copy</button>
+      <span class="score" id="score-dfs"></span>
+    </div>
+  </div>
+</main>
+<script src="../../assets/fill-blanks.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var FB = window.FillBlanks;
+  if (!FB) return;
+
+  var toast = document.getElementById('copyToast');
+  function showToast(msg) {
+    if (!toast) return;
+    toast.textContent = msg;
+    toast.classList.add('is-on');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(function () { toast.classList.remove('is-on'); }, 2000);
+  }
+
+  function copyTable(tableId) {
+    var table = document.getElementById(tableId);
+    if (!table) return;
+    var lines = [];
+    table.querySelectorAll('tr').forEach(function (tr) {
+      var lc = tr.querySelector('.lc');
+      if (lc) lines.push(FB.collectLineText(lc));
+    });
+    var text = lines.join('\n');
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { showToast('已复制'); }).catch(function () { FB.fallbackCopy(text, showToast); });
+    } else {
+      FB.fallbackCopy(text, showToast);
+    }
+  }
+
+  function initSection(cfg) {
+    var table = document.getElementById(cfg.table);
+    if (!table) return;
+    var inputs = FB.initBlanks(table);
+    var scoreEl = document.getElementById(cfg.score);
+
+    document.getElementById(cfg.check).addEventListener('click', function () {
+      var c = 0;
+      inputs.forEach(function (el) { if (FB.checkOne(el) === true) c++; });
+      if (scoreEl) scoreEl.textContent = '得分：' + c + ' / ' + inputs.length;
+    });
+    document.getElementById(cfg.reset).addEventListener('click', function () {
+      FB.resetAll(inputs);
+      if (scoreEl) scoreEl.textContent = '';
+    });
+    document.getElementById(cfg.reveal).addEventListener('click', function () { FB.revealAll(inputs); });
+    document.getElementById(cfg.copy).addEventListener('click', function () { copyTable(cfg.table); });
+  }
+
+  initSection({ table: 'ct-bfs', check: 'check-bfs', reset: 'reset-bfs', reveal: 'reveal-bfs', copy: 'copy-bfs', score: 'score-bfs' });
+  initSection({ table: 'ct-dfs', check: 'check-dfs', reset: 'reset-dfs', reveal: 'reveal-dfs', copy: 'copy-dfs', score: 'score-dfs' });
+
+  var btnToggle = document.getElementById('btnToggleAnswers');
+  if (btnToggle) {
+    btnToggle.addEventListener('click', function () {
+      var on = document.body.classList.toggle('answers-revealed');
+      this.setAttribute('aria-pressed', String(on));
+      this.textContent = on ? '隐藏参考答案' : '显示参考答案';
+    });
+  }
+});
+</script>
+</body>
+</html>

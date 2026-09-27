@@ -1,0 +1,342 @@
+/* 填空练习页：题目区、代码表、输入格、操作按钮（index 主栏 + 单题 fill-theme 共用） */
+.prob-panel {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.prob-panel[hidden] {
+  display: none !important;
+}
+
+.code-with-actions {
+  width: max-content;
+  max-width: 100%;
+  margin: 0;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: stretch;
+  align-self: flex-start;
+}
+
+.code-widget {
+  border: none;
+  border-radius: 8px;
+  overflow: visible;
+  display: block;
+  width: 100%;
+  text-align: left;
+}
+
+.code-area {
+  background: var(--color-background-secondary);
+  padding: 12px 16px;
+  overflow-x: visible;
+  border-radius: 8px;
+}
+
+.code-table {
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre;
+  width: max-content;
+  max-width: none;
+}
+
+.code-table tr {
+  display: flex;
+  align-items: baseline;
+}
+
+.ln {
+  color: var(--color-text-tertiary);
+  text-align: right;
+  padding: 0 16px;
+  user-select: none;
+  flex-shrink: 0;
+  min-width: 48px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.lc {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: baseline;
+  flex: 0 0 auto;
+  min-width: max-content;
+  padding-right: 16px;
+  color: var(--color-text);
+  line-height: 1.5;
+}
+
+.lc .seg,
+.lc .cm {
+  white-space: pre;
+  flex-shrink: 0;
+}
+
+.lc .cm {
+  color: var(--color-comment);
+}
+
+.blank-group {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: baseline;
+  flex-shrink: 0;
+}
+
+input.blank,
+.lc .ind {
+  flex-shrink: 0;
+}
+
+input.blank {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 1.5;
+  height: 24px;
+  min-width: 2ch;
+  border: none;
+  border-bottom: 1.5px solid var(--color-border-primary);
+  background: transparent;
+  border-radius: 0;
+  outline: none;
+  box-shadow: none;
+  padding: 0 2px;
+  vertical-align: baseline;
+  -webkit-appearance: none;
+  appearance: none;
+  color: var(--color-text);
+  caret-color: var(--color-text);
+  transition: border-bottom-color 0.1s;
+}
+
+input.blank:focus {
+  border-bottom-color: var(--color-focus);
+  outline: none;
+  box-shadow: none;
+}
+
+input.blank.correct {
+  border-bottom-color: var(--color-correct);
+}
+
+input.blank.wrong {
+  border-bottom-color: var(--color-error);
+}
+
+.ind {
+  font-size: 11px;
+  margin-left: 2px;
+  margin-right: 4px;
+  vertical-align: baseline;
+  line-height: 1.5;
+  display: inline;
+  flex-shrink: 0;
+}
+
+.ind.correct {
+  color: var(--color-correct);
+}
+
+.ind.wrong {
+  color: var(--color-error);
+}
+
+.answer-ref {
+  display: none;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text-tertiary);
+  margin-left: 2px;
+  padding: 1px 8px;
+  border-radius: 4px;
+  background: var(--color-background);
+  border: 1px dashed var(--color-border-primary);
+  white-space: pre;
+  flex-shrink: 0;
+  user-select: text;
+}
+
+body.answers-revealed .answer-ref {
+  display: inline;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 0 0 14px;
+  margin: 0;
+  border: none;
+  background: transparent;
+  border-radius: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.controls button {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 4px 12px;
+  border: 1px solid var(--color-border-primary);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.controls button:hover {
+  background: var(--color-border-primary);
+}
+
+.controls button.btn-primary {
+  border-color: var(--color-focus);
+  color: var(--color-focus);
+}
+
+.controls button.btn-primary:hover {
+  background: rgba(9, 105, 218, 0.08);
+}
+
+@media (prefers-color-scheme: dark) {
+  .controls button.btn-primary:hover {
+    background: rgba(88, 166, 255, 0.12);
+  }
+}
+
+.score {
+  font-size: 13px;
+  color: var(--color-text-tertiary);
+  margin-left: 6px;
+}
+
+.copy-toast {
+  font-size: 12px;
+  color: var(--color-correct);
+  margin-left: 4px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.copy-toast.is-on {
+  opacity: 1;
+}
+
+/* ── Multi-solution layouts ── */
+#prob-solutions {
+  width: max-content;
+  max-width: 100%;
+}
+
+.prob-solutions--stack {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.prob-solutions--side-by-side {
+  display: flex;
+  flex-direction: row;
+  gap: 32px;
+  align-items: flex-start;
+}
+
+.fill-sol {
+  min-width: 0;
+}
+
+.fill-sol-title {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+  margin: 0 0 6px 0;
+}
+
+/* 题面（LeetCode description，抓取脚本生成的原版 HTML） */
+.prob-desc {
+  width: 100%;
+  max-width: 860px;
+  margin: 0 0 18px;
+  border: 1px solid var(--color-border-primary);
+  border-radius: 8px;
+  background: var(--color-background-secondary);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.prob-desc[hidden] {
+  display: none !important;
+}
+
+.prob-desc__summary {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+  user-select: none;
+}
+
+.prob-desc__meta {
+  font-weight: 400;
+}
+
+.prob-desc__body {
+  padding: 4px 16px 14px;
+  border-top: 1px solid var(--color-border-primary);
+}
+
+.prob-desc__body p {
+  margin: 8px 0;
+}
+
+.prob-desc__body ul,
+.prob-desc__body ol {
+  margin: 6px 0 6px 22px;
+}
+
+.prob-desc__body code {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--color-background);
+  border: 1px solid var(--color-border-primary);
+}
+
+.prob-desc__body pre {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.5;
+  margin: 8px 0 12px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--color-background);
+  border: 1px solid var(--color-border-primary);
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+
+.prob-desc__body img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 8px 0;
+  border-radius: 6px;
+}

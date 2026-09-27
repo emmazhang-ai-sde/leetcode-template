@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>702. Search in a Sorted Array of Unknown Size · 填空</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/fill-theme.css">
+<script src="../../assets/repo-corner.js" defer></script>
+</head>
+<body class="problem-page">
+<main class="problem-main">
+  <h1 class="prob-title">
+    <a id="probLink" href="https://leetcode.com/problems/search-in-a-sorted-array-of-unknown-size/description/" target="_blank" rel="noopener noreferrer">
+      <span class="prob-title__num" id="probNum">702.</span><span id="probName">Search in a Sorted Array of Unknown Size</span>
+    </a>
+  </h1>
+
+  <div class="code-with-actions">
+    <div class="code-widget">
+      <div class="code-area">
+        <table class="code-table" id="ct" aria-label="代码填空">
+<tr>
+<td class="ln">1</td>
+<td class="lc"><span class="cm"># """</span></td>
+</tr>
+<tr>
+<td class="ln">2</td>
+<td class="lc"><span class="cm"># This is ArrayReader's API interface.</span></td>
+</tr>
+<tr>
+<td class="ln">3</td>
+<td class="lc"><span class="cm"># You should not implement it, or speculate about its implementation</span></td>
+</tr>
+<tr>
+<td class="ln">4</td>
+<td class="lc"><span class="cm"># """</span></td>
+</tr>
+<tr>
+<td class="ln">5</td>
+<td class="lc"><span class="cm">#class ArrayReader:</span></td>
+</tr>
+<tr>
+<td class="ln">6</td>
+<td class="lc"><span class="cm">#    def get(self, index: int) -&gt; int:</span></td>
+</tr>
+<tr>
+<td class="ln">7</td>
+<td class="lc"><span class="seg"></span></td>
+</tr>
+<tr>
+<td class="ln">8</td>
+<td class="lc"><span class="seg"></span></td>
+</tr>
+<tr>
+<td class="ln">9</td>
+<td class="lc"><span class="seg">class Solution:</span></td>
+</tr>
+<tr>
+<td class="ln">10</td>
+<td class="lc"><span class="seg">    def search(self, reader: 'ArrayReader', target: int) -&gt; int:</span></td>
+</tr>
+<tr>
+<td class="ln">11</td>
+<td class="lc"><span class="cm">        # ERR = 2 ** 31 - 1</span></td>
+</tr>
+<tr>
+<td class="ln">12</td>
+<td class="lc"><span class="seg">        left = 0</span></td>
+</tr>
+<tr>
+<td class="ln">13</td>
+<td class="lc"><span class="seg">        right = 1</span></td>
+</tr>
+<tr>
+<td class="ln">14</td>
+<td class="lc"><span class="seg">        while  </span><span class="blank-group"><input type="text" class="blank" data-answer="reader.get(right)" data-answers="[&quot;reader.get(right)&quot;]" autocomplete="off" /><span class="ind" aria-hidden="true"></span><span class="answer-ref">reader.get(right)</span></span><span class="seg"> &lt; target:</span></td>
+</tr>
+<tr>
+<td class="ln">15</td>
+<td class="lc"><span class="seg">            left = right</span></td>
+</tr>
+<tr>
+<td class="ln">16</td>
+<td class="lc"><span class="seg">            right = </span><span class="blank-group"><input type="text" class="blank" data-answer="right * 2" data-answers="[&quot;right * 2&quot;]" autocomplete="off" /><span class="ind" aria-hidden="true"></span><span class="answer-ref">right * 2</span></span></td>
+</tr>
+<tr>
+<td class="ln">17</td>
+<td class="lc"><span class="seg"></span></td>
+</tr>
+<tr>
+<td class="ln">18</td>
+<td class="lc"><span class="cm">        # Target is between left, right</span></td>
+</tr>
+<tr>
+<td class="ln">19</td>
+<td class="lc"><span class="seg"></span></td>
+</tr>
+<tr>
+<td class="ln">20</td>
+<td class="lc"><span class="seg">        while </span><span class="blank-group"><input type="text" class="blank" data-answer="left + 1 &lt; right" data-answers="[&quot;left + 1 &lt; right&quot;]" autocomplete="off" /><span class="ind" aria-hidden="true"></span><span class="answer-ref">left + 1 &lt; right</span></span><span class="seg">:</span></td>
+</tr>
+<tr>
+<td class="ln">21</td>
+<td class="lc"><span class="seg">            mid = </span><span class="blank-group"><input type="text" class="blank" data-answer="(left + right) // 2" data-answers="[&quot;(left + right) // 2&quot;]" autocomplete="off" /><span class="ind" aria-hidden="true"></span><span class="answer-ref">(left + right) // 2</span></span></td>
+</tr>
+<tr>
+<td class="ln">22</td>
+<td class="lc"><span class="seg">            if </span><span class="blank-group"><input type="text" class="blank" data-answer="reader.get(mid)" data-answers="[&quot;reader.get(mid)&quot;]" autocomplete="off" /><span class="ind" aria-hidden="true"></span><span class="answer-ref">reader.get(mid)</span></span><span class="seg"> &lt; target:</span></td>
+</tr>
+<tr>
+<td class="ln">23</td>
+<td class="lc"><span class="seg">                left = mid</span></td>
+</tr>
+<tr>
+<td class="ln">24</td>
+<td class="lc"><span class="seg">            else:</span></td>
+</tr>
+<tr>
+<td class="ln">25</td>
+<td class="lc"><span class="seg">                right = mid</span></td>
+</tr>
+<tr>
+<td class="ln">26</td>
+<td class="lc"><span class="seg"></span></td>
+</tr>
+<tr>
+<td class="ln">27</td>
+<td class="lc"><span class="seg">        if </span><span class="blank-group"><input type="text" class="blank" data-answer="reader.get(left)" data-answers="[&quot;reader.get(left)&quot;]" autocomplete="off" /><span class="ind" aria-hidden="true"></span><span class="answer-ref">reader.get(left)</span></span><span class="seg"> == target:</span></td>
+</tr>
+<tr>
+<td class="ln">28</td>
+<td class="lc"><span class="seg">            return left</span></td>
+</tr>
+<tr>
+<td class="ln">29</td>
+<td class="lc"><span class="seg"></span></td>
+</tr>
+<tr>
+<td class="ln">30</td>
+<td class="lc"><span class="seg">        if </span><span class="blank-group"><input type="text" class="blank" data-answer="reader.get(right)" data-answers="[&quot;reader.get(right)&quot;]" autocomplete="off" /><span class="ind" aria-hidden="true"></span><span class="answer-ref">reader.get(right)</span></span><span class="seg"> == target:</span></td>
+</tr>
+<tr>
+<td class="ln">31</td>
+<td class="lc"><span class="seg">            return right</span></td>
+</tr>
+<tr>
+<td class="ln">32</td>
+<td class="lc"><span class="seg"></span></td>
+</tr>
+<tr>
+<td class="ln">33</td>
+<td class="lc"><span class="seg">        return -1</span></td>
+</tr>
+        </table>
+      </div>
+    </div>
+    <div class="controls">
+      <button type="button" class="btn-primary" id="btnCheck">Check all</button>
+      <button type="button" id="btnReset">Reset</button>
+      <button type="button" id="btnReveal">Reveal</button>
+      <button type="button" id="btnCopy">Copy</button>
+      <button type="button" id="btnToggleAnswers" aria-pressed="false">显示参考答案</button>
+      <span class="score" id="score"></span>
+      <span class="copy-toast" id="copyToast" aria-live="polite"></span>
+    </div>
+  </div>
+</main>
+<script src="../../assets/fill-blanks.js"></script>
+<script src="../../assets/fill-core.js"></script>
+</body>
+</html>

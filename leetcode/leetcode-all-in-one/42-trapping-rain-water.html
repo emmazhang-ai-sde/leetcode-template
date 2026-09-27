@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>42. Trapping Rain Water — Monotonic Stack Animation</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  /* Panel width is set on .code-half (never on the grid columns), so the
+     code/viz split stays exactly on the page center line. Line 9
+     (`newH = min(heights[i], heights[stack[-1]]) - ...`) is far longer than
+     the half-width, so instead of letting the default `width: max-content`
+     stretch the panel out from under the center line and under the sidebar,
+     the code half fills its half exactly and that one line scrolls
+     horizontally inside the code block.
+     The .main.layout-grid.trw42-layout prefix is needed to outrank
+     shared.css's `.main.layout-grid .code-half { width: max-content }`. */
+  .main.layout-grid.trw42-layout .code-half { width: 100%; min-width: 0; }
+  .trw42-layout .code-stack { width: 100%; min-width: 0; }
+  .trw42-layout .code-panel { width: 100%; min-width: 0; overflow-x: auto; }
+  /* Keep lines as wide as the longest one so the current-line highlight still
+     spans the full line when the panel is scrolled right. */
+  .trw42-layout .code-block { width: max-content; min-width: 100%; }
+  /* A thin always-visible track, so it's obvious line 9 continues to the right
+     (macOS overlay scrollbars would hide the fact that the panel scrolls). */
+  .trw42-layout .code-panel { scrollbar-width: thin; scrollbar-color: #ddd transparent; }
+  .trw42-layout .code-panel::-webkit-scrollbar { height: 7px; }
+  .trw42-layout .code-panel::-webkit-scrollbar-track { background: transparent; }
+  .trw42-layout .code-panel::-webkit-scrollbar-thumb { background: #dcdcdc; border-radius: 4px; }
+  .trw42-layout .code-panel::-webkit-scrollbar-thumb:hover { background: #c9c9c9; }
+
+  .code-line.hl { background: rgba(199,146,234,0.18); }
+  .viz-panel { gap: 14px; }
+  .ctrl { margin-bottom: 10px; }
+  .leg-box { width: 13px; height: 13px; border-radius: 3px; }
+
+  /* ── Viz split: stack and histogram on top, calculation beneath both ───── */
+  .trw-viz-grid { display: grid; grid-template-columns: max-content max-content; gap: 14px 20px; align-items: stretch; }
+  .trw-stack-card,
+  .trw-height-card { height: 100%; }
+  .trw-calc-card { grid-column: 1 / -1; width: 100%; align-self: start; }
+  .trw-state-line { margin-top: 12px; padding-top: 10px; border-top: 1px solid #eee;
+                    font-family: 'SF Mono', 'Menlo', monospace; font-size: 13px;
+                    min-height: 31px; line-height: 20px; white-space: nowrap; }
+
+  /* ── Histogram (unit-cell grid: 1 cell = 1 unit of water) ─────────────── */
+  .trw-arr-label { font-size: 12px; color: #aaa; font-family: 'SF Mono', monospace; margin-bottom: 10px; }
+  .trw-plot { display: flex; align-items: flex-start; gap: 5px; }
+  .trw-yaxis { display: flex; flex-direction: column; }
+  .trw-ytick { width: 15px; height: 24px; display: flex; align-items: center; justify-content: flex-end;
+               font-size: 10px; color: #ccc; font-family: 'SF Mono', monospace; }
+  .trw-grid { display: grid; border-bottom: 2px solid #d8d8d8; }
+  .trw-row  { display: grid; }
+
+  .u { width: 26px; height: 24px; box-sizing: border-box; background: #ffffff; border: 1px solid #f2f2f2;
+       transition: background 0.2s, border-color 0.2s, opacity 0.2s; }
+  .u.bar            { background: #e6e6e6; border-color: #d9d9d9; }
+  .u.bar.cap        { border-top-left-radius: 4px; border-top-right-radius: 4px; }
+  .u.bar.scanned    { opacity: 0.4; }
+  .u.bar.in-stack   { background: rgba(139,133,212,0.28); border-color: rgba(139,133,212,0.45); opacity: 1; }
+  .u.bar.left-wall  { background: rgba(139,133,212,0.62); border-color: rgba(139,133,212,0.80); opacity: 1; }
+  .u.bar.active     { background: rgba(249,203,66,0.55);  border-color: rgba(249,203,66,0.80);  opacity: 1; }
+  .u.bar.popped     { background: rgba(93,202,165,0.55);  border-color: rgba(93,202,165,0.80);  opacity: 1; }
+  .u.water          { background: rgba(88,166,224,0.28);  border-color: rgba(88,166,224,0.42); }
+  .u.water.new      { background: rgba(88,166,224,0.72);  border-color: rgba(88,166,224,0.88); }
+
+  /* Index pill under each column — also carries the column's state, so a
+     zero-height bar (nothing to color in the grid) still shows it. */
+  .trw-idx { width: 26px; margin-top: 4px; height: 16px; line-height: 16px; text-align: center;
+             font-size: 10px; color: #aaa; font-family: 'SF Mono', monospace;
+             border-radius: 4px; transition: background 0.2s, color 0.2s; }
+  .trw-idx.scanned   { opacity: 0.45; }
+  .trw-idx.in-stack  { background: rgba(139,133,212,0.28); color: #5b53a8; opacity: 1; }
+  .trw-idx.left-wall { background: rgba(139,133,212,0.62); color: #ffffff; opacity: 1; }
+  .trw-idx.active    { background: rgba(249,203,66,0.55);  color: #7a5c00; opacity: 1; }
+  .trw-idx.popped    { background: rgba(93,202,165,0.55);  color: #1f5c4a; opacity: 1; }
+
+  .trw-ptr { width: 26px; min-height: 17px; line-height: 17px; text-align: center;
+             font-size: 10px; font-weight: 700; font-family: 'SF Mono', monospace; }
+
+  /* ── Stack (indices, heights strictly decreasing bottom → top) ─────────── */
+  .stack-container { display: flex; flex-direction: column-reverse; align-items: center; gap: 4px;
+                     justify-content: flex-start; padding: 8px 0; }
+  .stack-cell { width: 100px; height: 40px; border-radius: 8px; display: flex; align-items: center;
+                justify-content: center; gap: 5px; font-family: 'SF Mono', monospace;
+                background: rgba(139,133,212,0.2); color: #1a1a1a; transition: all 0.25s; }
+  .stack-cell.top     { background: rgba(139,133,212,0.4); }
+  .stack-cell.wall    { background: rgba(139,133,212,0.62); }
+  .stack-cell.pushing { background: rgba(249,203,66,0.45); }
+  .stack-idx   { font-size: 15px; font-weight: 800; }
+  .stack-val   { font-size: 11px; color: #6f68b8; font-weight: 600; }
+  .stack-label { font-size: 10px; color: #8B85D4; font-weight: 600; }
+  .stack-empty { font-size: 12px; color: #aaa; font-family: 'SF Mono', monospace; }
+  .stack-base  { width: 108px; height: 3px; background: #ccc; border-radius: 2px; margin-top: 4px; }
+  .trw-stack-card { display: flex; flex-direction: column; align-items: center; }
+  .trw-stack-card h3 { align-self: flex-start; }
+  .trw-stack-card .stack-container { flex: 1; }
+
+  /* ── Water calculation ────────────────────────────────────────────────── */
+  .calc-head { display: grid; grid-template-columns: max-content max-content max-content; column-gap: 14px; row-gap: 5px;
+               font-family: 'SF Mono', monospace; font-size: 12px; }
+  .calc-role { font-weight: 700; }
+  .calc-role.bottom { color: #2f8168; }
+  .calc-role.left   { color: #5b53a8; }
+  .calc-role.right  { color: #a07800; }
+  .calc-sep  { height: 1px; background: #eee; margin: 10px 0; }
+  .calc-line { font-family: 'SF Mono', monospace; font-size: 12.5px; min-height: 21px; line-height: 21px; white-space: nowrap; }
+  .calc-total { margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e2e2e2;
+                font-family: 'SF Mono', monospace; font-size: 13.5px; font-weight: 700; }
+  .calc-dim  { color: #c4c4c4; }
+  .calc-nm   { color: #9333C0; }
+  .calc-eq   { color: #007EA8; }
+  .calc-vl   { color: #C4501E; font-weight: 700; }
+  .calc-add  { color: #2f7fb8; font-weight: 700; }
+  .expr-chip { border-radius: 4px; padding: 1px 4px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+  .expr-chip.right  { background: rgba(249,203,66,0.38);  color: #7a5c00; }
+  .expr-chip.left   { background: rgba(139,133,212,0.34); color: #4f479a; }
+  .expr-chip.bottom { background: rgba(93,202,165,0.34);  color: #246955; }
+  .expr-chip .calc-vl { color: inherit; }
+  .code-line .expr-chip { padding: 0 3px; }
+  .code-line:not(.hl) .expr-chip { background: transparent; color: inherit; padding: 0; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '42. Trapping Rain Water — Monotonic Stack Animation',
+  link: 'https://leetcode.com/problems/trapping-rain-water/',
+  examples: [
+    { id: 'lc1', label: '[0,1,0,2,1,0,1,3,2,1,2,1] → 6' },
+    { id: 'lc2', label: '[4,2,0,3,2,5] → 9' },
+  ],
+  examplesLabel: 'Example:',
+  legend: [
+    { color: 'rgba(249,203,66,0.55)',  label: 'i — 右墙 (current bar)' },
+    { color: 'rgba(139,133,212,0.28)', label: '在栈里 (waiting)' },
+    { color: 'rgba(139,133,212,0.62)', label: 'stack[-1] — 左墙 (left wall)' },
+    { color: 'rgba(93,202,165,0.55)',  label: 'stack_index — 凹槽底 (popped)' },
+    { color: 'rgba(88,166,224,0.72)',  label: '本步新增的水 newH × width' },
+    { color: 'rgba(88,166,224,0.28)',  label: '已累计的水 (water)' },
+  ],
+});
+</script>
+<div class="main layout-grid trw42-layout">
+
+    <!-- Code panel -->
+    <script>
+    renderCodeBox({
+      code: `
+def trap(self, heights: List[int]) -> int:
+    water = 0
+    stack = Deque([])
+    for i, height in enumerate(heights):
+        while len(stack) > 0 and height > heights[stack[-1]]:
+            stack_index = stack.pop()
+            if len(stack) > 0:
+                width = i - stack[-1] - 1
+                newH = min(heights[i], heights[stack[-1]]) - heights[stack_index]
+                water += newH * width
+        stack.append(i)
+    return water`,
+      raw: {
+        9: `                <span class="va">newH</span> <span class="op">=</span> <span class="fn">min</span><span class="op">(</span><span class="expr-chip right">heights[i]</span><span class="op">,</span> <span class="expr-chip left">heights[stack[-1]]</span><span class="op">)</span> <span class="op">-</span> <span class="expr-chip bottom">heights[stack_index]</span>`,
+      },
+    });
+    </script>
+
+    <!-- Viz panel -->
+    <div class="viz-panel">
+
+      <div class="trw-viz-grid">
+
+        <!-- Histogram -->
+        <div class="card trw-height-card">
+          <h3>heights — 1 格 = 1 单位水</h3>
+          <div class="trw-arr-label" id="heights-label">heights = []</div>
+          <div class="trw-plot">
+            <div class="trw-yaxis" id="y-axis"></div>
+            <div>
+              <div class="trw-grid" id="hist-grid"></div>
+              <div class="trw-row" id="idx-row"></div>
+              <div class="trw-row" id="ptr-row"></div>
+            </div>
+          </div>
+          <div class="trw-state-line" id="height-state">
+            <span class="var-dim">i = —&nbsp;&nbsp;height = —</span>
+          </div>
+        </div>
+
+        <!-- Stack -->
+        <div class="card trw-stack-card">
+          <h3>stack (indices)</h3>
+          <div style="font-size:11px;color:#8B85D4;margin-bottom:6px;">top ↑ 最矮</div>
+          <div class="stack-container" id="stack-area">
+            <span class="stack-empty">empty</span>
+          </div>
+          <div class="stack-base"></div>
+          <div style="font-size:11px;color:#aaa;margin-top:4px;">bottom 最高</div>
+          <div class="trw-state-line" id="stack-state">
+            <span class="var-name">stack</span> <span class="var-eq">=</span> <span class="var-win">[]</span>
+          </div>
+        </div>
+
+        <!-- Calculation -->
+        <div class="card trw-calc-card">
+          <h3>water calculation</h3>
+          <div class="calc-head" id="calc-head"></div>
+          <div class="calc-sep"></div>
+          <div class="calc-line" id="calc-width"></div>
+          <div class="calc-line" id="calc-newh"></div>
+          <div class="calc-line" id="calc-add"></div>
+          <div class="calc-total" id="calc-total"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Examples ─────────────────────────────────────────────────────────────
+const EXAMPLES = {
+  lc1: { heights: [0, 1, 0, 2, 1, 0, 1, 3, 2, 1, 2, 1] },  // → 6
+  lc2: { heights: [4, 2, 0, 3, 2, 5] },                     // → 9
+};
+// Plot area is always this tall (the max bar height across every example), so
+// switching examples never changes the histogram card's height.
+const GRID_ROWS = 5;
+const CELL_W = 26;
+
+let H = EXAMPLES.lc1.heights;
+let N = H.length;
+
+// ── Steps ────────────────────────────────────────────────────────────────
+function whileInfo(idx, stack, again) {
+  const pre = again ? 'Line 5: 回到 while 再判断 → ' : 'Line 5: ';
+  if (stack.length === 0) return pre + 'stack 为空 → 条件 FALSE，跳出 while';
+  const t = stack[stack.length - 1];
+  if (H[idx] > H[t]) {
+    return pre + `height(${H[idx]}) > heights[stack[-1]=${t}](${H[t]}) → TRUE，进入 while：栈顶就是凹槽底，弹出它`;
+  }
+  return pre + `height(${H[idx]}) ≤ heights[stack[-1]=${t}](${H[t]}) → FALSE，接不住水，跳出 while`;
+}
+
+function buildSteps() {
+  const steps = [];
+  const waterCells = new Set();   // "col-level" — every unit of water counted so far
+
+  let stack = [];
+  let water = 0;
+  let i = null, bottom = null, left = null;
+  let width = null, newH = null, added = null;
+  let newCells = [];
+  const scanned = new Set();
+  let stackReady = false, waterReady = false;
+
+  function snap(line, info) {
+    steps.push({
+      line, info, water, i, bottom, left, width, newH, added,
+      stack: [...stack],
+      newCells: [...newCells],
+      waterCells: new Set(waterCells),
+      scanned: new Set(scanned),
+      stackReady, waterReady,
+    });
+  }
+  function clearPop() {
+    bottom = left = width = newH = added = null;
+    newCells = [];
+  }
+
+  waterReady = true;
+  snap(2, 'Line 2: water = 0 —— 累计接到的雨水');
+  stackReady = true;
+  snap(3, 'Line 3: stack = [] —— 存的是下标，栈内高度从底到顶单调递减');
+
+  for (let idx = 0; idx < N; idx++) {
+    i = idx;
+    clearPop();
+    snap(4, `Line 4: i = ${idx}, height = ${H[idx]} —— 把它当作右墙，向左找能接水的凹槽`);
+    snap(5, whileInfo(idx, stack, false));
+
+    while (stack.length > 0 && H[idx] > H[stack[stack.length - 1]]) {
+      const b = stack.pop();
+      bottom = b;
+      snap(6, `Line 6: stack_index = stack.pop() → ${b}（heights[${b}] = ${H[b]}）—— 它比右墙矮，是凹槽的底`);
+
+      if (stack.length > 0) {
+        const l = stack[stack.length - 1];
+        left = l;
+        snap(7, `Line 7: stack 非空 → 左墙是 heights[${l}] = ${H[l]}，左右都有墙，这一层能接水`);
+
+        const w = idx - l - 1;
+        width = w;
+        snap(8, `Line 8: width = i − stack[-1] − 1 = ${idx} − ${l} − 1 = ${w} —— 左右墙之间的空格数`);
+
+        const mn = Math.min(H[idx], H[l]);
+        const nh = mn - H[b];
+        newH = nh;
+        snap(9, `Line 9: newH = min(heights[${idx}]=${H[idx]}, heights[${l}]=${H[l]}) − heights[${b}]=${H[b]} = ${mn} − ${H[b]} = ${nh} —— 水面只能到矮的那堵墙`);
+
+        const add = nh * w;
+        added = add;
+        for (let c = l + 1; c <= idx - 1; c++) {
+          for (let lv = H[b] + 1; lv <= H[b] + nh; lv++) {
+            const key = `${c}-${lv}`;
+            waterCells.add(key);
+            newCells.push(key);
+          }
+        }
+        water += add;
+        snap(10, add === 0
+          ? `Line 10: water += newH × width = 0 × ${w} = 0 —— newH = 0（左墙和凹槽底一样高），这一层的水之前已经算过，不重复累加。water 仍是 ${water}`
+          : `Line 10: water += newH × width = ${nh} × ${w} = ${add} → water = ${water} —— 新增 ${add} 格深蓝色的水（横着一层一层算）`);
+      } else {
+        snap(7, `Line 7: stack 为空 → ${b} 左边没有更高的墙，水会从左边流走，这一层不接水`);
+      }
+
+      clearPop();
+      snap(5, whileInfo(idx, stack, true));
+    }
+
+    stack.push(idx);
+    snap(11, `Line 11: stack.append(${idx}) → stack = [${stack.join(', ')}] —— i 入栈，等着当别人的左墙`);
+    scanned.add(idx);
+  }
+
+  i = null;
+  clearPop();
+  snap(12, `Line 12: return water = ${water} ✓ —— 所有横层加起来，共接住 ${water} 单位雨水`);
+  return steps;
+}
+
+let STEPS = buildSteps();
+let cur = -1;
+
+// ── DOM ──────────────────────────────────────────────────────────────────
+function buildDOM() {
+  const cols = `repeat(${N}, ${CELL_W}px)`;
+
+  const yAxis = document.getElementById('y-axis');
+  yAxis.innerHTML = '';
+  for (let lv = GRID_ROWS; lv >= 1; lv--) {
+    const t = document.createElement('div');
+    t.className = 'trw-ytick';
+    t.textContent = lv;
+    yAxis.appendChild(t);
+  }
+
+  const grid = document.getElementById('hist-grid');
+  grid.style.gridTemplateColumns = cols;
+  grid.innerHTML = '';
+  for (let lv = GRID_ROWS; lv >= 1; lv--) {
+    for (let c = 0; c < N; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'u';
+      cell.id = `u-${c}-${lv}`;
+      grid.appendChild(cell);
+    }
+  }
+
+  const idxRow = document.getElementById('idx-row');
+  idxRow.style.gridTemplateColumns = cols;
+  idxRow.innerHTML = '';
+  const ptrRow = document.getElementById('ptr-row');
+  ptrRow.style.gridTemplateColumns = cols;
+  ptrRow.innerHTML = '';
+  for (let c = 0; c < N; c++) {
+    const ix = document.createElement('div');
+    ix.className = 'trw-idx';
+    ix.id = `ix-${c}`;
+    ix.textContent = c;
+    idxRow.appendChild(ix);
+
+    const pt = document.createElement('div');
+    pt.className = 'trw-ptr';
+    pt.id = `pt-${c}`;
+    ptrRow.appendChild(pt);
+  }
+
+  document.getElementById('heights-label').textContent = `heights = [${H.join(', ')}]`;
+}
+
+// ── Render ───────────────────────────────────────────────────────────────
+function colState(s, c) {
+  if (s.bottom === c) return 'popped';
+  if (s.i === c) return 'active';
+  if (s.left === c) return 'left-wall';
+  if (s.stack.includes(c)) return 'in-stack';
+  if (s.scanned.has(c)) return 'scanned';
+  return '';
+}
+
+function renderCalc(s) {
+  const head = document.getElementById('calc-head');
+  const hChip = (kind, label, value) =>
+    `<span class="expr-chip ${kind}">${label} <span class="calc-eq">=</span> <span class="calc-vl">${value}</span></span>`;
+  const row = (role, roleCls, expr, val, hgt) =>
+    val == null
+      ? `<span class="calc-dim">${role}</span><span class="calc-dim">${expr} = —</span><span class="calc-dim">—</span>`
+      : `<span class="calc-role ${roleCls}">${role}</span>` +
+        `<span><span class="calc-nm">${expr}</span> <span class="calc-eq">=</span> <span class="calc-vl">${val}</span></span>` +
+        `<span class="calc-dim">heights[${val}] = <span class="calc-vl">${hgt}</span></span>`;
+
+  head.innerHTML =
+    row('凹槽底', 'bottom', 'stack_index', s.bottom, s.bottom != null ? H[s.bottom] : null) +
+    row('左墙',   'left',   'stack[-1]',   s.left,   s.left   != null ? H[s.left]   : null) +
+    row('右墙',   'right',  'i',           s.bottom != null ? s.i : null, s.bottom != null && s.i != null ? H[s.i] : null);
+
+  const wEl = document.getElementById('calc-width');
+  const hEl = document.getElementById('calc-newh');
+  const aEl = document.getElementById('calc-add');
+
+  wEl.innerHTML = s.width == null
+    ? `<span class="calc-dim">width = —</span>`
+    : `<span class="calc-nm">width</span> <span class="calc-eq">=</span> ${s.i} − ${s.left} − 1 = <span class="calc-vl">${s.width}</span>`;
+
+  hEl.innerHTML = s.newH == null
+    ? `<span class="calc-dim">newH  = —</span>`
+    : `<span class="calc-nm">newH</span>  <span class="calc-eq">=</span> ` +
+      `min(${hChip('right', 'heights[i]', H[s.i])}, ${hChip('left', 'heights[stack[-1]]', H[s.left])}) ` +
+      `− ${hChip('bottom', 'heights[stack_index]', H[s.bottom])} ` +
+      `<span class="calc-eq">=</span> <span class="calc-vl">${s.newH}</span>`;
+
+  aEl.innerHTML = s.added == null
+    ? `<span class="calc-dim">water += —</span>`
+    : `<span class="calc-nm">water</span> <span class="calc-eq">+=</span> ${s.newH} × ${s.width} = <span class="calc-add">${s.added}</span>`;
+
+  document.getElementById('calc-total').innerHTML =
+    `<span class="calc-nm">water</span> <span class="calc-eq">=</span> <span class="calc-vl">${s.waterReady ? s.water : 0}</span>`;
+}
+
+function renderLocalState(s) {
+  const heightState = document.getElementById('height-state');
+  heightState.innerHTML = s.i == null
+    ? (s.line === 12
+        ? `<span class="var-dim">遍历结束</span>`
+        : `<span class="var-dim">i = —&nbsp;&nbsp;height = —</span>`)
+    : `<span class="var-name">i</span> <span class="var-eq">=</span> <span class="var-val">${s.i}</span>` +
+      `&nbsp;&nbsp;<span class="var-name">height</span> <span class="var-eq">=</span> <span class="var-val">${H[s.i]}</span>`;
+
+  document.getElementById('stack-state').innerHTML =
+    `<span class="var-name">stack</span> <span class="var-eq">=</span> ` +
+    `<span class="var-win">[${s.stackReady ? s.stack.join(', ') : ''}]</span>`;
+}
+
+function render() {
+  if (cur < 0) {
+    for (let c = 0; c < N; c++) {
+      for (let lv = 1; lv <= GRID_ROWS; lv++) {
+        const el = document.getElementById(`u-${c}-${lv}`);
+        if (el) el.className = 'u' + (lv <= H[c] ? ' bar' + (lv === H[c] ? ' cap' : '') : '');
+      }
+      const ix = document.getElementById(`ix-${c}`);
+      if (ix) ix.className = 'trw-idx';
+      const pt = document.getElementById(`pt-${c}`);
+      if (pt) pt.innerHTML = '';
+    }
+    document.getElementById('stack-area').innerHTML = '<span class="stack-empty">empty</span>';
+    renderLocalState({ stack: [], i: null, stackReady: true });
+    renderCalc({ stack: [], water: 0, i: null, bottom: null, left: null, width: null, newH: null, added: null,
+                 waterCells: new Set(), newCells: [], scanned: new Set(), stackReady: false, waterReady: false });
+    renderCtrl(-1, STEPS.length, '');
+    highlightLine(null);
+    return;
+  }
+
+  const s = STEPS[cur];
+  highlightLine(s.line);
+  renderCtrl(cur, STEPS.length, s.info);
+  renderLocalState(s);
+
+  // Histogram
+  for (let c = 0; c < N; c++) {
+    const st = colState(s, c);
+    for (let lv = 1; lv <= GRID_ROWS; lv++) {
+      const el = document.getElementById(`u-${c}-${lv}`);
+      if (!el) continue;
+      let cls = 'u';
+      if (lv <= H[c]) {
+        cls += ' bar';
+        if (lv === H[c]) cls += ' cap';
+        if (st) cls += ' ' + st;
+      } else {
+        const key = `${c}-${lv}`;
+        if (s.waterCells.has(key)) {
+          cls += ' water';
+          if (s.newCells.includes(key)) cls += ' new';
+        }
+      }
+      el.className = cls;
+    }
+    const ix = document.getElementById(`ix-${c}`);
+    if (ix) ix.className = 'trw-idx' + (st ? ' ' + st : '');
+
+    const pt = document.getElementById(`pt-${c}`);
+    if (pt) {
+      if (s.bottom === c)    pt.innerHTML = '<span style="color:#2f8168;">bot</span>';
+      else if (s.left === c) pt.innerHTML = '<span style="color:#5b53a8;">left</span>';
+      else if (s.i === c)    pt.innerHTML = '<span style="color:#a07800;">i</span>';
+      else                   pt.innerHTML = '';
+    }
+  }
+
+  // Stack
+  const area = document.getElementById('stack-area');
+  if (s.stack.length === 0) {
+    area.innerHTML = '<span class="stack-empty">empty</span>';
+  } else {
+    area.innerHTML = '';
+    s.stack.forEach((idx, si) => {
+      const isTop = si === s.stack.length - 1;
+      const isWall = s.left === idx;
+      const isPushing = s.i === idx && isTop;
+      const el = document.createElement('div');
+      el.className = 'stack-cell' + (isWall ? ' wall' : isPushing ? ' pushing' : isTop ? ' top' : '');
+      const a = document.createElement('span');
+      a.className = 'stack-idx';
+      a.textContent = idx;
+      const b = document.createElement('span');
+      b.className = 'stack-val';
+      b.textContent = `(h=${H[idx]})`;
+      el.appendChild(a);
+      el.appendChild(b);
+      if (isWall || isTop) {
+        const lbl = document.createElement('span');
+        lbl.className = 'stack-label';
+        lbl.textContent = isWall ? '← 左墙' : '← top';
+        el.appendChild(lbl);
+      }
+      area.appendChild(el);
+    });
+  }
+
+  renderCalc(s);
+}
+
+// ── Example switcher ─────────────────────────────────────────────────────
+function loadExample(id) {
+  const ex = EXAMPLES[id];
+  if (!ex) return;
+  stopAuto();
+  H = ex.heights;
+  N = H.length;
+  buildDOM();
+  STEPS = buildSteps();
+  cur = -1;
+  render();
+  lockStableSizes(); // re-pin block heights for the new example's steps
+  Object.keys(EXAMPLES).forEach(k => {
+    const btn = document.getElementById('ex-' + k);
+    if (btn) btn.classList.toggle('auto-active', k === id);
+  });
+}
+
+buildDOM();
+loadExample('lc1');
+</script>
+</body>
+</html>

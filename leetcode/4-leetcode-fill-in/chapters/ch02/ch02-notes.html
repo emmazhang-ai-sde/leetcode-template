@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chapter 2: Binary Trees + Divide and Conquer · 课件</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/ch01-notes.css">
+<link rel="stylesheet" href="../../assets/notes-shared.css">
+<script src="../../assets/repo-corner.js" defer></script>
+<style>
+/* ── Compare grid (Traversal vs D&C side by side) ── */
+.notes-compare-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 600px) {
+  .notes-compare-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Template stack (single column) ── */
+.notes-template-stack {
+  grid-template-columns: 1fr !important;
+}
+
+/* ── Mindmap ── */
+.mindmap-wrap {
+  padding: 4px 0;
+}
+
+.mindmap-wrap svg {
+  display: block;
+  width: 100%;
+  max-width: 700px;
+  margin: 0 auto;
+}
+
+/* ── Traversal vs D&C quick table ── */
+.notes-compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  border-spacing: 0;
+  background: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.notes-compare-table th,
+.notes-compare-table td {
+  text-align: left;
+  padding: 12px 14px;
+  border-bottom: 1px solid #e5e7eb;
+  color: #1f2937;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.notes-compare-table thead th {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.notes-compare-table thead th:first-child {
+  width: 28%;
+}
+
+.notes-compare-table tbody td:first-child {
+  white-space: nowrap;
+}
+
+.notes-compare-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.notes-compare-table strong {
+  font-weight: 700;
+}
+
+</style>
+</head>
+<body>
+<div class="notes-standalone-wrap notes-courseware-page">
+  <div class="chapter-notes-panel" id="chapter2NotesPanel">
+    <h2 class="prob-title notes-main-title" id="notesMainTitleCh2">Chapter 2 - 课件</h2>
+    <div class="notes-main-scroll">
+
+      <!-- ── MINDMAP (new) ── -->
+      <div class="notes-section">
+        <div class="mindmap-wrap">
+          <svg viewBox="0 0 700 290" xmlns="http://www.w3.org/2000/svg" font-family="Inter, sans-serif">
+            <defs>
+              <marker id="a" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+                <path d="M0,0 L0,7 L7,3.5 z" fill="#555"/>
+              </marker>
+            </defs>
+
+            <!-- connectors: root → branches -->
+            <line x1="350" y1="68" x2="155" y2="135" stroke="#555" stroke-width="1.5" marker-end="url(#a)"/>
+            <line x1="350" y1="68" x2="545" y2="135" stroke="#555" stroke-width="1.5" marker-end="url(#a)"/>
+
+            <!-- sub-lines: Traversal -->
+            <line x1="155" y1="181" x2="80"  y2="229" stroke="#555" stroke-width="1" stroke-dasharray="3,3"/>
+            <line x1="155" y1="181" x2="230" y2="229" stroke="#555" stroke-width="1" stroke-dasharray="3,3"/>
+
+            <!-- sub-lines: D&C -->
+            <line x1="545" y1="181" x2="480" y2="229" stroke="#555" stroke-width="1" stroke-dasharray="3,3"/>
+            <line x1="545" y1="181" x2="620" y2="229" stroke="#555" stroke-width="1" stroke-dasharray="3,3"/>
+
+            <!-- ROOT: 莫兰迪淡黄 -->
+            <rect x="270" y="20" width="160" height="48" rx="8" fill="#ede9d5" stroke="none"/>
+            <text x="350" y="40" text-anchor="middle" font-size="14" font-weight="600" fill="#1a1a1a">Recursion</text>
+            <text x="350" y="57" text-anchor="middle" font-size="11" fill="#1a1a1a">递归</text>
+
+            <!-- LEFT: Traversal 莫兰迪淡绿 -->
+            <rect x="55" y="135" width="200" height="46" rx="7" fill="#d6e4d2" stroke="none"/>
+            <text x="155" y="155" text-anchor="middle" font-size="13" font-weight="600" fill="#1a1a1a">Traversal</text>
+            <text x="155" y="171" text-anchor="middle" font-size="11" fill="#1a1a1a">遍历</text>
+
+            <!-- RIGHT: Divide & Conquer 莫兰迪淡蓝 -->
+            <rect x="445" y="135" width="200" height="46" rx="7" fill="#cfdde8" stroke="none"/>
+            <text x="545" y="155" text-anchor="middle" font-size="13" font-weight="600" fill="#1a1a1a">Divide &amp; Conquer</text>
+            <text x="545" y="171" text-anchor="middle" font-size="11" fill="#1a1a1a">分治</text>
+
+            <!-- Traversal sub-nodes: 淡绿更浅 -->
+            <rect x="20"  y="229" width="120" height="40" rx="5" fill="#e8f0e6" stroke="none"/>
+            <text x="80"  y="245" text-anchor="middle" font-size="11" font-weight="500" fill="#1a1a1a">全局变量</text>
+            <text x="80"  y="260" text-anchor="middle" font-size="9"  fill="#1a1a1a">global variable</text>
+
+            <rect x="170" y="229" width="120" height="40" rx="5" fill="#e8f0e6" stroke="none"/>
+            <text x="230" y="245" text-anchor="middle" font-size="11" font-weight="500" fill="#1a1a1a">向下传值</text>
+            <text x="230" y="260" text-anchor="middle" font-size="9"  fill="#1a1a1a">pass-down</text>
+
+            <!-- D&C sub-nodes: 淡蓝更浅 -->
+            <rect x="420" y="229" width="120" height="40" rx="5" fill="#dde8f0" stroke="none"/>
+            <text x="480" y="245" text-anchor="middle" font-size="11" font-weight="500" fill="#1a1a1a">构造返回值</text>
+            <text x="480" y="260" text-anchor="middle" font-size="9"  fill="#1a1a1a">return value</text>
+
+            <rect x="560" y="229" width="120" height="40" rx="5" fill="#dde8f0" stroke="none"/>
+            <text x="620" y="245" text-anchor="middle" font-size="11" font-weight="500" fill="#1a1a1a">合并子结果</text>
+            <text x="620" y="260" text-anchor="middle" font-size="9"  fill="#1a1a1a">merge results</text>
+          </svg>
+        </div>
+      </div>
+
+      <div class="notes-section">
+        <table class="notes-compare-table" aria-label="Traversal and Divide and Conquer comparison">
+          <thead>
+            <tr>
+              <th></th>
+              <th>Traversal</th>
+              <th>Divide &amp; Conquer</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>思路</td>
+              <td>当我到达这一层时，应该做什么，向下传递的路线应该怎么走。应该传递什么值去下一层。遍历的解法，一般都需要一个全局变量来记录我遍历之后的结果，如 max, min, list 等。</td>
+              <td>我的左儿子，右儿子得到返回值以后，我拿着左右儿子的结果，应该怎么做。分治的最核心点在于构造返回值。</td>
+            </tr>
+            <tr>
+              <td>Top-down</td>
+              <td>preorder - process node first</td>
+              <td>pass value downward as parameter</td>
+            </tr>
+            <tr>
+              <td>Bottom-up</td>
+              <td>postorder - process node last</td>
+              <td>return value upward to parent</td>
+            </tr>
+            <tr>
+              <td>Result carried by</td>
+              <td><strong>global variable / parameter</strong></td>
+              <td><strong>return value</strong></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <br>
+
+      <!-- ── TWO-COLUMN: Traversal vs D&C ── -->
+      <div class="notes-section">
+        <div class="notes-compare-grid">
+          <!-- Left: Traversal -->
+          <div>
+            <div class="notes-section-title">Tree Traversal</div>
+            <div class="notes-prob-group">
+              <div class="notes-prob-list">
+                <a class="notes-prob-item" href="https://leetcode.com/problems/binary-tree-preorder-traversal/" target="_blank" rel="noopener noreferrer">144. Binary Tree Preorder Traversal <span class="notes-prob-arrow" aria-hidden="true">→</span></a>
+                <a class="notes-prob-item" href="https://leetcode.com/problems/binary-tree-inorder-traversal/" target="_blank" rel="noopener noreferrer">94. Binary Tree Inorder Traversal <span class="notes-prob-arrow" aria-hidden="true">→</span></a>
+                <a class="notes-prob-item" href="https://leetcode.com/problems/binary-tree-postorder-traversal/" target="_blank" rel="noopener noreferrer">145. Binary Tree Postorder Traversal <span class="notes-prob-arrow" aria-hidden="true">→</span></a>
+                <a class="notes-prob-item" href="https://leetcode.com/problems/maximum-depth-of-binary-tree/" target="_blank" rel="noopener noreferrer">104. Maximum Depth of Binary Tree <span class="notes-prob-arrow" aria-hidden="true">→</span></a>
+              </div>
+            </div>
+          </div>
+          <!-- Right: D&C -->
+          <div>
+            <div class="notes-section-title">Divide and Conquer</div>
+            <div class="notes-prob-group">
+              <div class="notes-prob-group-label">Tree Divide and Conquer: DFS</div>
+              <pre class="notes-code-block" style="border-radius:6px;margin-bottom:8px"><span class="kw">def</span> <span class="fn">dfs</span>(self, root):
+    <span class="kw">if</span> <span class="kw">not</span> root:
+        <span class="kw">return</span> <span class="num">0</span>
+
+    leftReturn = self.<span class="fn">dfs</span>(root.left)
+    rightReturn = self.<span class="fn">dfs</span>(root.right)
+
+    <span class="cm"># Optional Leaf processing</span>
+    <span class="kw">if</span> root.left <span class="kw">is</span> <span class="kw">None</span> <span class="kw">and</span> root.right <span class="kw">is</span> <span class="kw">None</span>:
+        <span class="kw">return</span> <span class="num">1</span>
+
+    height = <span class="fn">max</span>(leftReturn, rightReturn) + <span class="num">1</span>
+    <span class="kw">return</span> height</pre>
+              <div class="def dfs(self, root):notes-prob-list">
+                <a class="notes-prob-item" href="https://leetcode.com/problems/binary-tree-paths/" target="_blank" rel="noopener noreferrer">257. Binary Tree Paths <span class="notes-prob-arrow" aria-hidden="true">→</span></a>
+                <a class="notes-prob-item" href="https://leetcode.com/problems/path-sum/" target="_blank" rel="noopener noreferrer">112. Path Sum <span class="notes-prob-arrow" aria-hidden="true">→</span></a>
+                <a class="notes-prob-item" href="https://leetcode.com/problems/maximum-average-subtree/" target="_blank" rel="noopener noreferrer">1120. Maximum Average Subtree <span class="notes-prob-arrow" aria-hidden="true">→</span></a>
+                <a class="notes-prob-item" href="https://leetcode.com/problems/balanced-binary-tree/" target="_blank" rel="noopener noreferrer">110. Balanced Binary Tree <span class="notes-prob-arrow" aria-hidden="true">→</span></a>
+                <a class="notes-prob-item" href="https://leetcode.com/problems/lowest-common-ancestor-of-a-binary-tree/" target="_blank" rel="noopener noreferrer">236. Lowest Common Ancestor of a Binary Tree <span class="notes-prob-arrow" aria-hidden="true">→</span></a>
+                <a class="notes-prob-item" href="https://leetcode.com/problems/validate-binary-search-tree/" target="_blank" rel="noopener noreferrer">98. Validate Binary Search Tree <span class="notes-prob-arrow" aria-hidden="true">→</span></a>
+                <a class="notes-prob-item" href="https://leetcode.com/problems/binary-tree-longest-consecutive-sequence-ii/" target="_blank" rel="noopener noreferrer">549. Binary Tree Longest Consecutive Sequence II <span class="notes-prob-arrow" aria-hidden="true">→</span></a>
+                <a class="notes-prob-item" href="https://leetcode.com/problems/flatten-binary-tree-to-linked-list/" target="_blank" rel="noopener noreferrer">114. Flatten Binary Tree to Linked List <span class="notes-prob-arrow" aria-hidden="true">→</span></a>
+              </div>
+            </div>
+            <div class="notes-template-grid notes-template-stack" style="margin-top:16px">
+              <div class="notes-tmpl-card">
+                <div class="notes-tmpl-header">
+                  <span class="notes-tmpl-header-title">Tree Java 模板</span>
+                  <span class="notes-lang-pill notes-lang-java">Java</span>
+                </div>
+                <pre class="notes-code-block"><span class="kw">public</span> <span class="tp">int</span> <span class="fn">dfs</span>(<span class="tp">TreeNode</span> root) {
+    <span class="kw">if</span> (root == <span class="kw">null</span>) {
+        <span class="kw">return</span> <span class="num">0</span>;
+    }
+
+    <span class="tp">int</span> leftReturn = <span class="fn">dfs</span>(root.left);
+    <span class="tp">int</span> rightReturn = <span class="fn">dfs</span>(root.right);
+
+    <span class="cm">// Optional Leaf processing</span>
+    <span class="kw">if</span> (root.left == <span class="kw">null</span> &amp;&amp; root.right == <span class="kw">null</span>) {
+        <span class="kw">return</span> <span class="num">1</span>;
+    }
+    <span class="tp">int</span> height = <span class="tp">Math</span>.<span class="fn">max</span>(leftReturn, rightReturn) + <span class="num">1</span>;
+    <span class="kw">return</span> height;
+}</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </div>
+</div>
+</body>
+</html>

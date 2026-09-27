@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>322. Coin Change</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  /* memo 只显示 dict 本身（按 Python 插入顺序），这一步读/写的那个键加黑框 */
+  .memo-val { font-family: var(--ink-mono); font-size: 12.5px; white-space: normal; max-width: 600px; line-height: 1.8; }
+  .memo-val .m-hot { padding: 1px 4px; border-radius: 4px; box-shadow: 0 0 0 1.5px #1a1a1a; }
+
+  /* 递归树：节点里写的是 x（剩余金额），坐标由 layoutTree() 按叶子从左到右排格子算出来 */
+  #tree-svg { display: block; }
+  .edge { stroke: #d5d5d5; stroke-width: 2; }
+  .edge.on-path { stroke: #3A6FD4; stroke-width: 3; }
+  .edge-tag { font-family: var(--ink-mono); font-size: 9.5px; fill: #b0b0b0; }
+  .edge-tag.on-path { fill: #3A6FD4; font-weight: 700; }
+  .node-box { fill: #f5f5f5; stroke: #c9c9c9; stroke-width: 1; transition: fill 0.2s; }
+  .node-box.n-hit { stroke-dasharray: 3 2; }
+  .node-box.n-current { stroke: #1a1a1a; stroke-width: 2.5; }
+  .node-box.n-stack   { stroke: rgba(90,130,200,0.55); }
+  .node-box.n-stack.n-hit, .node-box.n-current.n-hit { stroke-dasharray: 3 2; }
+  .node-box.n-done    { fill: rgba(93,202,165,0.4); stroke: rgba(60,160,125,0.5); }
+  .node-box.n-done.n-neg { fill: rgba(224,133,133,0.24); stroke: rgba(200,90,90,0.5); }
+  .node-text { font-family: var(--ink-mono); font-size: 12px; font-weight: 700; fill: #1a1a1a; }
+  .node-text.dim { fill: #b5b5b5; }
+  .tree-note { margin-top: 8px; font-family: -apple-system, sans-serif; font-size: 11.5px; color: #888; line-height: 1.6; }
+
+  .viz-row { display: flex; align-items: flex-start; gap: 16px; }
+
+  .fn-tag { display: inline-block; padding: 1px 8px; border-radius: 5px; background: rgba(199,146,234,0.18);
+            color: #6b3fa0; font-family: var(--ink-mono); font-size: 12px; font-weight: 700; }
+  .fn-note { margin-left: 8px; font-family: -apple-system, sans-serif; font-size: 11px; color: #aaa; }
+  /* 变量名占固定宽度（最长的是 memo[x]，7 个字符），让每行的 = 对齐 */
+  #var-bar .var-name { display: inline-block; min-width: 7ch; }
+
+  /* 调用链：一层一行、按深度缩进，底色 = 这一帧的子问题 x 的颜色 */
+  .call-chain { display: flex; flex-direction: column; gap: 4px; min-height: 132px; }
+  .chain-row { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 10px;
+               border-radius: 7px; font-family: var(--ink-mono); font-size: 12px;
+               color: #1a1a1a; white-space: nowrap; align-self: flex-start;
+               transition: box-shadow 0.15s; }
+  .chain-row.top { box-shadow: 0 0 0 1.5px #1a1a1a; font-weight: 700; }
+  .chain-i { color: #C4501E; font-weight: 700; }
+  .chain-dim { color: #8a8a8a; font-weight: 400; }
+  .chain-empty { font-family: var(--ink-mono); font-size: 12px; color: #bbb; }
+
+  .legend-below { flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 0; max-width: none; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '322. Coin Change',
+  link: 'https://leetcode.com/problems/coin-change/',
+  legend: [
+    { color: 'rgba(249,203,66,0.30)', extra: 'box-shadow:inset 0 0 0 2px #1a1a1a;', label: '黑框 = 正在执行这一行的那次调用' },
+    { color: 'rgba(120,160,225,0.22)', label: '每个子问题 x 一种颜色 — 代码高亮行 / 调用链 / 树节点同色；同一个 x 不管被调几次都是同一色' },
+    { color: '#f5f5f5', extra: 'border:1.5px dashed #888;', label: '虚线框 = 这次调用命中 memo，直接返回、不再展开' },
+    { color: 'rgba(224,133,133,0.24)', label: 'x < 0：面值超过剩余金额，返回 ∞' },
+    { color: 'rgba(93,202,165,0.4)', label: 'dfs 已返回（子树走完）' },
+    { color: '#f5f5f5', extra: 'border:1px solid #c9c9c9;', label: '还没调用到' },
+    { color: '#fff', extra: 'box-shadow:0 0 0 1.5px #1a1a1a;', label: 'memo 里的黑框 = 这一步刚读 / 写的那个键' },
+    { color: '#3A6FD4', extra: 'border-radius:2px;width:14px;height:3px;', label: '根 → 当前帧（就是调用栈）' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+  <script>
+  renderCodeBox({
+    code: `
+class Solution:
+    def coinChange(self, coins: 'List[int]', amount: 'int') -> 'int':
+        memo = {}
+        memo[0] = 0
+        # initialize
+        for coin in coins:
+            memo[coin]  = 1
+
+        ret = self.dfs(amount, coins, memo)
+        if ret == float('INF'):
+            return -1
+        else:
+            return ret
+
+    def dfs(self, x, coins, memo):
+        if x in memo:
+            return memo[x]
+
+        if x < 0:
+            return  float('INF')
+
+        memo[x] = float('INF')
+        for coin in coins:
+            memo[x] = min(memo[x], self.dfs(x-coin, coins, memo) + 1)
+
+        return memo[x]`,
+  });
+  </script>
+
+  <script>
+  (function () {
+    const stack = document.querySelector('.code-stack');
+    stack.appendChild(document.getElementById('info'));
+    const legend = document.querySelector('.legend');
+    const legendRow = legend.parentElement;
+    legend.classList.add('legend-below');
+    stack.appendChild(legend);
+    legendRow.remove();
+  })();
+  </script>
+
+  <div class="viz-panel">
+    <div class="viz-row">
+      <div class="card">
+        <h3>调用链 — 现在这行代码是谁在跑</h3>
+        <div class="call-chain" id="call-chain"></div>
+      </div>
+      <div class="var-bar" id="var-bar"></div>
+    </div>
+
+    <div class="card">
+      <h3>memo — 子问题 x 最少要几枚硬币</h3>
+      <div class="memo-val" id="memo-val"></div>
+    </div>
+
+    <div class="card">
+      <h3>递归树 — 每个节点是一次 dfs(x) 调用</h3>
+      <svg id="tree-svg"></svg>
+      <div class="tree-note" id="tree-note"></div>
+    </div>
+  </div>
+</div><!-- /.main -->
+</div><!-- /.content-wrapper -->
+
+<script>
+// ── 例子：LeetCode 322 官方 Example 1 ─────────────────────────────────────
+const COINS = [1, 2, 5];
+const AMOUNT = 11;
+const INF = Infinity;
+
+/* 行号表：正文从 1 开始，空行也占号（8/14/18/21/25 是空行，5 是注释，12 的 else: 不执行）。
+   dfs 是 Solution 的另一个方法，放在 coinChange 后面（2026-08-29 从嵌套闭包改成方法，
+   coins 改为显式传参）。按 ANIMATION_GUIDE：每行可执行代码 ≥ 1 步，if/for 头每轮都停
+   （True 和 False 都停），函数调用行走两遍（发起 + 返回），def 行进入时也停。 */
+const L = {
+  CC:        2,   // def coinChange(self, coins, amount)   进入时一步
+  MEMO:      3,   // memo = {}
+  MEMO0:     4,   // memo[0] = 0
+  FORINIT:   6,   // for coin in coins:   每轮 + 取空各一次
+  MEMOCOIN:  7,   // memo[coin] = 1
+  CALL:      9,   // ret = self.dfs(amount, coins, memo)   调用 + 返回各一次
+  IFRET:    10,   // if ret == float('INF'):
+  RETNEG:   11,   // return -1（本例走不到）
+  RETRET:   13,   // return ret
+  DFS:      15,   // def dfs(self, x, coins, memo)   每次进入 dfs 一步
+  IFMEMO:   16,   // if x in memo:   True / False 各停一次
+  RETMEMO:  17,   // return memo[x]（命中）
+  IFNEG:    19,   // if x < 0:   True / False 各停一次
+  RETINF:   20,   // return float('INF')
+  SEED:     22,   // memo[x] = float('INF')
+  FOR:      23,   // for coin in coins:   每轮 + 取空各一次
+  MIN:      24,   // memo[x] = min(memo[x], self.dfs(x-coin, coins, memo) + 1)   调用 + 返回各一次
+  RET:      26,   // return memo[x]
+};
+
+/* 色板按子问题 x 分：memo 的意义就是"同一个 x 只算一次"，所以同一个 x 的所有调用
+   （第一次真算的 + 后面命中 memo 的）都用同一种底色，一眼能看出"这是老问题"。 */
+const CALL_TINT = [
+  'rgba(126,158,221,0.24)',
+  'rgba(117,209,163,0.26)',
+  'rgba(227,192,109,0.30)',
+  'rgba(216,143,121,0.26)',
+  'rgba(180,131,216,0.26)',
+  'rgba(127,196,210,0.28)',
+  'rgba(209,166,117,0.30)',
+  'rgba(219,148,184,0.24)',
+  'rgba(152,121,216,0.24)',
+  'rgba(161,210,137,0.26)',
+  'rgba(216,208,121,0.30)',
+  'rgba(224,133,133,0.24)',
+  'rgba(217,140,217,0.24)',
+  'rgba(117,209,186,0.28)',
+  'rgba(182,218,108,0.28)',
+  'rgba(216,151,173,0.24)',
+];
+const OUTER_TINT = 'rgba(150,150,150,0.18)';   // 外层 coinChange()，不是 dfs
+const NEG_TINT = 'rgba(224,133,133,0.30)';     // x < 0 的调用
+const tintOf = (x) => x == null ? OUTER_TINT : (x < 0 ? NEG_TINT : CALL_TINT[x % CALL_TINT.length]);
+
+const fmtV = (v) => v === INF ? '∞' : String(v);
+const fmt = (a) => '[' + a.join(', ') + ']';
+const fmtMemo = (memo, order, hot) => order.length
+  ? '{' + order.map(k => {
+      const kv = k + ': ' + fmtV(memo[k]);
+      return k === hot ? '<span class="m-hot">' + kv + '</span>' : kv;
+    }).join(', ') + '}'
+  : '{}';
+
+// 递归树的节点：buildSteps() 跑算法时按调用顺序 push 进来，layoutTree() 再算坐标
+const NODES = [];
+
+// ── 真跑一遍 Lyon 的解法生成步骤 ──────────────────────────────────────────
+function buildSteps() {
+  const steps = [];
+  const memo = {};        // 全程只有一份，所有层共用
+  const memoOrder = [];   // Python dict 的插入顺序（JS 对象数字键会自动排序，单独记一份）
+  let memoExists = false; // Line 3 之前 memo 还不存在
+  let stack = [];         // dfs 调用栈：[{ id, x, coin, kind }]
+  let done = [];          // 已经返回的调用 id
+  let fn = null;
+  let outerCoin = null;   // coinChange 里 Line 6 循环的 coin
+  let ret = null;
+  let hot = null;         // 这一步被读 / 写的 memo 下标
+  let callCount = 0;
+
+  function setMemo(k, v) {
+    if (!(k in memo)) memoOrder.push(k);
+    memo[k] = v;
+  }
+
+  function snap(line, info) {
+    const top = stack.length ? stack[stack.length - 1] : null;
+    steps.push({
+      line, info, fn, ret, hot, outerCoin,
+      memo: memoExists ? Object.assign({}, memo) : null,
+      memoOrder: [...memoOrder],
+      stack: stack.map(f => Object.assign({}, f)),
+      done: [...done],
+      x: top ? top.x : null,
+      coin: top ? top.coin : outerCoin,
+    });
+    hot = null;
+  }
+
+  snap(null, 'Top-down DP：dfs(x) = 凑出金额 x 最少要几枚硬币。每一层枚举"最后一枚用哪种面值"，' +
+    '剩下的 x - coin 交给子问题，结果记进 memo，同一个 x 只真算一次。coins = [1, 2, 5]，amount = 11。');
+
+  fn = 'coinChange';
+  snap(L.CC, 'Line 2: 进入 coinChange(coins=' + fmt(COINS) + ', amount=' + AMOUNT + ') — 入口函数，先准备 memo 再调 self.dfs。');
+  memoExists = true;
+  snap(L.MEMO, 'Line 3: memo = {} — 空字典，之后所有层的 dfs 共用这同一份。');
+  setMemo(0, 0); hot = 0;
+  snap(L.MEMO0, 'Line 4: memo[0] = 0 — 金额 0 一枚都不用，递归的终点。');
+  for (const coin of COINS) {
+    outerCoin = coin;
+    snap(L.FORINIT, 'Line 6: for coin in coins → coin = ' + coin + ' — 每种面值本身一枚就能凑出来，先记进去。');
+    setMemo(coin, 1); hot = coin;
+    snap(L.MEMOCOIN, 'Line 7: memo[' + coin + '] = 1 — memo 现在是 ' + fmtMemo(memo, memoOrder) + '。');
+  }
+  outerCoin = null;
+  snap(L.FORINIT, 'Line 6: coins 已经走完 — 初始化结束，memo = ' + fmtMemo(memo, memoOrder) + '，剩下的 x 全靠递归现算。');
+  snap(L.CALL, 'Line 9: ret = self.dfs(amount, coins, memo) — 从总金额 ' + AMOUNT + ' 开始往下拆。');
+
+  function dfs(x, parentId) {
+    const id = callCount++;
+    const kind = (x in memo) ? 'hit' : (x < 0 ? 'neg' : 'full');
+    const parent = parentId == null ? null : NODES[parentId];
+    const node = { id, amt: x, parent: parentId, kind, depth: parent ? parent.depth + 1 : 0, children: [],
+                   viaCoin: parent ? parent.amt - x : null };
+    NODES.push(node);
+    if (parent) parent.children.push(node);
+    const frame = { id, x, coin: null, kind };
+    stack.push(frame);
+    fn = 'dfs';
+    snap(L.DFS, 'Line 15: 进入 self.dfs(x=' + x + ', coins, memo) — ' +
+      (kind === 'full' ? '子问题 ' + x + '：凑出 ' + x + ' 最少要几枚？' :
+       kind === 'hit' ? '子问题 ' + x + ' 又来了（第 ' + (stack.length) + ' 层）。' :
+       'x 已经是负数了。'));
+
+    if (x in memo) {
+      hot = x;
+      snap(L.IFMEMO, 'Line 16: ' + x + ' in memo → True — 子问题 ' + x + ' 已经算过，memo[' + x + '] = ' + fmtV(memo[x]) +
+        '，不用再展开一棵子树。');
+      hot = x;
+      snap(L.RETMEMO, 'Line 17: return memo[' + x + '] = ' + fmtV(memo[x]) + ' — 直接把记好的答案交回上一层。');
+      stack.pop(); done.push(id);
+      return memo[x];
+    }
+    snap(L.IFMEMO, 'Line 16: ' + x + ' in memo → False — 子问题 ' + x + ' 还没算过，往下走。');
+
+    if (x < 0) {
+      snap(L.IFNEG, 'Line 19: x = ' + x + ' < 0 → True — 最后那枚硬币的面值超过了剩余金额，这条路凑不出来。');
+      snap(L.RETINF, 'Line 20: return float(\'INF\') — 用 ∞ 表示"不可能"，上一层做 min 时它自然被淘汰。');
+      stack.pop(); done.push(id);
+      return INF;
+    }
+    snap(L.IFNEG, 'Line 19: x = ' + x + ' < 0 → False — 金额合法，开始真正计算。');
+
+    setMemo(x, INF); hot = x;
+    snap(L.SEED, 'Line 22: memo[' + x + '] = ∞ — 先占个位，给下面的 min 一个起点；这时 ' + x + ' 已经在 memo 里了，格子变黄。');
+
+    for (const coin of COINS) {
+      frame.coin = coin;
+      snap(L.FOR, 'Line 23: for coin in coins → coin = ' + coin + ' — 试"最后一枚用 ' + coin + '"，剩下 ' +
+        x + ' - ' + coin + ' = ' + (x - coin) + ' 交给子问题。');
+      snap(L.MIN, 'Line 24: 调用 self.dfs(' + (x - coin) + ', coins, memo) — 先算子问题 ' + (x - coin) +
+        ' 最少要几枚，回来再 +1 跟 memo[' + x + '] 取 min。');
+      const r = dfs(x - coin, id);
+      fn = 'dfs';
+      const before = memo[x];
+      const cand = r + 1;
+      setMemo(x, Math.min(before, cand)); hot = x;
+      snap(L.MIN, 'Line 24: dfs(' + (x - coin) + ') 返回 ' + fmtV(r) + ' → min(' + fmtV(before) + ', ' + fmtV(r) + ' + 1) = ' +
+        fmtV(memo[x]) + ' — memo[' + x + '] ' + (memo[x] < before ? '更新为 ' + fmtV(memo[x]) : '保持 ' + fmtV(memo[x])) +
+        (r === INF ? '（∞ + 1 还是 ∞，这条路不算数）' : '') + '。');
+    }
+    frame.coin = null;
+    snap(L.FOR, 'Line 23: coins 已经试完 — 三种"最后一枚"都比过了，memo[' + x + '] = ' + fmtV(memo[x]) +
+      ' 就是子问题 ' + x + ' 的最优解。');
+    hot = x;
+    snap(L.RET, 'Line 26: return memo[' + x + '] = ' + fmtV(memo[x]) + ' — 交回上一层；以后再有人问 ' + x + '，Line 16 直接命中。');
+    stack.pop(); done.push(id);
+    return memo[x];
+  }
+
+  const r = dfs(AMOUNT, null);
+  fn = 'coinChange';
+  ret = r;
+  const nFull = NODES.filter(n => n.kind === 'full').length;
+  const nHit = NODES.filter(n => n.kind === 'hit').length;
+  const nNeg = NODES.filter(n => n.kind === 'neg').length;
+  snap(L.CALL, 'Line 9: dfs(' + AMOUNT + ') 返回 ' + fmtV(r) + '，ret = ' + fmtV(r) + ' — 整棵递归树走完：' +
+    NODES.length + ' 次调用里只有 ' + nFull + ' 次真算，' + nHit + ' 次命中 memo，' + nNeg + ' 次 x < 0。');
+  if (r === INF) {
+    snap(L.IFRET, 'Line 10: ret == ∞ → True — 凑不出来。');
+    snap(L.RETNEG, 'Line 11: return -1。');
+    fn = null;
+    snap(null, '✅ coinChange 返回 -1。');
+  } else {
+    snap(L.IFRET, 'Line 10: ret == ∞ ? ' + fmtV(r) + ' == ∞ → False — 凑得出来。');
+    snap(L.RETRET, 'Line 13: return ret = ' + r + '。');
+    fn = null;
+    snap(null, '✅ coinChange 返回 ' + r + '，最终答案 = ' + r + '（11 = 5 + 5 + 1）。' +
+      '没有 memo 的话每个 x 都会被反复展开成指数级的树；有了 memo，0..' + AMOUNT + ' 每个子问题只真算一次，' +
+      '复杂度降到 O(amount × len(coins))。');
+  }
+  return steps;
+}
+
+const STEPS = buildSteps();
+let cur = -1;
+
+// ── 递归树坐标：叶子按调用顺序从左到右排格子，内部节点取首尾孩子中点，y 按深度 ──
+const SLOT = 42, X0 = 26, Y0 = 22, DY = 44;
+const NODE_W = 34, NODE_H = 24;
+let TREE_W = 0, TREE_H = 0;
+function layoutTree() {
+  let slot = 0;
+  let maxDepth = 0;
+  function place(n) {
+    n.children.forEach(place);
+    if (!n.children.length) n.x = X0 + (slot++) * SLOT;
+    else n.x = (n.children[0].x + n.children[n.children.length - 1].x) / 2;
+    n.y = Y0 + n.depth * DY;
+    if (n.depth > maxDepth) maxDepth = n.depth;
+  }
+  place(NODES[0]);
+  TREE_W = X0 * 2 + (slot - 1) * SLOT;
+  TREE_H = Y0 * 2 + maxDepth * DY;
+  const svg = document.getElementById('tree-svg');
+  svg.setAttribute('viewBox', '0 0 ' + TREE_W + ' ' + TREE_H);
+  svg.style.width = TREE_W + 'px';
+  svg.style.height = TREE_H + 'px';
+}
+layoutTree();
+
+// ── 渲染（只读快照，无副作用；Prev / Reset / lockStableSizes 干跑都靠这点）──
+function renderMemo(s) {
+  document.getElementById('memo-val').innerHTML =
+    '<span class="var-name">memo</span><span class="var-eq"> = </span>' +
+    '<span class="var-val">' + (s.memo ? fmtMemo(s.memo, s.memoOrder, s.hot) : '—') + '</span>';
+}
+
+const stackIds = (s) => s.stack.map(f => f.id);
+
+function nodeState(s, id) {
+  if (s.done.indexOf(id) >= 0) return 'n-done';
+  const at = stackIds(s).indexOf(id);
+  if (at >= 0) return at === s.stack.length - 1 ? 'n-current' : 'n-stack';
+  return '';
+}
+
+function renderTree(s) {
+  const parts = [];
+  const ids = stackIds(s);
+  NODES.forEach(n => {
+    if (n.parent == null) return;
+    const p = NODES[n.parent];
+    const onPath = ids.indexOf(n.id) >= 0 && ids.indexOf(n.parent) >= 0;
+    const x1 = p.x, y1 = p.y + NODE_H / 2, x2 = n.x, y2 = n.y - NODE_H / 2;
+    parts.push('<line class="edge' + (onPath ? ' on-path' : '') + '" x1="' + x1 + '" y1="' + y1 +
+      '" x2="' + x2 + '" y2="' + y2 + '"/>');
+    parts.push('<text class="edge-tag' + (onPath ? ' on-path' : '') + '" x="' + ((x1 + x2) / 2 + 5) +
+      '" y="' + ((y1 + y2) / 2 + 3) + '">−' + n.viaCoin + '</text>');
+  });
+  NODES.forEach(n => {
+    const st = nodeState(s, n.id);
+    const onStack = st === 'n-current' || st === 'n-stack';
+    const cls = ['node-box', st];
+    if (n.kind === 'hit') cls.push('n-hit');
+    if (n.kind === 'neg') cls.push('n-neg');
+    const fill = onStack ? ' style="fill:' + tintOf(n.amt) + '"' : '';
+    parts.push('<g>' +
+      '<rect class="' + cls.join(' ') + '"' + fill + ' x="' + (n.x - NODE_W / 2) + '" y="' + (n.y - NODE_H / 2) +
+        '" width="' + NODE_W + '" height="' + NODE_H + '" rx="6"/>' +
+      '<text class="node-text' + (st ? '' : ' dim') + '" x="' + n.x + '" y="' + (n.y + 4) +
+        '" text-anchor="middle">' + n.amt + '</text>' +
+      '</g>');
+  });
+  document.getElementById('tree-svg').innerHTML = parts.join('');
+  document.getElementById('tree-note').textContent =
+    '节点里写的是 x（剩余金额），边上的 −coin 是这一层选的"最后一枚"。虚线框的节点命中 memo，' +
+    '下面不再长子树——这就是 memo 省掉的那部分工作。';
+}
+
+function renderVars(s) {
+  const row = (name, val, note) => '<span class="var-row"><span class="var-name">' + name +
+    '</span><span class="var-eq"> = </span><span class="var-val">' + val + '</span>' +
+    (note ? '<span class="fn-note">' + note + '</span>' : '') + '</span>';
+  const top = s.stack.length ? s.stack[s.stack.length - 1] : null;
+  const memoX = (top && s.memo && top.x in s.memo) ? fmtV(s.memo[top.x]) : '-';
+  document.getElementById('var-bar').innerHTML =
+    '<span class="var-row"><span class="fn-tag">' + (s.fn ? s.fn + '()' : '—') +
+      '</span><span class="fn-note">当前所在函数</span></span>' +
+    row('coins', fmt(COINS)) +
+    row('amount', AMOUNT) +
+    row('x', top ? top.x : '-', '当前这一层要凑的金额') +
+    row('coin', s.coin == null ? '-' : s.coin, 'for 循环局部变量') +
+    row('memo[x]', memoX) +
+    row('ret', s.ret == null ? '-' : fmtV(s.ret));
+}
+
+/* 调用链卡片：从最外层往里一层一层列，缩进 = 递归深度。memo 全程是同一份 dict，
+   按 CH4 规范只写名字不写值；x 按值传、每层各一份，写具体数值；coin 是每层自己的
+   for 变量，另外用 chain-i 单独标出来。 */
+function renderChain(s) {
+  const host = document.getElementById('call-chain');
+  if (!s.fn) {
+    host.innerHTML = '<span class="chain-empty">还没开始 / 已经全部返回</span>';
+    return;
+  }
+  const val = (v) => '<span class="var-val">' + v + '</span>';
+  const rows = [];
+  rows.push({ frame: null, depth: 0, top: !s.stack.length,
+              text: 'coinChange(coins=' + val(fmt(COINS)) + ', amount=' + val(AMOUNT) + ')',
+              coin: s.outerCoin, tag: null });
+  s.stack.forEach((f, k) => {
+    rows.push({
+      frame: f, depth: k + 1, top: k === s.stack.length - 1,
+      text: 'dfs(x=' + val(f.x) + ', coins, memo)',
+      coin: f.coin,
+      tag: f.kind === 'hit' ? '命中 memo' : f.kind === 'neg' ? 'x < 0' : null,
+    });
+  });
+  host.innerHTML = rows.map(r =>
+    '<div class="chain-row' + (r.top ? ' top' : '') + '"' +
+      ' style="background:' + tintOf(r.frame ? r.frame.x : null) + ';margin-left:' + (r.depth * 18) + 'px">' +
+      '<span>' + r.text + '</span>' +
+      (r.coin != null ? '<span class="chain-i">coin = ' + r.coin + '</span>' : '') +
+      (r.tag ? '<span class="chain-dim">→ ' + r.tag + '</span>' : '') +
+    '</div>').join('');
+}
+
+function tintLine(s) {
+  document.querySelectorAll('.code-line').forEach(el => { el.style.background = ''; });
+  if (s.line == null || !s.fn) return;
+  const el = document.querySelector('.code-line[data-l="' + s.line + '"]');
+  if (!el) return;
+  el.style.background = tintOf(s.stack.length ? s.stack[s.stack.length - 1].x : null);
+}
+
+const EMPTY = { line: null, info: null, fn: null, ret: null, hot: null, outerCoin: null,
+                memo: null, memoOrder: [], stack: [], done: [], x: null, coin: null };
+
+function renderAll() {
+  const step = cur >= 0 ? STEPS[cur] : null;
+  const s = step || EMPTY;
+
+  renderChain(s);
+  renderMemo(s);
+  renderTree(s);
+  renderVars(s);
+  highlightLine(s.line);
+  tintLine(s);
+  renderCtrl(cur, STEPS.length, step ? step.info :
+    '点 Next 开始：coins = [1, 2, 5]，amount = 11，求最少用几枚硬币凑出 11。');
+}
+
+var render = renderAll;
+doReset();
+</script>
+</body>
+</html>

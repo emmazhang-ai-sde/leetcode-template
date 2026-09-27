@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>144. Binary Tree Preorder Traversal</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  svg { display: block; width: 100%; max-height: 220px; }
+
+  /* Call stack (recursion frames) */
+  .frame-stack-container { display: flex; flex-direction: column-reverse; align-items: center; gap: 4px; min-height: 190px; justify-content: flex-start; padding: 8px 0; }
+  .frame-cell { min-width: 88px; height: 32px; padding: 0 10px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-family: 'SF Mono', monospace; font-size: 12.5px; font-weight: 700; background: rgba(139,133,212,0.22); color: #1a1a1a; transition: all 0.2s; }
+  .frame-cell.top { background: rgba(249,203,66,0.5); }
+  .frame-cell.none-frame { color: #999; font-weight: 600; background: #f0f0f0; }
+  .frame-stack-base { width: 108px; height: 3px; background: #ccc; border-radius: 2px; margin-top: 4px; }
+  .stack-empty { font-size: 12px; color: #aaa; font-family: 'SF Mono', monospace; }
+
+  /* Result array */
+  .res-row { display: flex; }
+  .res-cell { width: 40px; height: 40px; border-radius: 8px; margin: 0 3px; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; font-family: 'SF Mono', monospace; background: #f5f5f5; color: #bbb; transition: background 0.2s, color 0.2s, transform 0.15s; }
+  .res-cell.filled { background: rgba(93,202,165,0.3); color: #1a1a1a; }
+  .res-cell.newest { background: rgba(93,202,165,0.55); transform: scale(1.08); }
+
+  .stack-result-row { display: flex; gap: 16px; align-items: stretch; }
+  .stack-result-row .card { display: flex; flex-direction: column; align-items: center; }
+  .stack-result-row .card:last-child { align-items: flex-start; justify-content: flex-start; }
+
+  /* Inline variable readouts, anchored under the block they describe */
+  .node-var-row, .depth-var-row { margin-top: 8px; text-align: center; font-family: 'SF Mono', 'Menlo', monospace; font-size: 13px; }
+  .res-label { margin: 12px 0 0; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '144. Binary Tree Preorder Traversal',
+  link: 'https://leetcode.com/problems/binary-tree-preorder-traversal/',
+  legend: [
+    { color: 'rgba(249,203,66,0.55)', label: '栈顶 — dfs(node) 正在执行' },
+    { color: 'rgba(93,202,165,0.4)', label: '已 append 到 res' },
+    { color: '#f5f5f5', extra: 'border:1px solid #ccc;', label: '尚未访问' },
+    { color: '#3A6FD4', extra: 'border-radius:2px;width:14px;height:3px;', label: '正在下探的边' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+  <script>
+  renderCodeBox({
+    prereq: `
+# Definition for a binary tree node.
+# class TreeNode:
+#     def __init__(self, val=0, left=None, right=None):
+#         self.val = val
+#         self.left = left
+#         self.right = right`,
+    code: `
+class Solution:
+    def preorderTraversal(self, root: Optional[TreeNode]) -> List[int]:
+        res = []
+
+        def dfs(node):
+            if not node:
+                return
+            res.append(node.val)
+            dfs(node.left)
+            dfs(node.right)
+
+        dfs(root)
+        return res`,
+  });
+  </script>
+
+  <div class="viz-panel">
+    <div class="card">
+      <h3>Binary Tree</h3>
+      <svg id="tree-svg" viewBox="0 0 360 230"></svg>
+      <div class="node-var-row" id="node-var"></div>
+    </div>
+
+    <div class="stack-result-row">
+      <div class="card">
+        <h3>Call Stack（递归栈）</h3>
+        <div class="frame-stack-container" id="frame-stack">
+          <span class="stack-empty">尚未调用 dfs()</span>
+        </div>
+        <div class="frame-stack-base"></div>
+        <div style="font-size:11px;color:#aaa;margin-top:4px;">bottom</div>
+        <div class="depth-var-row" id="depth-var"></div>
+      </div>
+
+      <div class="card">
+        <div class="res-row" id="res-row"></div>
+        <h3 class="res-label">res = [...]</h3>
+      </div>
+    </div>
+  </div>
+</div><!-- /.main -->
+</div><!-- /.content-wrapper -->
+
+<script>
+// ── Tree definition ──────────────────────────────────────────────────────
+//        1
+//       / \
+//      2   3
+//     / \
+//    4   5
+const TREE = {
+  1: { left: 2, right: 3 },
+  2: { left: 4, right: 5 },
+  3: { left: null, right: null },
+  4: { left: null, right: null },
+  5: { left: null, right: null },
+};
+const POS = {
+  1: { x: 180, y: 36 },
+  2: { x: 100, y: 116 },
+  3: { x: 260, y: 116 },
+  4: { x: 60,  y: 196 },
+  5: { x: 140, y: 196 },
+};
+const EDGES = [[1,2],[1,3],[2,4],[2,5]];
+const RES_LEN = 5;
+
+// data-l line numbers (prereq occupies 1-6, main code continues from 7)
+const L = { RES_INIT: 9, DEF: 11, CHECK: 12, RETURN: 13, APPEND: 14, CALL_LEFT: 15, CALL_RIGHT: 16, CALL_ROOT: 18, RETURN_RES: 19 };
+
+// ── Build steps by simulating the recursion ─────────────────────────────
+function buildSteps() {
+  const steps = [];
+  let stack = [];   // frame stack: node vals, null = a dfs(None) frame
+  let res = [];
+  let activeEdge = null; // [parent, child] edge currently being descended
+
+  function snap(line, info) {
+    steps.push({ line, info, stack: [...stack], res: [...res], activeEdge });
+  }
+
+  snap(null, '点击 Next 开始：调用 preorderTraversal(root)，root 指向节点 1。');
+  snap(L.RES_INIT, 'Line 9: res = [] — 用来存放前序遍历结果。');
+
+  function dfs(nodeVal) {
+    stack.push(nodeVal);
+
+    if (nodeVal === null) {
+      snap(L.CHECK, '进入 dfs(None)。Line 12: node is None → True。');
+      activeEdge = null;
+      snap(L.RETURN, 'Line 13: return — 空节点直接返回，弹出调用栈。');
+      stack.pop();
+      return;
+    }
+
+    activeEdge = null;
+    snap(L.DEF, `进入 dfs(${nodeVal})。`);
+    snap(L.CHECK, `Line 12: node=${nodeVal} 不是 None → 条件 False，继续执行。`);
+
+    res.push(nodeVal);
+    snap(L.APPEND, `Line 14: res.append(${nodeVal}) → res=[${res.join(', ')}]`);
+
+    const { left, right } = TREE[nodeVal];
+
+    activeEdge = left != null ? [nodeVal, left] : null;
+    snap(L.CALL_LEFT, `Line 15: dfs(node.left) → ${left != null ? `调用 dfs(${left})` : '左子节点为 None，调用 dfs(None)'}`);
+    dfs(left);
+    activeEdge = null;
+
+    activeEdge = right != null ? [nodeVal, right] : null;
+    snap(L.CALL_RIGHT, `Line 16: dfs(node.right) → ${right != null ? `调用 dfs(${right})` : '右子节点为 None，调用 dfs(None)'}`);
+    dfs(right);
+    activeEdge = null;
+
+    stack.pop();
+    snap(null, `dfs(${nodeVal}) 执行完毕（隐式 return），弹出调用栈，回到上一层。`);
+  }
+
+  snap(L.CALL_ROOT, 'Line 18: dfs(root) → 调用 dfs(1)。');
+  dfs(1);
+
+  snap(L.RETURN_RES, `Line 19: return res = [${res.join(', ')}] ✓ 前序遍历完成！`);
+
+  return steps;
+}
+
+const STEPS = buildSteps();
+let cur = -1;
+
+// ── Rendering ─────────────────────────────────────────────────────────────
+function renderTree(step) {
+  const svg = document.getElementById('tree-svg');
+  svg.innerHTML = '';
+  function mkEl(tag) { return document.createElementNS('http://www.w3.org/2000/svg', tag); }
+
+  for (const [a, b] of EDGES) {
+    const pa = POS[a], pb = POS[b];
+    const isActive = step.activeEdge && step.activeEdge[0] === a && step.activeEdge[1] === b;
+    const line = mkEl('line');
+    line.setAttribute('x1', pa.x); line.setAttribute('y1', pa.y);
+    line.setAttribute('x2', pb.x); line.setAttribute('y2', pb.y);
+    line.setAttribute('stroke', isActive ? '#3A6FD4' : '#c8c6be');
+    line.setAttribute('stroke-width', isActive ? '3' : '1.5');
+    svg.appendChild(line);
+  }
+
+  const activeNode = (step.stack.length && step.stack[step.stack.length - 1] !== null)
+    ? step.stack[step.stack.length - 1] : null;
+
+  for (const id of [1, 2, 3, 4, 5]) {
+    const p = POS[id];
+    let fill = '#f5f5f5', stroke = '#c9c9c9', strokeW = 1.5;
+    if (id === activeNode) { fill = 'rgba(249,203,66,0.55)'; stroke = '#d4a800'; strokeW = 2.5; }
+    else if (step.res.includes(id)) { fill = 'rgba(93,202,165,0.4)'; stroke = '#1D9E75'; strokeW = 1.5; }
+
+    const g = mkEl('g');
+    const circle = mkEl('circle');
+    circle.setAttribute('cx', p.x); circle.setAttribute('cy', p.y); circle.setAttribute('r', 22);
+    circle.setAttribute('fill', fill); circle.setAttribute('stroke', stroke); circle.setAttribute('stroke-width', strokeW);
+    g.appendChild(circle);
+
+    const text = mkEl('text');
+    text.setAttribute('x', p.x); text.setAttribute('y', p.y);
+    text.setAttribute('text-anchor', 'middle'); text.setAttribute('dominant-baseline', 'central');
+    text.setAttribute('font-size', '14'); text.setAttribute('font-weight', '700'); text.setAttribute('fill', '#1a1a1a');
+    text.setAttribute('font-family', 'SF Mono, Menlo, monospace');
+    text.textContent = id;
+    g.appendChild(text);
+
+    svg.appendChild(g);
+  }
+}
+
+function renderCallStack(stack) {
+  const el = document.getElementById('frame-stack');
+  if (!stack.length) {
+    el.innerHTML = '<span class="stack-empty">尚未调用 dfs()</span>';
+    return;
+  }
+  el.innerHTML = stack.map((v, i) => {
+    const isTop = i === stack.length - 1;
+    const isNone = v === null;
+    const label = isNone ? 'dfs(None)' : `dfs(${v})`;
+    return `<div class="frame-cell${isTop ? ' top' : ''}${isNone ? ' none-frame' : ''}">${label}</div>`;
+  }).join('');
+}
+
+function renderResRow(res) {
+  const row = document.getElementById('res-row');
+  row.innerHTML = Array.from({ length: RES_LEN }).map((_, i) => {
+    const filled = i < res.length;
+    const newest = filled && i === res.length - 1;
+    return `<div class="res-cell${filled ? ' filled' : ''}${newest ? ' newest' : ''}">${filled ? res[i] : '?'}</div>`;
+  }).join('');
+}
+
+function renderNodeVar(step) {
+  const top = step.stack.length ? step.stack[step.stack.length - 1] : null;
+  const nodeDisplay = step.stack.length === 0 ? '—' : (top === null ? 'None' : top);
+  document.getElementById('node-var').innerHTML =
+    `<span class="var-name">node</span><span class="var-eq"> = </span><span class="var-val">${nodeDisplay}</span>`;
+}
+
+function renderDepthVar(step) {
+  document.getElementById('depth-var').innerHTML =
+    `<span class="var-name">stack depth</span><span class="var-eq"> = </span><span class="var-val">${step.stack.length}</span>`;
+}
+
+function renderAll() {
+  const step = cur >= 0 ? STEPS[cur] : null;
+
+  if (!step) {
+    renderTree({ activeEdge: null, stack: [], res: [] });
+    renderCallStack([]);
+    renderResRow([]);
+    renderNodeVar({ stack: [] });
+    renderDepthVar({ stack: [] });
+    renderCtrl(-1, STEPS.length, '');
+    highlightLine(null);
+    return;
+  }
+
+  renderTree(step);
+  renderCallStack(step.stack);
+  renderResRow(step.res);
+  renderNodeVar(step);
+  renderDepthVar(step);
+  highlightLine(step.line);
+  renderCtrl(cur, STEPS.length, step.info);
+}
+
+var render = renderAll;
+doReset();
+</script>
+</body>
+</html>

@@ -1,0 +1,53 @@
+/* =========================================================================
+   ink.css — Ink & Border 设计 token（2026-08-06 第 2 步：样式统一）。
+
+   为什么只放变量不放组件类：notes.css / sidebar.js / checkin / class / index
+   各自的类名和布局都已稳定，强行合并组件类要改一堆 HTML/JS；把"黑黄配色、
+   黑框、硬阴影、等宽标签字体"这些设计决策收进 CSS 变量，各文件用 var()
+   引用，改一处全站生效，类名一个不动。
+
+   加载方式：sidebar.js 在注入自己的样式前先挂本文件（跟 notes.js 同款
+   URL 推导，file:// 也能用）；checkin / class / index 三个自带 <style> 的
+   页面在 <head> 里再显式 link 一份（重复加载无害，浏览器按 URL 去重）。
+
+   命名约定：--ink-* 前缀。改值即换肤；加新页面直接引用这些变量，
+   不要再写 #111 / #FFD84D / 3px 3px 0 … 字面值。
+   ========================================================================= */
+:root {
+  /* ---- 墨色阶（深 → 浅） ---- */
+  --ink:        #111;      /* 主墨：文字、边框、实心按钮底 */
+  --ink-soft:   #1a1a1a;   /* 标题墨（比主墨软一点） */
+  --ink-muted:  #8a8a8a;   /* 次要文字、meta、占位符 */
+  --ink-faint:  #b5b5b5;   /* 更浅：sidebar 题号 */
+  --ink-ghost:  #c9c9c9;   /* 最浅：未选中星标、分隔符 */
+
+  /* ---- 面板灰 ---- */
+  --ink-panel:  #f5f5f5;   /* 代码块底、hover 底 */
+  --ink-chip:   #f2f2f2;   /* chip / inline code 底 */
+
+  /* ---- 高亮与语义色 ---- */
+  --ink-hl:     #FFD84D;   /* 黄色荧光：active、选中、hover 反色 */
+  --ink-danger: #C4501E;   /* 危险动作（删除）、警示文字 */
+  --ink-safe:   #4E7A3A;   /* 安全主按钮（确认弹窗里的 Cancel/Save） */
+
+  /* ---- 黑框 ---- */
+  --ink-border: 1.5px solid #111;
+
+  /* ---- 硬阴影（无模糊、纯位移，Ink & Border 的签名） ---- */
+  --ink-shadow-xs:    1px 1px 0 rgba(17,17,17,0.9);
+  --ink-shadow-sm:    2px 2px 0 rgba(17,17,17,0.9);
+  --ink-shadow:       3px 3px 0 rgba(17,17,17,0.9);
+  --ink-shadow-lg:    4px 4px 0 rgba(17,17,17,0.9);
+  --ink-shadow-focus: 2px 2px 0 rgba(17,17,17,0.4);   /* 输入框 :focus */
+  --ink-shadow-hover: 2px 2px 0 rgba(17,17,17,0.5);   /* 实心按钮 :hover */
+
+  /* ---- 等宽标签字体（大写小字号标题 / 题号 / 日期） ---- */
+  --ink-mono: 'SF Mono', Menlo, monospace;
+
+  /* ---- 正文无衬线字体（2026-08-14 从 notes.css 里到处重复的字面值抽出来）：
+     notes.css 原来同一个字体栈抄了 13 遍、还抄出 4 个不完全一致的版本
+     （有的漏 BlinkMacSystemFont/Segoe UI，有的漏 PingFang SC）。统一成这一个
+     最全的版本——-apple-system 排第一优先级不变，多出来的只是更完整的
+     跨平台/中文兜底，不会改变 macOS 上的实际渲染。 */
+  --ink-sans: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Segoe UI', sans-serif;
+}

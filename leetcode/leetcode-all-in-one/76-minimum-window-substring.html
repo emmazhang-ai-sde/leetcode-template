@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>76. Minimum Window Substring</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  .str-row { display: flex; align-items: flex-end; gap: 6px; }
+  .str-cell { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .cell-box {
+    width: 40px; height: 40px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px; font-weight: 700; font-family: 'SF Mono', monospace;
+    background: #f5f5f5; color: #1a1a1a;
+    transition: background 0.2s, transform 0.2s, opacity 0.2s;
+  }
+  .cell-box.in-window { background: rgba(139,133,212,0.22); }
+  .cell-box.active-j { background: rgba(249,203,66,0.50); transform: scale(1.08); }
+  .cell-box.shrinking { background: rgba(93,202,165,0.45); }
+  .cell-box.valid { background: rgba(93,202,165,0.40); }
+  .cell-box.best { background: rgba(93,202,165,0.62); transform: scale(1.04); }
+  .cell-box.done { opacity: 0.28; }
+  .cell-idx { font-size: 11px; color: #aaa; font-family: 'SF Mono', monospace; }
+  .cell-ptr { font-size: 11px; font-weight: 700; font-family: 'SF Mono', monospace; height: 16px; line-height: 16px; white-space: nowrap; }
+  .ptr-i { color: #3A6FD4; }
+  .ptr-j { color: #B07800; }
+  .ptr-both { color: #C4501E; }
+
+  .window-bar { display: flex; gap: 6px; height: 5px; margin-top: 5px; margin-bottom: 2px; }
+  .win-seg { width: 40px; height: 5px; border-radius: 3px; background: transparent; transition: background 0.2s; }
+  .win-seg.in-window { background: rgba(139,133,212,0.55); }
+  .win-seg.valid { background: rgba(93,202,165,0.70); }
+  .win-seg.best { background: rgba(93,202,165,0.90); }
+
+  .main.layout-grid.lc76-layout {
+    --split-gap: 20px;
+    width: min(1380px, 100%);
+    column-gap: var(--split-gap);
+    grid-template-columns:
+      minmax(0, calc((100% - var(--split-gap)) / 2))
+      minmax(0, calc((100% - var(--split-gap)) / 2));
+    justify-content: stretch;
+  }
+  .main.layout-grid.lc76-layout .code-half {
+    grid-column: 1;
+    grid-row: 1;
+    width: 100%;
+    min-width: 0;
+    justify-content: stretch;
+  }
+  .main.layout-grid.lc76-layout .viz-panel {
+    grid-column: 2;
+    grid-row: 1;
+    width: 100%;
+    min-width: 0;
+  }
+  .lc76-layout .code-stack,
+  .lc76-layout .step-info,
+  .lc76-layout .code-panel,
+  .lc76-layout .var-bar,
+  .lc76-layout .card {
+    width: 100%;
+    min-width: 0;
+  }
+  .lc76-layout .code-block { overflow-x: auto; }
+  .lc76-layout .step-info {
+    min-height: 40px;
+    padding: 8px 14px;
+    line-height: 21px;
+  }
+  .lc76-layout .str-row,
+  .lc76-layout .window-bar { justify-content: center; }
+
+  .example-box {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 14px 16px;
+    font-family: 'SF Mono', 'Menlo', monospace;
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: #333;
+  }
+  .example-title {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    color: #1a1a1a;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+  }
+  .example-label { color: #9333C0; font-weight: 700; }
+  /* 图例挪到代码框下面后改纵向单列排列（ANIMATION_GUIDE 硬性规则） */
+  .legend-below { flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 0; max-width: none; }
+  /* 步骤说明里 "变量 = 值" 的值：红色加粗（info 文案里用 {{值}} 标记） */
+  .step-info .iv { color: var(--ink-danger); font-weight: 700; }
+  /* 页头 章行/标题行/控件行/Example 行 行距统一 10px（2026-08-25 用户要求）：
+     notes.css 默认给控件行 26px padding-bottom（控件到正文的距离），这页
+     控件行下面紧跟的是 Example 行，压回 0，剩下 page-header 自带的 10px。
+     notes.css 是运行时注入、排在本 style 后面，同名选择器会盖过来——
+     多挂一个 .content-wrapper 提高特异性 */
+  .lcn-shared-head.content-wrapper .header-row.ctrl { padding-bottom: 0; }
+  .example-explanation {
+    display: block;
+    margin-top: 2px;
+    padding-left: 0;
+  }
+  .example-explanation-line { display: block; }
+  .page-header .leg-item { font-size: 11px; white-space: nowrap; }
+
+  /* 变量读数：按代码里出现的先后顺序一行一个（2026-08-25 用户要求），
+     左列 "变量 = 值"、右列 # 注释对齐成一竖排 */
+  .state-grid {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    column-gap: 18px;
+    row-gap: 8px;
+    align-items: baseline;
+  }
+  .state-grid .var-cmt {
+    font-family: 'SF Mono', 'Menlo', monospace;
+    font-size: 12px;
+    color: #999;
+    white-space: nowrap;
+  }
+  .window-row {
+    margin-top: 14px;
+    min-height: 19px;
+    font-family: 'SF Mono', 'Menlo', monospace;
+    font-size: 13px;
+    line-height: 19px;
+    color: #555;
+  }
+
+  .maps-result-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(160px, 0.35fr);
+    gap: 24px;
+    align-items: start;
+  }
+  .map-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: #1a1a1a;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 8px;
+  }
+  .maps-area {
+    display: flex;
+    flex-direction: column;   /* 一个词条一行（2026-08-25 用户要求） */
+    gap: 8px;
+    align-items: flex-start;
+    min-height: 38px;
+  }
+  .map-title .map-title-line { display: block; }
+  .map-entry {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    background: #f5f5f5;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-family: 'SF Mono', monospace;
+    font-size: 13px;
+    transition: background 0.2s, opacity 0.2s;
+  }
+  .map-entry.active { background: rgba(249,203,66,0.42); }
+  .map-entry.need { background: rgba(247,140,108,0.35); }
+  .map-entry.covered { background: rgba(93,202,165,0.38); }
+  .map-entry.extra { background: rgba(139,133,212,0.22); }
+  .map-entry.leaving { background: rgba(93,202,165,0.50); }
+  .map-key { color: #9333C0; font-weight: 700; }
+  .map-colon { color: #888; margin: 0 1px; }
+  .map-val { color: #C4501E; font-weight: 700; }
+  .empty-map { font-size: 12px; color: #aaa; font-family: 'SF Mono', monospace; }
+
+  .answer-box {
+    min-height: 58px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-family: 'SF Mono', monospace;
+    font-size: 13px;
+  }
+  .answer-pill {
+    min-height: 30px;
+    border-radius: 8px;
+    background: rgba(93,202,165,0.35);
+    color: #1a1a1a;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px 10px;
+    font-weight: 800;
+    width: fit-content;
+  }
+  .answer-empty { color: #aaa; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '76. Minimum Window Substring',
+  link: 'https://leetcode.com/problems/minimum-window-substring/',
+  examples: [
+    { id: 'leetcode', label: 'ADOBECODEBANC / ABC' },
+    { id: 'aab', label: 'aab / ab' },
+  ],
+  legend: [
+    { color: 'rgba(249,203,66,0.50)', label: '当前处理：s[j] 进窗' },
+    { color: 'rgba(139,133,212,0.22)', label: '当前窗口 [i..j]' },
+    { color: 'rgba(93,202,165,0.45)', label: 's[i] 正被移出窗口（收缩）' },
+    { color: 'rgba(93,202,165,0.40)', label: '合法窗口（t 的字符全覆盖）' },
+    { color: 'rgba(93,202,165,0.62)', label: '刷新纪录的最短窗口 / 最终答案' },
+  ],
+});
+</script>
+<div class="main layout-grid lc76-layout">
+
+  <script>
+  renderCodeBox({
+    code: `
+class Solution:
+    def minWindow(self, s: str, t: str) -> str:
+        targets = {}
+        for letter in t:
+            targets[letter] = targets.get(letter, 0) + 1
+
+        minsize = float('INF')
+        ans = ""
+        i = 0
+        matchedLetter = 0 #
+
+        len_t = len(t)
+
+        for j in range(len(s)):
+
+            # s[j] 还欠着（计数 ≥ 1）才算凑齐一个；0/负数是富余，不算
+            if targets.get(s[j], -1) >= 1:
+                matchedLetter+=1
+
+            # s[j] 在 t 里就从欠账上扣一笔，可以扣成负数（= 富余）
+            if s[j] in targets:
+                targets[s[j]] -= 1
+
+            # t 的字符全凑齐 = 窗口合法，从左边收缩到不能再短
+            while len_t == matchedLetter:
+
+                # 比纪录短才刷新 minsize / ans
+                if j - i + 1 < minsize:
+                    minsize = min(minsize, j - i + 1)
+                    ans = s[i:j+1]
+
+                # s[i] 没富余（计数 ≥ 0），移走它窗口就要破
+                if (targets.get(s[i], -1) >= 0):
+                    matchedLetter-=1
+
+                # s[i] 在 t 里，出窗前把欠账加回去
+                if s[i] in targets:
+                    targets[s[i]] += 1
+                i+=1
+        return ans`,
+  });
+  </script>
+
+  <!-- 步骤说明 + 颜色图例搬到代码框下面（ANIMATION_GUIDE 硬性规则） -->
+  <script>
+  (function () {
+    const stack = document.querySelector('.code-stack');
+    stack.appendChild(document.getElementById('info'));
+    const legend = document.querySelector('.legend');
+    const legendRow = legend.parentElement;
+    legend.classList.add('legend-below');
+    stack.appendChild(legend);
+    legendRow.remove();
+  })();
+  </script>
+
+  <div class="viz-panel">
+    <div class="example-box">
+      <div class="example-title" id="example-title">Example 1</div>
+      <div><span class="example-label">Input:</span> <span id="example-input">s = "ADOBECODEBANC", t = "ABC"</span></div>
+      <div><span class="example-label">Output:</span> <span id="example-output">"BANC"</span></div>
+      <div>
+        <span class="example-label">Explanation:</span>
+        <span class="example-explanation" id="example-explanation">
+          <span class="example-explanation-line">"BANC" is the smallest substring containing A, B, and C.</span>
+        </span>
+      </div>
+    </div>
+
+    <div class="var-bar">
+      <div class="state-grid" id="state-grid"></div>
+    </div>
+
+    <div class="card">
+      <h3 id="input-title">Input  s = "ADOBECODEBANC", t = "ABC"</h3>
+      <div class="str-row" id="str-row"></div>
+      <div class="window-bar" id="window-bar"></div>
+      <div class="window-row" id="window-row"></div>
+    </div>
+
+    <div class="card">
+      <div class="maps-result-grid">
+        <div>
+          <h3>Remaining Needs  targets</h3>
+          <div class="map-title">
+            <span class="map-title-line">• positive = still needed</span>
+            <span class="map-title-line">• zero/negative = covered or extra</span>
+          </div>
+          <div class="maps-area" id="targets-area"></div>
+        </div>
+        <div>
+          <h3>Answer</h3>
+          <div class="answer-box" id="answer-box"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+let S = "ADOBECODEBANC";
+let T = "ABC";
+const EXAMPLES = {
+  leetcode: {
+    s: "ADOBECODEBANC",
+    t: "ABC",
+    title: "Example 1",
+    output: '"BANC"',
+    explanationLines: ['"BANC" is the smallest substring containing A, B, and C.'],
+    buttonId: "ex-leetcode"
+  },
+  aab: {
+    s: "aab",
+    t: "ab",
+    title: "Custom Example",
+    output: '"ab"',
+    explanationLines: [
+      'The first "a" is extra: targets["a"] becomes -1,',
+      'so removing it keeps the window valid and shrinks "aab" to "ab".'
+    ],
+    buttonId: "ex-aab"
+  }
+};
+
+function cloneMap(map) {
+  return Object.fromEntries(Object.entries(map));
+}
+
+function formatMapInline(map) {
+  const entries = Object.entries(map);
+  if (entries.length === 0) return '{}';
+  return `{ ${entries.map(([k, v]) => `'${k}': ${v}`).join(', ')} }`;
+}
+
+function displayMin(value) {
+  return value === Infinity ? 'INF' : String(value);
+}
+
+/* info 文案里 {{值}} → 红色加粗（.step-info .iv）。先整体转义再替换标记，
+   文案里的 <、& 等字符不会被当 HTML 解析。renderCtrl 只认纯文本，所以
+   render 里先传空串、再用这里的结果覆写 #info 的 innerHTML。 */
+function infoHtml(s) {
+  const esc = String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return esc.replace(/\{\{(.*?)\}\}/g, '<span class="iv">$1</span>');
+}
+
+/* 行号表：1 class / 空行 / # 注释行不执行（每个 if/while 前插了一行空行 +
+   一行 # 注释，2026-08-25 用户要求，行号相应后移）。snap 只用常量、info
+   文案里的行号也引用这里（`Line ${L.X}`），renderTargets 挑高亮同样引用。 */
+const L = {
+  DEF: 2,      // def minWindow
+  TGT: 3,      // targets = {}
+  FORT: 4,     // for letter in t          每轮 + 取空各一步
+  TGTADD: 5,   // targets[letter] = ...
+  MINSIZE: 7,  // minsize = float('INF')
+  ANS: 8,      // ans = ""
+  I0: 9,       // i = 0
+  ML0: 10,     // matchedLetter = 0
+  LENT: 12,    // len_t = len(t)
+  FORJ: 14,    // for j in range(len(s))   每轮 + 取空各一步
+  IFGET: 17,   // if targets.get(s[j], -1) >= 1
+  MLINC: 18,   // matchedLetter+=1
+  IFIN: 21,    // if s[j] in targets
+  TGTDEC: 22,  // targets[s[j]] -= 1
+  WHILE: 25,   // while len_t == matchedLetter
+  IFMIN: 28,   // if j - i + 1 < minsize
+  MINUPD: 29,  // minsize = min(...)
+  ANSUPD: 30,  // ans = s[i:j+1]
+  IFGETI: 33,  // if (targets.get(s[i], -1) >= 0)
+  MLDEC: 34,   // matchedLetter-=1
+  IFINI: 37,   // if s[i] in targets
+  TGTINC: 38,  // targets[s[i]] += 1
+  INCI: 39,    // i+=1
+  RET: 40,     // return ans
+};
+
+function buildSteps() {
+  const steps = [];
+  let targets = {};
+  let minsize = null;
+  let ans = null;
+  let i = null;
+  let j = null;
+  let matchedLetter = null;
+  let len_t = null;
+  let targetsReady = false;
+  let activeKey = null;
+  let shrinkIdx = null;
+  let validRange = null;
+  let bestRange = null;
+  let ansRange = null;
+
+  function snap(line, info) {
+    steps.push({
+      line, info, i, j, matchedLetter, len_t, minsize, ans,
+      targets: cloneMap(targets), targetsReady, activeKey,
+      shrinkIdx, validRange, bestRange, ansRange
+    });
+  }
+
+  snap(null, `点 Next 开始：s = "${S}"，t = "${T}"。窗口 [i..j] 一路向右扩，一旦把 t 的字符全部覆盖，` +
+    '就从左边收缩到不能再短，全程记下最短的合法窗口。');
+  snap(L.DEF, 'Line 2: 进入 minWindow(s, t) — 思路：targets 记「每个字符还欠几个」，matchedLetter 记' +
+    '「已凑齐几个必需字符」，凑到 len(t) 个窗口就合法。');
+  targets = {};
+  targetsReady = true;
+  snap(L.TGT, 'Line 3: targets = {} — 先统计 t 里每个字符需要几个。');
+  for (const letter of T) {
+    activeKey = letter;
+    snap(L.FORT, `Line 4: for → letter = {{'${letter}'}}。`);
+    targets[letter] = (targets[letter] || 0) + 1;
+    snap(L.TGTADD, `Line 5: targets['${letter}'] = {{${targets[letter]}}} — '${letter}' 需要 {{${targets[letter]}}} 个。`);
+  }
+  activeKey = null;
+  snap(L.FORT, `Line 4: t 取完了，for 结束 — targets = ${formatMapInline(targets)}。`);
+
+  minsize = Infinity;
+  snap(L.MINSIZE, "Line 7: minsize = {{INF}} — 目前最短合法窗口的长度，还没见过合法窗口，先设无穷大。");
+  ans = "";
+  ansRange = null;
+  snap(L.ANS, 'Line 8: ans = {{""}} — 存最短合法窗口本身，最后返回它。');
+  i = 0;
+  snap(L.I0, 'Line 9: i = {{0}} — 窗口左边界。');
+  matchedLetter = 0;
+  snap(L.ML0, 'Line 10: matchedLetter = {{0}} — 当前窗口已凑齐的必需字符个数。');
+  len_t = T.length;
+  snap(L.LENT, `Line 12: len_t = {{${len_t}}} — matchedLetter 凑到这个数，窗口就覆盖了整个 t。`);
+
+  for (let jj = 0; jj < S.length; jj++) {
+    j = jj;
+    activeKey = S[j];
+    shrinkIdx = null;
+    validRange = null;
+    bestRange = null;
+    snap(L.FORJ, `Line 14: for → 第 ${j + 1}/${S.length} 个：j = {{${j}}}，s[${j}] = {{'${S[j]}'}}。`);
+
+    const trackedJ = Object.prototype.hasOwnProperty.call(targets, S[j]);
+    const beforeAdd = trackedJ ? targets[S[j]] : -1;
+    if (beforeAdd >= 1) {
+      snap(L.IFGET, `Line 17: targets.get('${S[j]}', -1) = {{${beforeAdd}}} ≥ 1 — '${S[j]}' 还欠着，` +
+        '这个字符能补上一个缺口，条件成立。');
+      matchedLetter += 1;
+      snap(L.MLINC, `Line 18: matchedLetter = {{${matchedLetter}}} — 已凑齐 ${matchedLetter}/${len_t}。`);
+    } else {
+      snap(L.IFGET, `Line 17: targets.get('${S[j]}', -1) = {{${beforeAdd}}} < 1 — ` +
+        (trackedJ ? `'${S[j]}' 已经不缺了，再来是富余` : `'${S[j]}' 根本不在 t 里`) +
+        '，条件不成立，matchedLetter 不动。');
+    }
+
+    if (Object.prototype.hasOwnProperty.call(targets, S[j])) {
+      snap(L.IFIN, `Line 21: '${S[j]}' 在 targets 里，条件成立 — 把它从欠账上扣一笔。`);
+      targets[S[j]] -= 1;
+      snap(L.TGTDEC, `Line 22: targets['${S[j]}'] = {{${targets[S[j]]}}}` +
+        (targets[S[j]] < 0 ? '（负数 = 窗口里这个字符有富余）' : '') + '。');
+    } else {
+      snap(L.IFIN, `Line 21: '${S[j]}' 不在 targets 里，条件不成立 — 不记账。`);
+    }
+
+    if (len_t === matchedLetter) {
+      validRange = [i, j];
+      snap(L.WHILE, `Line 25: while — matchedLetter = {{${matchedLetter}}} == len_t，窗口 "${S.slice(i, j + 1)}" ` +
+        '已覆盖 t 的全部字符，条件成立，进循环从左边收缩。');
+      while (len_t === matchedLetter) {
+        validRange = [i, j];
+        const winLen = j - i + 1;
+        if (winLen < minsize) {
+          snap(L.IFMIN, `Line 28: j - i + 1 = {{${winLen}}} < minsize = {{${displayMin(minsize)}}} — 比纪录短，条件成立，刷新答案。`);
+          minsize = Math.min(minsize, winLen);
+          bestRange = [i, j];
+          ansRange = [i, j];
+          snap(L.MINUPD, `Line 29: minsize = {{${minsize}}}。`);
+          ans = S.slice(i, j + 1);
+          snap(L.ANSUPD, `Line 30: ans = {{"${ans}"}} — 目前最短的合法窗口。`);
+          bestRange = null;
+        } else {
+          snap(L.IFMIN, `Line 28: j - i + 1 = {{${winLen}}} ≥ minsize = {{${displayMin(minsize)}}} — 没有更短，条件不成立，答案不动。`);
+        }
+
+        activeKey = S[i];
+        shrinkIdx = i;
+        const beforeRemove = Object.prototype.hasOwnProperty.call(targets, S[i]) ? targets[S[i]] : -1;
+        if (beforeRemove >= 0) {
+          snap(L.IFGETI, `Line 33: targets.get('${S[i]}', -1) = {{${beforeRemove}}} ≥ 0 — s[${i}] = '${S[i]}' ` +
+            '没有富余，移走它就凑不齐了，条件成立。');
+          matchedLetter -= 1;
+          snap(L.MLDEC, `Line 34: matchedLetter = {{${matchedLetter}}} — 窗口即将不合法，这轮收缩到头了。`);
+        } else {
+          snap(L.IFGETI, `Line 33: targets.get('${S[i]}', -1) = {{${beforeRemove}}} < 0 — s[${i}] = '${S[i]}' ` +
+            '是富余的（或不在 t 里），移走不影响合法性，条件不成立。');
+        }
+
+        if (Object.prototype.hasOwnProperty.call(targets, S[i])) {
+          snap(L.IFINI, `Line 37: '${S[i]}' 在 targets 里，条件成立 — 它要出窗，欠账加回一笔。`);
+          targets[S[i]] += 1;
+          snap(L.TGTINC, `Line 38: targets['${S[i]}'] = {{${targets[S[i]]}}}。`);
+        } else {
+          snap(L.IFINI, `Line 37: '${S[i]}' 不在 targets 里，条件不成立 — 不记账。`);
+        }
+
+        i += 1;
+        shrinkIdx = null;
+        validRange = len_t === matchedLetter ? [i, j] : null;
+        snap(L.INCI, `Line 39: i = {{${i}}} — 左边界右移一格。`);
+        if (len_t === matchedLetter) {
+          snap(L.WHILE, `Line 25: while — matchedLetter 还是 {{${matchedLetter}}} == len_t，窗口 "${S.slice(i, j + 1)}" ` +
+            '仍然合法，继续收缩。');
+        } else {
+          snap(L.WHILE, `Line 25: while — matchedLetter = {{${matchedLetter}}} < len_t = {{${len_t}}}，窗口破了，` +
+            '条件不成立，退出收缩、回去继续扩右边界。');
+        }
+      }
+      validRange = null;
+    } else {
+      snap(L.WHILE, `Line 25: while — matchedLetter = {{${matchedLetter}}} < len_t = {{${len_t}}}，还没凑齐，` +
+        '条件不成立，不收缩，继续扩右边界。');
+    }
+    activeKey = null;
+  }
+
+  j = null;
+  snap(L.FORJ, 'Line 14: s 取完了，for 结束 — 每个字符最多进窗一次、出窗一次，整个循环摊还 O(n)。');
+  shrinkIdx = null;
+  validRange = null;
+  bestRange = ansRange;
+  snap(L.RET, `Line 40: return ans = {{"${ans}"}}。`);
+  snap(null, `✅ ans = {{"${ans}"}}（长度 {{${displayMin(minsize)}}}）— 扩窗时用 targets 记欠账、matchedLetter 记凑齐数，` +
+    '合法后立刻收缩到最短。O(|s| + |t|) 时间。');
+  return steps;
+}
+
+let STEPS = buildSteps();
+let cur = -1;
+
+function loadExample(key) {
+  const ex = EXAMPLES[key];
+  if (!ex) return;
+  S = ex.s;
+  T = ex.t;
+  STEPS = buildSteps();
+
+  document.getElementById('example-title').textContent = ex.title;
+  document.getElementById('example-input').textContent = `s = "${S}", t = "${T}"`;
+  document.getElementById('example-output').textContent = ex.output;
+  const explanationEl = document.getElementById('example-explanation');
+  explanationEl.innerHTML = '';
+  ex.explanationLines.forEach(line => {
+    const lineEl = document.createElement('span');
+    lineEl.className = 'example-explanation-line';
+    lineEl.textContent = line;
+    explanationEl.appendChild(lineEl);
+  });
+  document.getElementById('input-title').textContent = `Input  s = "${S}", t = "${T}"`;
+
+  Object.entries(EXAMPLES).forEach(([id, example]) => {
+    const btn = document.getElementById(example.buttonId);
+    if (btn) btn.classList.toggle('auto-active', id === key);
+  });
+
+  buildStringDOM();
+  doReset();
+  lockStableSizes(); // re-pin block sizes for the new example's steps
+}
+
+function renderVarBar(state) {
+  // 按代码里出现的先后顺序纵列（2026-08-25 用户要求）：
+  // minsize(7) → ans(8) → i(9) → matchedLetter(10) → len_t(12) → j(14)
+  const rows = [
+    ['minsize', state && state.minsize !== null ? displayMin(state.minsize) : '-', '目前最短合法窗口的长度，INF = 还没找到'],
+    ['ans', state && state.ans !== null ? `"${state.ans}"` : '-', '目前最短的合法窗口本身'],
+    ['i', state && state.i !== null ? state.i : '-', '窗口左边界'],
+    ['matchedLetter', state && state.matchedLetter !== null ? state.matchedLetter : '-', '窗口已凑齐的必需字符个数'],
+    ['len_t', state && state.len_t !== null ? state.len_t : '-', 'len(t)，matchedLetter 到这个数窗口就合法'],
+    ['j', state && state.j !== null ? state.j : '-', '窗口右边界（for 循环变量）'],
+  ];
+  document.getElementById('state-grid').innerHTML = rows.map(([n, v, c]) =>
+    `<span class="var-row"><span class="var-name">${n}</span><span class="var-eq"> = </span><span class="var-val">${v}</span></span>` +
+    `<span class="var-cmt"># ${c}</span>`
+  ).join('');
+  document.getElementById('window-row').innerHTML = state && state.i !== null && state.j !== null
+    ? `Window: <strong>"${S.slice(state.i, state.j + 1)}"</strong> (len ${state.j - state.i + 1})`
+    : '';
+}
+
+function buildStringDOM() {
+  const row = document.getElementById('str-row');
+  const winBar = document.getElementById('window-bar');
+  row.innerHTML = '';
+  winBar.innerHTML = '';
+  for (let idx = 0; idx < S.length; idx++) {
+    const cell = document.createElement('div');
+    cell.className = 'str-cell';
+
+    const box = document.createElement('div');
+    box.className = 'cell-box';
+    box.id = `cell-${idx}`;
+    box.textContent = S[idx];
+    cell.appendChild(box);
+
+    const idxLbl = document.createElement('div');
+    idxLbl.className = 'cell-idx';
+    idxLbl.textContent = idx;
+    cell.appendChild(idxLbl);
+
+    const ptrLbl = document.createElement('div');
+    ptrLbl.className = 'cell-ptr';
+    ptrLbl.id = `ptr-${idx}`;
+    cell.appendChild(ptrLbl);
+
+    row.appendChild(cell);
+
+    const seg = document.createElement('div');
+    seg.className = 'win-seg';
+    seg.id = `win-${idx}`;
+    winBar.appendChild(seg);
+  }
+}
+
+function renderTargets(state) {
+  const area = document.getElementById('targets-area');
+  if (!state || !state.targetsReady || Object.keys(state.targets).length === 0) {
+    area.innerHTML = '<span class="empty-map">targets = {}</span>';
+    return;
+  }
+
+  area.innerHTML = Object.entries(state.targets).map(([k, v]) => {
+    let cls = 'map-entry';
+    if (state.activeKey === k && (state.line === L.IFGET || state.line === L.TGTDEC)) cls += ' active';
+    if (state.activeKey === k && [L.IFGETI, L.MLDEC, L.IFINI, L.TGTINC].includes(state.line)) cls += ' leaving';
+    if (v > 0) cls += ' need';
+    else if (v === 0) cls += ' covered';
+    else cls += ' extra';
+    return `<div class="${cls}"><span class="map-key">'${k}'</span><span class="map-colon">:</span><span class="map-val">${v}</span></div>`;
+  }).join('');
+}
+
+function renderAnswer(state) {
+  const area = document.getElementById('answer-box');
+  if (!state || state.ans === null || state.ans === '') {
+    area.innerHTML = '<span class="answer-empty">ans = ""</span>';
+    return;
+  }
+  area.innerHTML =
+    `<span class="answer-pill">"${state.ans}"</span>` +
+    `<span>minsize = ${displayMin(state.minsize)}</span>`;
+}
+
+function render() {
+  if (cur < 0) {
+    for (let idx = 0; idx < S.length; idx++) {
+      const box = document.getElementById(`cell-${idx}`);
+      const ptr = document.getElementById(`ptr-${idx}`);
+      const seg = document.getElementById(`win-${idx}`);
+      if (box) box.className = 'cell-box';
+      if (ptr) { ptr.textContent = ''; ptr.className = 'cell-ptr'; }
+      if (seg) seg.className = 'win-seg';
+    }
+    renderVarBar(null);
+    renderTargets(null);
+    renderAnswer(null);
+    renderCtrl(-1, STEPS.length, '');
+    document.getElementById('info').innerHTML =
+      infoHtml(`点 Next 开始：s = "${S}"，t = "${T}"，逐步看滑动窗口 + 欠账表怎么找最短覆盖子串。`);
+    highlightLine(null);
+    return;
+  }
+
+  const state = STEPS[cur];
+  highlightLine(state.line);
+  renderCtrl(cur, STEPS.length, '');
+  document.getElementById('info').innerHTML = infoHtml(state.info);
+
+  for (let idx = 0; idx < S.length; idx++) {
+    const box = document.getElementById(`cell-${idx}`);
+    const ptr = document.getElementById(`ptr-${idx}`);
+    const seg = document.getElementById(`win-${idx}`);
+    if (!box || !ptr || !seg) continue;
+
+    const isJ = state.j !== null && idx === state.j;
+    const isI = state.i !== null && idx === state.i;
+    const isShrink = state.shrinkIdx !== null && idx === state.shrinkIdx;
+    const inWindow = state.i !== null && state.j !== null && idx >= state.i && idx <= state.j;
+    const isDone = state.i !== null && idx < state.i;
+    const isValid = state.validRange && idx >= state.validRange[0] && idx <= state.validRange[1];
+    const isBest = state.bestRange && idx >= state.bestRange[0] && idx <= state.bestRange[1];
+
+    let cls = 'cell-box';
+    if (isBest) cls += ' best';
+    else if (isShrink) cls += ' shrinking';
+    else if (isValid) cls += ' valid';
+    else if (isJ) cls += ' active-j';
+    else if (inWindow) cls += ' in-window';
+    else if (isDone) cls += ' done';
+    box.className = cls;
+
+    if (isShrink && isJ) { ptr.textContent = `i = j = ${idx}`; ptr.className = 'cell-ptr ptr-both'; }
+    else if (isShrink) { ptr.textContent = `i = ${idx}`; ptr.className = 'cell-ptr ptr-i'; }
+    else if (isI && isJ) { ptr.textContent = `i = j = ${idx}`; ptr.className = 'cell-ptr ptr-both'; }
+    else if (isI) { ptr.textContent = `i = ${idx}`; ptr.className = 'cell-ptr ptr-i'; }
+    else if (isJ) { ptr.textContent = `j = ${idx}`; ptr.className = 'cell-ptr ptr-j'; }
+    else { ptr.textContent = ''; ptr.className = 'cell-ptr'; }
+
+    let segCls = 'win-seg';
+    if (isBest) segCls += ' best';
+    else if (isValid) segCls += ' valid';
+    else if (inWindow) segCls += ' in-window';
+    seg.className = segCls;
+  }
+
+  renderVarBar(state);
+  renderTargets(state);
+  renderAnswer(state);
+}
+
+loadExample('leetcode');
+</script>
+</body>
+</html>

@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>373. Find K Pairs with Smallest Sums — Heap Animation</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  .code-block { }
+
+  /* Input arrays */
+  .array-row { display: flex; align-items: flex-start; margin-bottom: 10px; }
+  .array-label { font-size: 12px; font-family: 'SF Mono', monospace; color: #1a1a1a; width: 62px; flex-shrink: 0; padding-top: 10px; }
+  .cell-group { display: flex; flex-direction: column; align-items: center; margin-right: 4px; flex-shrink: 0; }
+  .cell { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 8px; font-size: 15px; font-weight: 700; font-family: 'SF Mono', monospace; background: #f5f5f5; color: #1a1a1a; transition: background 0.2s, border 0.2s; border: 1.5px solid transparent; }
+  .cell.in-heap { background: rgba(139,133,212,0.25); }
+  .cell.current { background: rgba(93,202,165,0.35); }
+  .cell.pushing { background: rgba(93,202,165,0.15); border: 1.5px dashed rgba(58,158,126,0.6); }
+  .cell-idx { font-size: 10px; color: #aaa; font-family: 'SF Mono', monospace; margin-top: 2px; }
+
+  /* Heap sizing（节点显示 "1 + 2" 这种加法式,比单个数字宽） */
+  .heap-node { width: 84px; height: 52px; gap: 2px; }
+
+  /* 变量栏:变量名占等宽,让 = 上下对齐(最长的名字是 value,5 个字符) */
+  .var-bar .var-name { display: inline-block; min-width: 5ch; }
+
+  /* Visited */
+  .visited-area { display: flex; gap: 6px; flex-wrap: wrap; min-height: 32px; align-items: center; }
+  .visited-item { display: inline-flex; align-items: center; justify-content: center; padding: 3px 9px; border-radius: 6px; font-size: 12px; font-family: 'SF Mono', monospace; background: rgba(93,202,165,0.1); color: #1a1a1a; border: 1px solid rgba(93,202,165,0.25); transition: background 0.2s; }
+  .visited-item.newest { background: rgba(93,202,165,0.3); border-color: rgba(58,158,126,0.55); }
+
+  /* Result */
+  .result-area { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-height: 44px; }
+  .res-pair { display: inline-flex; align-items: center; justify-content: center; padding: 6px 12px; border-radius: 8px; font-size: 13px; font-weight: 700; font-family: 'SF Mono', monospace; background: rgba(247,140,108,0.15); color: #1a1a1a; }
+  .res-pair.newest { background: rgba(247,140,108,0.35); }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '373. Find K Pairs with Smallest Sums — Min-Heap Animation',
+  legend: [
+    { color: 'rgba(139,133,212,0.25)', label: '在堆中' },
+    { color: 'rgba(93,202,165,0.35)', label: '当前弹出' },
+    { color: 'rgba(93,202,165,0.15)', extra: 'border:1.5px dashed rgba(58,158,126,0.6);', label: '将 push' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+  <script>
+  renderCodeBox({
+    code: `
+m = len(nums1)
+n = len(nums2)
+
+ans = []
+visited = set()
+
+minHeap = [(nums1[0] + nums2[0], 0, 0)]
+visited.add((0, 0))
+
+while k > 0 and len(minHeap) > 0:
+    value,i,j = heapq.heappop(minHeap)
+    ans.append([nums1[i], nums2[j]])
+    if i+1 < m and (i+1,j) not in visited:
+        heapq.heappush(minHeap, (nums1[i+1]+nums2[j], i+1, j))
+        visited.add((i+1, j))
+
+    if j+1 < n and (i,j+1) not in visited:
+        heapq.heappush(minHeap, (nums1[i]+nums2[j+1], i, j+1))
+        visited.add((i, j+1))
+    k -= 1
+return ans`,
+  });
+  </script>
+
+  <div class="viz-panel">
+
+    <!-- Variable bar -->
+    <div class="var-bar" id="var-bar">
+      <span class="var-dim">变量将在此显示...</span>
+    </div>
+
+    <!-- Input arrays + Min-heap side by side -->
+    <div style="display:flex; gap:16px; align-items:flex-start;">
+      <div class="card" style="flex:1;">
+        <h3>Input Arrays</h3>
+        <div id="arrays-area"></div>
+      </div>
+
+      <div class="card" style="flex:1;">
+        <h3>Min-Heap（sum, i, j）堆顶 = 最小值</h3>
+        <div class="heap-area" id="heap-area">
+          <span class="heap-empty">minHeap = []</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Visited set + Result side by side -->
+    <div style="display:flex; gap:16px; align-items:flex-start;">
+      <div class="card" style="flex:1;">
+        <h3>Visited Set（已访问的下标对）</h3>
+        <div class="visited-area" id="visited-area">
+          <span style="color:#aaa; font-size:12px; font-family:'SF Mono',monospace;">set()</span>
+        </div>
+      </div>
+
+      <div class="card" style="flex:1;">
+        <h3>ans（结果对，共取 k 个）</h3>
+        <div class="result-area" id="result-area">
+          <span style="color:#aaa; font-size:12px; font-family:'SF Mono',monospace;">[]</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<script>
+const NUMS1   = [1, 7, 11];
+const NUMS2   = [2, 4, 6];
+const K_INIT  = 3;
+
+// ── Step builder ─────────────────────────────────────────────────────────────
+function buildSteps() {
+  const steps = [];
+
+  let heap    = [];        // {sum, i, j}
+  let visited = new Set(); // "i,j" strings
+  let ans     = [];        // [v1, v2] pairs
+  let k       = K_INIT;
+  let m = null, n = null;
+
+  let curI = null, curJ = null, curVal = null;
+  let poppingIJ   = null;   // {i, j} being popped
+  let pushingI1J  = null;   // {i, j} being pushed via (i+1, j) branch
+  let pushingIJ1  = null;   // {i, j} being pushed via (i, j+1) branch
+  let newestVisited = new Set();
+  let newestPairIdx = -1;
+
+  function snap(line, info) {
+    steps.push({
+      line, info,
+      heap:    heap.map(h => ({...h})),
+      visited: new Set(visited),
+      ans:     ans.map(p => [...p]),
+      k, m, n,
+      curI, curJ, curVal,
+      poppingIJ:  poppingIJ  ? {...poppingIJ}  : null,
+      pushingI1J: pushingI1J ? {...pushingI1J} : null,
+      pushingIJ1: pushingIJ1 ? {...pushingIJ1} : null,
+      newestVisited: new Set(newestVisited),
+      newestPairIdx,
+    });
+  }
+
+  function heapPush(item) {
+    heap.push(item);
+    let i = heap.length - 1;
+    while (i > 0) {
+      const p = Math.floor((i - 1) / 2);
+      if (heap[p].sum > item.sum) { [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; }
+      else break;
+    }
+  }
+
+  function heapPop() {
+    if (heap.length === 1) return heap.pop();
+    const top = heap[0];
+    heap[0] = heap.pop();
+    let i = 0;
+    while (true) {
+      let s = i, l = 2*i+1, r = 2*i+2;
+      if (l < heap.length && heap[l].sum < heap[s].sum) s = l;
+      if (r < heap.length && heap[r].sum < heap[s].sum) s = r;
+      if (s !== i) { [heap[i], heap[s]] = [heap[s], heap[i]]; i = s; } else break;
+    }
+    return top;
+  }
+
+  // ── Initialization ──────────────────────────────────────────────────────
+  m = NUMS1.length;
+  snap(1, `m = len(nums1) = ${m}`);
+
+  n = NUMS2.length;
+  snap(2, `n = len(nums2) = ${n}`);
+
+  snap(4, `ans = []`);
+  snap(5, `visited = set()`);
+
+  const initSum = NUMS1[0] + NUMS2[0];
+  heapPush({ sum: initSum, i: 0, j: 0 });
+  snap(7, `minHeap = [(nums1[0]+nums2[0], 0, 0)] = [(${initSum}, 0, 0)]`);
+
+  visited.add('0,0');
+  newestVisited = new Set(['0,0']);
+  snap(8, `visited.add((0, 0))`);
+  newestVisited = new Set();
+
+  // ── Main loop ────────────────────────────────────────────────────────────
+  while (k > 0 && heap.length > 0) {
+    snap(10, `while k=${k} > 0 and len(minHeap)=${heap.length} > 0 → 继续`);
+
+    // About-to-pop snapshot: item still in heap, shown as yellow "popping"
+    poppingIJ = { i: heap[0].i, j: heap[0].j };
+    snap(11, `heappop → 弹出堆顶 (${heap[0].sum}, ${heap[0].i}, ${heap[0].j})`);
+
+    const popped = heapPop();
+    poppingIJ = null;
+    curI = popped.i; curJ = popped.j; curVal = popped.sum;
+    snap(11, `value=${curVal}, i=${curI}, j=${curJ}  →  nums1[${curI}]=${NUMS1[curI]}, nums2[${curJ}]=${NUMS2[curJ]}`);
+
+    ans.push([NUMS1[curI], NUMS2[curJ]]);
+    newestPairIdx = ans.length - 1;
+    snap(12, `ans.append([${NUMS1[curI]}, ${NUMS2[curJ]}])  →  ans = [${ans.map(p=>`[${p}]`).join(', ')}]`);
+
+    // ── Check (i+1, j) ──────────────────────────────────────────────────
+    const ni = curI + 1, nj = curJ, keyI1J = `${ni},${nj}`;
+    const okI1J = ni < m && !visited.has(keyI1J);
+    snap(13,
+      `i+1=${ni} < m=${m}: ${ni < m ? '✓' : '✗'}   (${ni},${nj}) not in visited: ${!visited.has(keyI1J) ? '✓' : '✗'}` +
+      `   →  ${okI1J ? '将 push (i+1,j)' : '跳过'}`
+    );
+
+    if (okI1J) {
+      const newSum = NUMS1[ni] + NUMS2[nj];
+      heapPush({ sum: newSum, i: ni, j: nj });
+      pushingI1J = { i: ni, j: nj };
+      snap(14, `heappush (${newSum}, ${ni}, ${nj})  [nums1[${ni}]=${NUMS1[ni]} + nums2[${nj}]=${NUMS2[nj]}]`);
+      pushingI1J = null;
+
+      visited.add(keyI1J);
+      newestVisited = new Set([keyI1J]);
+      snap(15, `visited.add((${ni}, ${nj}))  →  visited = {${[...visited].join(', ')}}`);
+      newestVisited = new Set();
+    }
+
+    // ── Check (i, j+1) ──────────────────────────────────────────────────
+    const ni2 = curI, nj2 = curJ + 1, keyIJ1 = `${ni2},${nj2}`;
+    const okIJ1 = nj2 < n && !visited.has(keyIJ1);
+    snap(17,
+      `j+1=${nj2} < n=${n}: ${nj2 < n ? '✓' : '✗'}   (${ni2},${nj2}) not in visited: ${!visited.has(keyIJ1) ? '✓' : '✗'}` +
+      `   →  ${okIJ1 ? '将 push (i,j+1)' : '跳过'}`
+    );
+
+    if (okIJ1) {
+      const newSum2 = NUMS1[ni2] + NUMS2[nj2];
+      heapPush({ sum: newSum2, i: ni2, j: nj2 });
+      pushingIJ1 = { i: ni2, j: nj2 };
+      snap(18, `heappush (${newSum2}, ${ni2}, ${nj2})  [nums1[${ni2}]=${NUMS1[ni2]} + nums2[${nj2}]=${NUMS2[nj2]}]`);
+      pushingIJ1 = null;
+
+      visited.add(keyIJ1);
+      newestVisited = new Set([keyIJ1]);
+      snap(19, `visited.add((${ni2}, ${nj2}))  →  visited = {${[...visited].join(', ')}}`);
+      newestVisited = new Set();
+    }
+
+    k--;
+    newestPairIdx = -1;
+    snap(20, `k -= 1  →  k = ${k}`);
+  }
+
+  curI = null; curJ = null; curVal = null;
+  snap(10, `while k=${k} ${k <= 0 ? '≤ 0' : '(heap 为空)'}  →  条件不满足，退出循环`);
+  snap(21, `return ans  →  [${ans.map(p=>`[${p}]`).join(', ')}]  ✓`);
+
+  return steps;
+}
+
+const STEPS = buildSteps();
+let cur = -1;
+
+// ── Build arrays DOM ─────────────────────────────────────────────────────────
+function buildArraysDOM() {
+  const area = document.getElementById('arrays-area');
+  area.innerHTML = '';
+  [['nums1:', NUMS1, 'n1'], ['nums2:', NUMS2, 'n2']].forEach(([label, arr, prefix]) => {
+    const row = document.createElement('div');
+    row.className = 'array-row';
+    const lbl = document.createElement('div');
+    lbl.className = 'array-label';
+    lbl.textContent = label;
+    row.appendChild(lbl);
+    arr.forEach((val, idx) => {
+      const grp = document.createElement('div');
+      grp.className = 'cell-group';
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.id = `${prefix}-${idx}`;
+      cell.textContent = val;
+      const idxLbl = document.createElement('div');
+      idxLbl.className = 'cell-idx';
+      idxLbl.textContent = `[${idx}]`;
+      grp.appendChild(cell);
+      grp.appendChild(idxLbl);
+      row.appendChild(grp);
+    });
+    area.appendChild(row);
+  });
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function render() {
+  if (cur < 0) {
+    NUMS1.forEach((_, i) => { const el = document.getElementById(`n1-${i}`); if (el) el.className = 'cell'; });
+    NUMS2.forEach((_, j) => { const el = document.getElementById(`n2-${j}`); if (el) el.className = 'cell'; });
+    document.getElementById('heap-area').innerHTML    = '<span class="heap-empty">minHeap = []</span>';
+    document.getElementById('visited-area').innerHTML = `<span style="color:#aaa;font-size:12px;font-family:'SF Mono',monospace;">set()</span>`;
+    document.getElementById('result-area').innerHTML  = `<span style="color:#aaa;font-size:12px;font-family:'SF Mono',monospace;">[]</span>`;
+    renderCtrl(-1, STEPS.length, '');
+    document.getElementById('var-bar').innerHTML = `<span class="var-dim">变量将在此显示...</span>`;
+    highlightLine(null);
+    return;
+  }
+
+  const s = STEPS[cur];
+  highlightLine(s.line);
+  renderCtrl(cur, STEPS.length, s.info);
+
+  // ── Variable bar ──────────────────────────────────────────────────────────
+  const parts = [];
+  const V = (name, val) =>
+    `<span><span class="var-name">${name}</span> <span class="var-eq">=</span> <span class="var-val">${val}</span></span>`;
+  if (s.m !== null) parts.push(V('m', s.m));
+  if (s.n !== null) parts.push(V('n', s.n));
+  parts.push(V('k', s.k));
+  if (s.curVal !== null) {
+    parts.push(V('value', s.curVal));
+    parts.push(V('i', s.curI));
+    parts.push(V('j', s.curJ));
+  }
+  document.getElementById('var-bar').innerHTML = parts.join('');
+
+  // ── Array cells ──────────────────────────────────────────────────────────
+  const heapISet = new Set(s.heap.map(h => h.i));
+  const heapJSet = new Set(s.heap.map(h => h.j));
+
+  NUMS1.forEach((_, idx) => {
+    const el = document.getElementById(`n1-${idx}`);
+    if (!el) return;
+    let cls = 'cell';
+    if (s.poppingIJ && s.poppingIJ.i === idx) cls += ' current';
+    else if (s.curI === idx) cls += ' current';
+    else if (s.pushingI1J && s.pushingI1J.i === idx) cls += ' pushing';
+    else if (heapISet.has(idx)) cls += ' in-heap';
+    el.className = cls;
+  });
+
+  NUMS2.forEach((_, idx) => {
+    const el = document.getElementById(`n2-${idx}`);
+    if (!el) return;
+    let cls = 'cell';
+    if (s.poppingIJ && s.poppingIJ.j === idx) cls += ' current';
+    else if (s.curJ === idx) cls += ' current';
+    else if (s.pushingIJ1 && s.pushingIJ1.j === idx) cls += ' pushing';
+    else if (heapJSet.has(idx)) cls += ' in-heap';
+    el.className = cls;
+  });
+
+  // ── Heap ─────────────────────────────────────────────────────────────────
+  const heapArea = document.getElementById('heap-area');
+  if (s.heap.length === 0) {
+    heapArea.innerHTML = '<span class="heap-empty">minHeap = []  （空）</span>';
+  } else {
+    heapArea.innerHTML = '';
+    s.heap.forEach((h, idx) => {
+      const slot = document.createElement('div');
+      slot.className = 'heap-slot';
+
+      const nd = document.createElement('div');
+      let ndCls = 'heap-node';
+      if (s.poppingIJ && s.poppingIJ.i === h.i && s.poppingIJ.j === h.j) {
+        ndCls += ' popping';
+      } else if ((s.pushingI1J && s.pushingI1J.i === h.i && s.pushingI1J.j === h.j) ||
+                 (s.pushingIJ1 && s.pushingIJ1.i === h.i && s.pushingIJ1.j === h.j)) {
+        ndCls += ' pushing';
+      }
+      nd.className = ndCls;
+
+      const valEl = document.createElement('div');
+      valEl.className = 'heap-val';
+      valEl.textContent = `${NUMS1[h.i]} + ${NUMS2[h.j]}`;
+
+      const metaEl = document.createElement('div');
+      metaEl.className = 'heap-meta';
+      metaEl.textContent = `(i=${h.i}, j=${h.j})`;
+
+      nd.appendChild(valEl);
+      nd.appendChild(metaEl);
+      slot.appendChild(nd);
+
+      const lbl = document.createElement('div');
+      lbl.className = 'heap-label';
+      lbl.textContent = idx === 0 ? '堆顶(最小)' : `pos[${idx}]`;
+      slot.appendChild(lbl);
+
+      heapArea.appendChild(slot);
+    });
+  }
+
+  // ── Visited set ───────────────────────────────────────────────────────────
+  const vArea = document.getElementById('visited-area');
+  if (s.visited.size === 0) {
+    vArea.innerHTML = `<span style="color:#aaa;font-size:12px;font-family:'SF Mono',monospace;">set()</span>`;
+  } else {
+    vArea.innerHTML = '';
+    [...s.visited].forEach(key => {
+      const [a, b] = key.split(',');
+      const item = document.createElement('div');
+      item.className = 'visited-item' + (s.newestVisited.has(key) ? ' newest' : '');
+      item.textContent = `(${a},${b})`;
+      vArea.appendChild(item);
+    });
+  }
+
+  // ── Result pairs ─────────────────────────────────────────────────────────
+  const rArea = document.getElementById('result-area');
+  if (s.ans.length === 0) {
+    rArea.innerHTML = `<span style="color:#aaa;font-size:12px;font-family:'SF Mono',monospace;">[]</span>`;
+  } else {
+    rArea.innerHTML = '';
+    s.ans.forEach((pair, idx) => {
+      const item = document.createElement('div');
+      item.className = 'res-pair' + (idx === s.newestPairIdx ? ' newest' : '');
+      item.textContent = `[${pair.join(', ')}]`;
+      rArea.appendChild(item);
+    });
+  }
+}
+
+buildArraysDOM();
+doReset();
+</script>
+</body>
+</html>

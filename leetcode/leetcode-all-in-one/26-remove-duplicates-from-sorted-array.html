@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>26. Remove Duplicates from Sorted Array — Two Pointer Animation</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  .code-block { }
+
+  /* Array visualization */
+  .array-row { display: flex; align-items: flex-end; gap: 6px; flex-wrap: wrap; }
+  .array-cell { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .cell-box { width: 44px; height: 44px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; font-family: 'SF Mono', monospace; background: #f5f5f5; color: #1a1a1a; transition: background 0.2s, outline 0.15s; }
+  .cell-box.valid       { background: rgba(93,202,165,0.30); }
+  .cell-box.write-head  { background: rgba(139,133,212,0.35); }
+  .cell-box.read-head   { background: rgba(249,203,66,0.40); }
+  .cell-box.writing-src { background: rgba(247,140,108,0.35); }
+  .cell-box.writing-dst { background: rgba(247,140,108,0.35); outline: 2px solid #F78C6C; }
+  .cell-idx { font-size: 11px; color: #aaa; font-family: 'SF Mono', monospace; }
+  .cell-ptr { font-size: 11px; font-weight: 700; font-family: 'SF Mono', monospace; height: 15px; line-height: 15px; }
+  .ptr-fix  { color: #8B85D4; }
+  .ptr-k    { color: #B07800; }
+  .ptr-both { color: #C4501E; }
+
+  /* Result row */
+  .result-row { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; min-height: 44px; }
+  .res-cell { width: 44px; height: 44px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; font-family: 'SF Mono', monospace; background: rgba(247,140,108,0.15); color: #1a1a1a; }
+  .res-cell.newest { background: rgba(247,140,108,0.35); }
+  .res-sep { font-size: 13px; color: #aaa; padding: 0 1px; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '26. Remove Duplicates from Sorted Array — Two Pointer Animation',
+  legend: [
+    { color: 'rgba(93,202,165,0.30)', label: '已确认的唯一前缀' },
+    { color: 'rgba(139,133,212,0.35)', label: 'fix（写指针）' },
+    { color: 'rgba(249,203,66,0.40)', label: 'k（读指针）' },
+    { color: 'rgba(247,140,108,0.35)', extra: 'outline:2px solid #F78C6C;', label: '正在写入' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+  <!-- Code panel -->
+  <script>
+  renderCodeBox({
+    code: `
+def removeDuplicates(self, nums):
+    if not nums or len(nums) == 0:
+        return 0
+    fix = 1
+    for k in range(1, len(nums)):
+        if nums[k] != nums[k-1]:
+            nums[fix] = nums[k]
+            fix += 1
+    return fix`,
+  });
+  </script>
+
+  <!-- Viz panel -->
+  <div class="viz-panel">
+
+    <!-- Variable bar -->
+    <div class="var-bar" id="var-bar">
+      <span class="var-dim">变量状态将在此显示</span>
+    </div>
+
+    <!-- Array card -->
+    <div class="card">
+      <h3>数组 nums（原地修改）</h3>
+      <div class="array-row" id="array-row"></div>
+    </div>
+
+    <!-- Result prefix card -->
+    <div class="card">
+      <h3>去重结果前缀 nums[0 … fix-1]</h3>
+      <div class="result-row" id="result-row">
+        <span style="font-size:12px;color:#aaa;font-family:'SF Mono',monospace;">（还未开始）</span>
+      </div>
+    </div>
+
+  </div>
+</div><!-- /.main -->
+</div><!-- /.content-wrapper -->
+
+<script>
+// ── Data model ─────────────────────────────────────────────────────────────
+const NUMS_INIT = [1, 1, 2, 2, 3, 4, 4, 5];
+
+// ── Step builder ───────────────────────────────────────────────────────────
+function buildSteps() {
+  const steps = [];
+  let nums = [...NUMS_INIT];
+  let fix = null;
+  let k = null;
+  let writeDest = null;
+  let writeSource = null;
+
+  function snap(line, info) {
+    steps.push({ line, info, nums: [...nums], fix, k, writeDest, writeSource });
+  }
+
+  // Line 2: guard check
+  snap(2, '第 2 行：检查 nums 是否为空 → 非空，继续执行');
+
+  // Line 4: fix = 1
+  fix = 1;
+  snap(4, '第 4 行：fix = 1（写指针初始化；nums[0] 已是第一个唯一元素，无需处理）');
+
+  // Lines 5-8: main loop
+  for (let ki = 1; ki < NUMS_INIT.length; ki++) {
+    k = ki;
+    snap(5, `第 5 行：k = ${ki}，读指针移至 nums[${ki}] = ${nums[ki]}`);
+
+    const isDiff = nums[ki] !== nums[ki - 1];
+    snap(6, `第 6 行：nums[${ki}] (${nums[ki]}) ${isDiff ? '≠' : '='} nums[${ki - 1}] (${nums[ki - 1]}) → ${isDiff ? '不重复，触发写入' : '重复，跳过'}`);
+
+    if (isDiff) {
+      writeDest = fix;
+      writeSource = ki;
+      snap(7, `第 7 行：nums[${fix}] ← nums[${ki}] = ${nums[ki]}，将值 ${nums[ki]} 写入位置 ${fix}`);
+      nums[fix] = nums[ki];
+      writeDest = null;
+      writeSource = null;
+
+      fix += 1;
+      snap(8, `第 8 行：fix += 1 → fix = ${fix}（写指针前移，已确认前缀长度 = ${fix}）`);
+    }
+  }
+
+  k = null;
+  snap(9, `第 9 行：return fix = ${fix}（nums[0..${fix - 1}] 为去重结果：[${nums.slice(0, fix).join(', ')}]）`);
+
+  return steps;
+}
+
+const STEPS = buildSteps();
+let cur = -1;
+
+// ── DOM init ───────────────────────────────────────────────────────────────
+function buildArrayDOM() {
+  const row = document.getElementById('array-row');
+  row.innerHTML = '';
+  NUMS_INIT.forEach((val, idx) => {
+    const cell = document.createElement('div');
+    cell.className = 'array-cell';
+
+    const box = document.createElement('div');
+    box.className = 'cell-box';
+    box.id = `cell-${idx}`;
+    box.textContent = val;
+    cell.appendChild(box);
+
+    const idxLbl = document.createElement('div');
+    idxLbl.className = 'cell-idx';
+    idxLbl.textContent = idx;
+    cell.appendChild(idxLbl);
+
+    const ptrLbl = document.createElement('div');
+    ptrLbl.className = 'cell-ptr';
+    ptrLbl.id = `ptr-${idx}`;
+    cell.appendChild(ptrLbl);
+
+    row.appendChild(cell);
+  });
+}
+
+// var-bar 四行（fix / k / nums[k] / nums[k-1]）固定显示，不因为某一步
+// 还没走到 fix/k 就整行消失或错位——没有值时用 "-" 占位，块的形状每步
+// 都一样，只有数字在变。
+function renderVarBar(s) {
+  const hasFix = s && s.fix !== null && s.fix !== undefined;
+  const hasK   = s && s.k   !== null && s.k   !== undefined;
+  const fixVal      = hasFix ? s.fix : '-';
+  const kVal        = hasK ? s.k : '-';
+  const numsKVal    = hasK ? s.nums[s.k] : '-';
+  const numsKm1Val  = hasK && s.k > 0 ? s.nums[s.k - 1] : '-';
+  return `<span><span class="var-name">fix</span> <span class="var-eq">=</span> <span class="var-val">${fixVal}</span></span>` +
+    `<span><span class="var-name">k</span> <span class="var-eq">=</span> <span class="var-val">${kVal}</span></span>` +
+    `<span style="color:#555;">nums[k] <span class="var-eq">=</span> <strong>${numsKVal}</strong></span>` +
+    `<span style="color:#555;">nums[k‑1] <span class="var-eq">=</span> <strong>${numsKm1Val}</strong></span>`;
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────
+function render() {
+  if (cur < 0) {
+    NUMS_INIT.forEach((val, idx) => {
+      const box = document.getElementById(`cell-${idx}`);
+      if (box) { box.className = 'cell-box'; box.textContent = val; }
+      const ptr = document.getElementById(`ptr-${idx}`);
+      if (ptr) { ptr.textContent = ''; ptr.className = 'cell-ptr'; }
+    });
+    renderCtrl(-1, STEPS.length, '');
+    document.getElementById('var-bar').innerHTML = renderVarBar(null);
+    document.getElementById('result-row').innerHTML = `<span style="font-size:12px;color:#aaa;font-family:'SF Mono',monospace;">（还未开始）</span>`;
+    highlightLine(null);
+    return;
+  }
+
+  const s = STEPS[cur];
+  highlightLine(s.line);
+  renderCtrl(cur, STEPS.length, s.info);
+
+  // Update array cells
+  s.nums.forEach((val, idx) => {
+    const box = document.getElementById(`cell-${idx}`);
+    if (!box) return;
+    box.textContent = val;
+
+    const isFix = s.fix !== null && idx === s.fix;
+    const isK   = s.k   !== null && idx === s.k;
+    const isDst = s.writeDest   !== null && idx === s.writeDest;
+    const isSrc = s.writeSource !== null && idx === s.writeSource;
+    const inPrefix = s.fix !== null && idx < s.fix;
+
+    let cls = 'cell-box';
+    if      (isDst)               cls += ' writing-dst';
+    else if (isSrc)               cls += ' writing-src';
+    else if (isFix && isK)        cls += ' write-head';
+    else if (isFix)               cls += ' write-head';
+    else if (isK)                 cls += ' read-head';
+    else if (inPrefix)            cls += ' valid';
+    box.className = cls;
+
+    const ptr = document.getElementById(`ptr-${idx}`);
+    if (!ptr) return;
+    if (isDst || isSrc) {
+      const label = isDst ? (isSrc ? 'fix=k' : 'fix') : 'k';
+      const pcls  = isDst && isSrc ? 'ptr-both' : isDst ? 'ptr-fix' : 'ptr-k';
+      ptr.textContent = label;
+      ptr.className = `cell-ptr ${pcls}`;
+    } else if (isFix && isK) {
+      ptr.textContent = 'fix=k';
+      ptr.className = 'cell-ptr ptr-both';
+    } else if (isFix) {
+      ptr.textContent = 'fix';
+      ptr.className = 'cell-ptr ptr-fix';
+    } else if (isK) {
+      ptr.textContent = 'k';
+      ptr.className = 'cell-ptr ptr-k';
+    } else {
+      ptr.textContent = '';
+      ptr.className = 'cell-ptr';
+    }
+  });
+
+  // Variable bar
+  document.getElementById('var-bar').innerHTML = renderVarBar(s);
+
+  // Result prefix
+  const rr = document.getElementById('result-row');
+  if (s.fix !== null && s.fix > 0) {
+    let html = '';
+    for (let i = 0; i < s.fix; i++) {
+      const isNewest = i === s.fix - 1 && s.line >= 8;
+      html += `<div class="res-cell${isNewest ? ' newest' : ''}">${s.nums[i]}</div>`;
+      if (i < s.fix - 1) html += `<span class="res-sep">·</span>`;
+    }
+    rr.innerHTML = html;
+  } else {
+    rr.innerHTML = `<span style="font-size:12px;color:#aaa;font-family:'SF Mono',monospace;">（还未开始）</span>`;
+  }
+}
+
+buildArrayDOM();
+doReset();
+</script>
+</body>
+</html>

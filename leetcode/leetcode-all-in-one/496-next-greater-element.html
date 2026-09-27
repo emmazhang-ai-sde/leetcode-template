@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>496. Next Greater Element I — Brute Force Animation</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  .code-block { }
+  .code-line.hl { background: rgba(199,146,234,0.18); }
+  .viz-panel { gap: 14px; }
+  .ctrl { margin-bottom: 10px; }
+  .leg-box { width: 13px; height: 13px; border-radius: 3px; }
+  .cm { font-style: italic; }
+
+  /* Arrays */
+  .array-row { display: flex; align-items: flex-end; gap: 0; flex-wrap: nowrap; }
+  .cell-group { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .cell { width: 44px; height: 44px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; font-family: 'SF Mono', monospace; background: #f5f5f5; color: #1a1a1a; transition: background 0.2s, opacity 0.2s, transform 0.15s; margin: 0 3px; }
+  .cell.target   { background: rgba(93,202,165,0.35); }
+  .cell.scanning { background: rgba(139,133,212,0.25); }
+  .cell.found    { background: rgba(93,202,165,0.55); transform: scale(1.08); }
+  .cell.passed   { opacity: 0.35; }
+  .cell.done     { background: rgba(247,140,108,0.18); }
+  .cell.in-nums1 { background: rgba(249,203,66,0.35); }
+  .cell-idx { font-size: 10px; color: #aaa; font-family: 'SF Mono', monospace; }
+  .cell-label { font-size: 11px; color: #9333C0; font-family: 'SF Mono', monospace; height: 14px; }
+  .array-gap { width: 20px; }
+  .ptr-row { display: flex; align-items: center; gap: 0; margin-top: 2px; }
+  .ptr-cell { width: 44px; margin: 0 3px; display: flex; justify-content: center; }
+  .ptr-arrow { font-size: 13px; color: #9333C0; font-weight: 700; }
+
+  /* Result */
+  .result-row { display: flex; align-items: flex-end; gap: 0; flex-wrap: nowrap; }
+  .res-cell { width: 44px; height: 44px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; font-family: 'SF Mono', monospace; background: #f5f5f5; color: #aaa; margin: 0 3px; transition: background 0.2s, color 0.2s; }
+  .res-cell.filled { background: rgba(247,140,108,0.25); color: #1a1a1a; }
+  .res-cell.newest { background: rgba(247,140,108,0.5); color: #1a1a1a; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '496. Next Greater Element I — 暴力解法动画',
+  legend: [
+    { color: 'rgba(249,203,66,0.35)', label: '当前查询的 num（nums1 里）' },
+    { color: 'rgba(93,202,165,0.35)', label: '在 nums2 中定位到的 num' },
+    { color: 'rgba(139,133,212,0.25)', label: 'k 正在扫描' },
+    { color: 'rgba(93,202,165,0.55)', label: '找到答案！' },
+    { color: '#f0f0f0', extra: 'opacity:0.4;', label: '扫描经过（不满足）' },
+    { color: 'rgba(247,140,108,0.18)', label: '已处理完' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+    <!-- Left: code panel -->
+    <script>
+    renderCodeBox({
+      code: `
+def nextGreaterElement(self, nums1, nums2):
+    ans = []
+
+    for num in nums1:
+        # 在 nums2 里找 num 的位置
+        j = nums2.index(num)
+
+        result = -1
+        for k in range(j+1, len(nums2)):
+            if nums2[k] > num:
+                result = nums2[k]
+                break
+
+        ans.append(result)
+
+    return ans`,
+    });
+    </script>
+
+    <!-- Right: viz panel -->
+    <div class="viz-panel">
+
+      <!-- Variable state bar -->
+      <div class="var-bar" id="vars-bar">
+        <span class="var-dim">变量状态将在这里显示</span>
+      </div>
+
+      <!-- Arrays visualization -->
+      <div class="card">
+        <h3>nums1 &amp; nums2 数组</h3>
+
+        <!-- nums1 row -->
+        <div style="margin-bottom: 16px;">
+          <div style="font-size:12px; color:#aaa; font-family:'SF Mono',monospace; margin-bottom:6px;">nums1 = [4, 1, 2]</div>
+          <div class="array-row" id="nums1-row"></div>
+        </div>
+
+        <!-- nums2 row -->
+        <div>
+          <div style="font-size:12px; color:#aaa; font-family:'SF Mono',monospace; margin-bottom:6px;">nums2 = [1, 3, 4, 2]</div>
+          <div class="array-row" id="nums2-row"></div>
+          <!-- scanning pointer row -->
+          <div class="ptr-row" id="ptr-row" style="margin-top:4px;"></div>
+        </div>
+      </div>
+
+      <!-- Result array -->
+      <div class="card">
+        <h3>ans 结果数组</h3>
+        <div class="result-row" id="result-row"></div>
+        <div style="font-size:12px;color:#aaa;margin-top:8px;font-family:'SF Mono',monospace;" id="result-label">ans = []</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Input data ────────────────────────────────────────────────────────────
+const NUMS1 = [4, 1, 2];
+const NUMS2 = [1, 3, 4, 2];
+
+// ── Step builder ──────────────────────────────────────────────────────────
+function buildSteps() {
+  const steps = [];
+
+  // State
+  let nums1ActiveIdx = null;   // which nums1 element we're processing
+  let nums1DoneSet = new Set(); // indices in nums1 that are fully done
+  let jIdx = null;             // index in nums2 where num was found
+  let kIdx = null;             // current scan index in nums2
+  let passedSet = new Set();   // nums2 indices scanned and passed
+  let foundIdx = null;         // nums2 index where answer found
+  let result = -1;
+  let ans = [];                // filled answers (val or null)
+  let varsInfo = {};
+
+  function snap(line, info) {
+    steps.push({
+      line,
+      info,
+      nums1ActiveIdx,
+      nums1DoneSet: new Set(nums1DoneSet),
+      jIdx,
+      kIdx,
+      passedSet: new Set(passedSet),
+      foundIdx,
+      result,
+      ans: [...ans],
+      varsInfo: {...varsInfo},
+    });
+  }
+
+  // Line 2: ans = []
+  varsInfo = { ans: '[]' };
+  snap(2, '第 2 行：初始化 ans = []');
+
+  // Outer loop
+  for (let i = 0; i < NUMS1.length; i++) {
+    const num = NUMS1[i];
+    nums1ActiveIdx = i;
+    jIdx = null; kIdx = null; passedSet = new Set(); foundIdx = null; result = -1;
+    varsInfo = { ans: '[' + ans.map(v => v === null ? '?' : v).join(', ') + ']', num };
+    snap(4, `第 4 行：for num in nums1 → num = ${num}`);
+
+    // Line 6: j = nums2.index(num)
+    const j = NUMS2.indexOf(num);
+    jIdx = j;
+    varsInfo = { ...varsInfo, j };
+    snap(6, `第 6 行：j = nums2.index(${num}) → j = ${j}（nums2[${j}] = ${num}）`);
+
+    // Line 8: result = -1
+    result = -1;
+    varsInfo = { ...varsInfo, result: -1 };
+    snap(8, `第 8 行：result = -1（默认找不到）`);
+
+    // Inner loop
+    snap(9, `第 9 行：从 j+1=${j+1} 开始往右扫 nums2`);
+    let broke = false;
+    for (let k = j + 1; k < NUMS2.length; k++) {
+      kIdx = k;
+      varsInfo = { ...varsInfo, k };
+      snap(9, `第 9 行：k = ${k}，扫描 nums2[${k}] = ${NUMS2[k]}`);
+
+      snap(10, `第 10 行：nums2[${k}] = ${NUMS2[k]} > num(${num})？ → ${NUMS2[k] > num ? '✓ Yes!' : '✗ No'}`);
+
+      if (NUMS2[k] > num) {
+        result = NUMS2[k];
+        foundIdx = k;
+        varsInfo = { ...varsInfo, result };
+        snap(11, `第 11 行：找到了！result = nums2[${k}] = ${result}`);
+        snap(12, `第 12 行：break → 停止扫描`);
+        broke = true;
+        break;
+      } else {
+        passedSet.add(k);
+        snap(10, `nums2[${k}] = ${NUMS2[k]} 不满足，继续扫描…`);
+      }
+    }
+
+    if (!broke) {
+      kIdx = null;
+      snap(9, `第 9 行：扫描结束，没找到比 ${num} 大的元素，result 保持 -1`);
+    }
+
+    // Line 14: ans.append(result)
+    foundIdx = null; kIdx = null;
+    ans.push(result);
+    nums1DoneSet.add(i);
+    varsInfo = { ans: '[' + ans.join(', ') + ']', num, j, result };
+    snap(14, `第 14 行：ans.append(${result}) → ans = [${ans.join(', ')}]`);
+
+    // Reset for next iteration
+    jIdx = null; passedSet = new Set();
+  }
+
+  nums1ActiveIdx = null;
+  varsInfo = { ans: '[' + ans.join(', ') + ']' };
+  snap(16, `第 16 行：return ans = [${ans.join(', ')}] ✓`);
+
+  return steps;
+}
+
+const STEPS = buildSteps();
+let cur = -1;
+
+// ── Build DOM ─────────────────────────────────────────────────────────────
+function buildArrayDOM() {
+  // nums1
+  const n1row = document.getElementById('nums1-row');
+  n1row.innerHTML = '';
+  NUMS1.forEach((val, i) => {
+    const g = document.createElement('div');
+    g.className = 'cell-group';
+    const c = document.createElement('div');
+    c.className = 'cell';
+    c.id = `n1-${i}`;
+    c.textContent = val;
+    const idx = document.createElement('div');
+    idx.className = 'cell-idx';
+    idx.textContent = `[${i}]`;
+    g.appendChild(c);
+    g.appendChild(idx);
+    n1row.appendChild(g);
+  });
+
+  // nums2
+  const n2row = document.getElementById('nums2-row');
+  n2row.innerHTML = '';
+  NUMS2.forEach((val, i) => {
+    const g = document.createElement('div');
+    g.className = 'cell-group';
+    const c = document.createElement('div');
+    c.className = 'cell';
+    c.id = `n2-${i}`;
+    c.textContent = val;
+    const idx = document.createElement('div');
+    idx.className = 'cell-idx';
+    idx.textContent = `[${i}]`;
+    g.appendChild(c);
+    g.appendChild(idx);
+    n2row.appendChild(g);
+  });
+
+  // ptr row
+  const prow = document.getElementById('ptr-row');
+  prow.innerHTML = '';
+  NUMS2.forEach((_, i) => {
+    const pc = document.createElement('div');
+    pc.className = 'ptr-cell';
+    pc.id = `ptr-${i}`;
+    prow.appendChild(pc);
+  });
+
+  // result row
+  const rrow = document.getElementById('result-row');
+  rrow.innerHTML = '';
+  NUMS1.forEach((_, i) => {
+    const g = document.createElement('div');
+    g.className = 'cell-group';
+    const c = document.createElement('div');
+    c.className = 'res-cell';
+    c.id = `res-${i}`;
+    c.textContent = '?';
+    const idx = document.createElement('div');
+    idx.className = 'cell-idx';
+    idx.textContent = `[${i}]`;
+    g.appendChild(c);
+    g.appendChild(idx);
+    rrow.appendChild(g);
+  });
+}
+
+// ── Render ────────────────────────────────────────────────────────────────
+function render() {
+  if (cur < 0) {
+    // Reset
+    NUMS1.forEach((_, i) => {
+      const el = document.getElementById(`n1-${i}`);
+      if (el) el.className = 'cell';
+    });
+    NUMS2.forEach((_, i) => {
+      const el = document.getElementById(`n2-${i}`);
+      if (el) el.className = 'cell';
+      const p = document.getElementById(`ptr-${i}`);
+      if (p) p.innerHTML = '';
+    });
+    NUMS1.forEach((_, i) => {
+      const el = document.getElementById(`res-${i}`);
+      if (el) { el.className = 'res-cell'; el.textContent = '?'; }
+    });
+    renderCtrl(-1, STEPS.length, '');
+    document.getElementById('vars-bar').innerHTML = `<span class="var-dim">变量状态将在这里显示</span>`;
+    document.getElementById('result-label').textContent = 'ans = []';
+    highlightLine(null);
+    return;
+  }
+
+  const s = STEPS[cur];
+
+  highlightLine(s.line);
+  renderCtrl(cur, STEPS.length, s.info);
+
+  // Vars bar
+  const vb = document.getElementById('vars-bar');
+  const v = s.varsInfo;
+  let vhtml = '';
+  const parts = [];
+  if (v.ans !== undefined) parts.push(`<span><span class="var-name">ans</span> <span class="var-eq">=</span> <span class="var-val">${v.ans}</span></span>`);
+  if (v.num !== undefined) parts.push(`<span><span class="var-name">num</span> <span class="var-eq">=</span> <span class="var-val">${v.num}</span></span>`);
+  if (v.j !== undefined) parts.push(`<span><span class="var-name">j</span> <span class="var-eq">=</span> <span class="var-val">${v.j}</span></span>`);
+  if (v.k !== undefined) parts.push(`<span><span class="var-name">k</span> <span class="var-eq">=</span> <span class="var-val">${v.k}</span></span>`);
+  if (v.result !== undefined) parts.push(`<span><span class="var-name">result</span> <span class="var-eq">=</span> <span class="var-val">${v.result}</span></span>`);
+  vb.innerHTML = parts.join('') || `<span class="var-dim">—</span>`;
+
+  // nums1 cells
+  NUMS1.forEach((_, i) => {
+    const el = document.getElementById(`n1-${i}`);
+    if (!el) return;
+    if (s.nums1DoneSet.has(i)) {
+      el.className = 'cell done';
+    } else if (s.nums1ActiveIdx === i) {
+      el.className = 'cell in-nums1';
+    } else {
+      el.className = 'cell';
+    }
+  });
+
+  // nums2 cells + pointers
+  NUMS2.forEach((_, i) => {
+    const el = document.getElementById(`n2-${i}`);
+    const ptr = document.getElementById(`ptr-${i}`);
+    if (!el) return;
+
+    let cls = 'cell';
+    let ptrHtml = '';
+
+    if (s.foundIdx === i) {
+      cls += ' found';
+      ptrHtml = `<span class="ptr-arrow">▲</span>`;
+    } else if (s.kIdx === i) {
+      cls += ' scanning';
+      ptrHtml = `<span class="ptr-arrow" style="color:#8B85D4;">▲</span>`;
+    } else if (s.passedSet.has(i)) {
+      cls += ' passed';
+    } else if (s.jIdx === i) {
+      cls += ' target';
+      ptrHtml = `<span class="ptr-arrow" style="color:#3A9E7E;font-size:11px;">j</span>`;
+    }
+
+    el.className = cls;
+    if (ptr) ptr.innerHTML = ptrHtml;
+  });
+
+  // Result cells
+  NUMS1.forEach((_, i) => {
+    const el = document.getElementById(`res-${i}`);
+    if (!el) return;
+    if (i < s.ans.length) {
+      el.textContent = s.ans[i];
+      el.className = i === s.ans.length - 1 ? 'res-cell newest' : 'res-cell filled';
+    } else {
+      el.textContent = '?';
+      el.className = 'res-cell';
+    }
+  });
+
+  // Result label
+  document.getElementById('result-label').textContent =
+    s.ans.length === 0 ? 'ans = []' : `ans = [${s.ans.join(', ')}]`;
+}
+
+
+buildArrayDOM();
+doReset();
+</script>
+</body>
+</html>

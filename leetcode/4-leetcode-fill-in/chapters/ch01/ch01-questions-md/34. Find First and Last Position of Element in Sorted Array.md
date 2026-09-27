@@ -1,0 +1,50 @@
+class Solution:
+    def searchFirst(self, nums, target):
+        start = 0
+        end = len(nums) - 1
+
+        while start + 1 < end:
+            mid = (start + end) // 2
+            if nums[mid] < target:
+                start = mid
+            elif nums[mid] > target:
+                end = mid
+            else:
+                end = mid
+
+        if nums[start] == target:
+            return start
+
+        if nums[end] == target:
+            return end
+
+        return -1
+
+    def searchLast(self, nums, target):
+        start = 0
+        end = len(nums) - 1
+
+        while start + 1 < end:
+            mid = (start + end) // 2
+            if nums[mid] < target:
+                start = mid
+            elif nums[mid] > target:
+                end = mid
+            else:
+                start = mid
+
+        if nums[end] == target:
+            return end
+
+        if nums[start] == target:
+            return start
+
+        return -1
+
+    def searchRange(self, nums: List[int], target: int) -> List[int]:
+        if not nums:
+            return [-1,-1]
+
+        ret1 =  self.searchFirst(nums, target)
+        ret2 =  self.searchLast(nums, target)
+        return [ret1, ret2]

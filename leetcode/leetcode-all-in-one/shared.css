@@ -1,0 +1,199 @@
+/* ── Reset ─────────────────────────────────────────────────────────────── */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f9f9f9; color: #1a1a1a; }
+
+/* ── Page layout ───────────────────────────────────────────────────────── */
+.content-wrapper { padding: 24px; }
+.header { margin: 20px 0; }
+h1 { font-size: 20px; font-weight: 500; margin-bottom: 4px; color: #1a1a1a; text-align: center; }
+
+/* ── Shared page header (rendered by renderHeader in shared.js) ─────────
+   line 1: heading · line 2: examples/methods · line 3: step controls ·
+   line 4: legend */
+.page-header { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 20px; }
+.page-header .header { margin: 20px 0 0; }
+.header-row { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
+.header-row .legend { justify-content: center; margin-top: 0; padding: 0 24px; max-width: 1100px; }
+.title-link { color: inherit; text-decoration: none; border-bottom: 1px solid #bbb; }
+.examples-label { font-size: 13px; font-weight: 600; color: #666; }
+
+/* 双栏主布局（2026-08-04 改版）：不再要求"代码右边线压页面中线"——
+   两列都按内容实宽（max-content），整块（代码 + 20px 间距 + 右侧面板）
+   width: max-content + margin auto 整体居中。比视口窄就正中；比视口宽时
+   margin auto 自动归零、只向右溢出（可横向滚动），左边不会再被裁出屏幕。 */
+.main { display: flex; gap: 20px; align-items: flex-start; }
+.main.layout-grid {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  column-gap: 20px;
+  row-gap: 20px;
+  align-items: start;
+  width: max-content;
+  margin: 0 auto;
+}
+.main.layout-grid .code-half { grid-column: 1; grid-row: 1; width: max-content; }
+.main.layout-grid .viz-panel { grid-column: 2; grid-row: 1; min-width: max-content; }
+.code-half { flex: 0 0 auto; display: flex; justify-content: flex-end; }
+.code-stack { width: max-content; display: flex; flex-direction: column; gap: 12px; align-items: stretch; }
+/* align-items: flex-start (not the flex default of stretch) — each block
+   (var-bar/card) sizes to its own content, so a short block never gets
+   stretched out to match its widest sibling or the widest line seen on any
+   step. */
+.viz-panel { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-start; gap: 16px; }
+
+/* ── Controls ──────────────────────────────────────────────────────────── */
+.ctrl { display: flex; align-items: center; gap: 10px; }
+.ctrl-left, .ctrl-right { display: flex; align-items: center; gap: 10px; }
+.btn { padding: 5px 14px; border: none; border-radius: 8px; background: #ffffff; color: #1a1a1a; cursor: pointer; font-size: 13px; }
+.btn:hover { background: #f0f0f0; }
+.btn:disabled { opacity: 0.35; cursor: default; }
+.btn.auto-active { background: rgba(93,202,165,0.35); }
+.btn.auto-active:hover { background: rgba(93,202,165,0.45); }
+.progress { font-size: 12px; color: #1a1a1a; }
+.step-info {
+  width: 0;
+  min-width: 100%;
+  /* baseline only — lockStableSizes() in shared.js pins the real max height
+     needed across all steps so the block never resizes while stepping */
+  min-height: 57px;
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 9px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: normal;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  color: #1a1a1a;
+}
+/* 2026-08-04：步骤说明框从"fixed 右上角 HUD"改回代码栏文档流（code-stack
+   里它本来就排在 code-panel 上面）——右上角会跟 LC Notes 的共享页头/切换
+   按钮打架。样式沿用 .step-info 的白卡底；圆角对齐周围面板的 12px。
+   各页自己的 `.xxx-layout .step-info` 微调（padding/min-height/display:none）
+   照常生效。 */
+#info.step-info {
+  border-radius: 12px;
+  max-height: 34vh;
+  overflow-y: auto;
+}
+
+/* ── Parameter bar ─────────────────────────────────────────────────────── */
+.var-bar {
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-family: 'SF Mono', 'Menlo', monospace;
+  font-size: 13px;
+  color: #1a1a1a;
+  display: grid;
+  grid-template-columns: minmax(0, max-content);
+  row-gap: 8px;
+  align-items: center;
+  justify-content: start;
+  min-height: 38px;
+}
+.var-row {
+  min-height: 19px;
+  line-height: 19px;
+  white-space: nowrap;
+}
+.var-name { color: #9333C0; }
+.var-eq   { color: #007EA8; }
+.var-val  { color: #C4501E; font-weight: 700; }
+.var-dim  { color: #aaa; }
+.var-win  { color: #555; }
+
+/* ── Code panel ────────────────────────────────────────────────────────── */
+/* Tight left padding: keep the line numbers close to the border so code lines
+   get the horizontal room */
+/* 右侧多留 70px：Copy 按钮钉在右上角，别压住第一行代码——面板宽度因此
+   = 最长代码行 + 按钮位（面板本来就按内容 max-content 撑开）。 */
+.code-panel { background: #ffffff; border-radius: 12px; padding: 16px 70px 16px 6px; }
+/* Copy button — shared.js wraps each .code-panel in .code-panel-box and pins
+   the button to the box (not the panel) so it stays put even when the panel
+   itself scrolls horizontally. */
+.code-panel-box { position: relative; }
+.code-copy-btn {
+  position: absolute; top: 8px; right: 8px; z-index: 5;
+  padding: 4px 10px; border: none; border-radius: 6px;
+  background: #f5f5f5; color: #888; font-size: 11px; font-weight: 600;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  cursor: pointer; opacity: 0.85;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+.code-copy-btn:hover { opacity: 1; background: #ebebeb; color: #1a1a1a; }
+.code-copy-btn.copied { background: rgba(93,202,165,0.35); color: #146c50; opacity: 1; }
+/* 行距（2026-08-26 用户要求整体收紧）：.code-line 是 display:block 的 span、
+   拼接时行与行之间还有一个换行符文本节点——<pre> 里它会自己占一行（匿名
+   行盒，高度 = .code-block 的 line-height）。以前 .code-block line-height:1
+   让每行凭空多出 12.5px（实际行距 27px）。现在把 .code-block 行高归零干掉
+   匿名行，真实行距全部交给 .code-line 自己的 line-height 管。 */
+.code-block { font-family: 'SF Mono', 'Menlo', monospace; font-size: 12.5px; line-height: 0; color: #333333; }
+.code-line { padding: 1px 8px 1px 4px; line-height: 1.55; border-radius: 4px; transition: background 0.15s; white-space: pre; display: block; }
+.code-line.hl { background: rgba(199,146,234,0.12); }
+.ln { display: inline-block; width: 22px; color: #aaa; font-size: 11px; margin-right: 8px; user-select: none; text-align: right; }
+.prereq-block { padding-left: 0; margin-bottom: 14px; }
+
+/* ── Syntax highlighting ───────────────────────────────────────────────── */
+.kw { color: #9333C0; }
+.fn { color: #3A6FD4; }
+.va { color: #333333; }
+.nu { color: #C4501E; }
+.op { color: #007EA8; }
+.cm { color: #5E9652; }
+.st { color: #C4501E; }
+
+/* ── Cards ─────────────────────────────────────────────────────────────── */
+.card { background: #ffffff; border-radius: 12px; padding: 16px 18px; min-width: max-content; }
+.card h3 { font-size: 12px; font-weight: 600; color: #1a1a1a; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; }
+
+/* ── Stable marker rows ────────────────────────────────────────────────── */
+.ptr-row {
+  min-height: 19px;
+  align-items: flex-start;
+}
+.ptr-cell {
+  min-height: 19px;
+  line-height: 19px;
+}
+.stack-container .stack-cell {
+  min-width: 132px;
+}
+.stack-container,
+.stack-empty {
+  min-width: 132px;
+}
+.stack-empty {
+  text-align: center;
+}
+.stack-container .stack-label {
+  position: static;
+  transform: none;
+  margin-left: 4px;
+  white-space: nowrap;
+}
+
+/* ── Legend ────────────────────────────────────────────────────────────── */
+.legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; }
+.leg-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #1a1a1a; }
+.leg-box { width: 14px; height: 14px; border-radius: 4px; flex-shrink: 0; }
+.top-legend > .legend {
+  justify-content: center;
+  margin-top: 0;
+  padding: 0 24px;
+  max-width: 1100px;
+}
+
+/* ── Inline code ───────────────────────────────────────────────────────── */
+code { background: #f0f4f8; padding: 1px 5px; border-radius: 3px; font-size: 12px; font-family: 'SF Mono', monospace; color: #cc7700; }
+
+/* ── Heap (shared across heap-based problems) ──────────────────────────── */
+.heap-area { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; min-height: 60px; }
+.heap-slot { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.heap-node { border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(139,133,212,0.2); font-family: 'SF Mono', monospace; transition: background 0.2s, transform 0.2s; }
+.heap-node.popping { background: rgba(249,203,66,0.35); transform: scale(1.1); }
+.heap-node.pushing { background: rgba(93,202,165,0.3); }
+.heap-val { font-size: 18px; font-weight: 800; color: #1a1a1a; }
+.heap-meta { font-size: 10px; color: #8B85D4; font-weight: 600; }
+.heap-label { font-size: 11px; color: #1a1a1a; font-family: 'SF Mono', monospace; }
+.heap-empty { font-size: 12px; color: #888; font-family: 'SF Mono', monospace; align-self: center; }

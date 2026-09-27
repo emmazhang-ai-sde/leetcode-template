@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>733. Flood Fill</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  /* 733 跟 79 一样是网格 DFS：调用链/调用身份配色抄 78/46/79。两处不一样：
+     ① 这题没有回溯——image[i][j] 一旦染色就不会再撤销，不需要 visited
+     集合；② dfs 对每个候选都是"先在调用方判断合法，合法才递归"，从不会
+     真的进 dfs() 又中途失败返回 False，所以树上每个节点最终都会变成
+     n-done，不需要 78/79 那种"失败/n-dead"状态。
+     方格底色直接画"这一格现在的像素值"（0 / 1=oldColor / 2=newColor），
+     不占用底色表示调用帧——这题的主题就是颜色本身，底色留给它。调用栈
+     状态（当前执行 / 祖先帧 / 正在检查的候选）改用内嵌/外描边框区分。 */
+
+  /* ── image：3 列 × 3 行，外加一圈行/列下标 ────────────────────────── */
+  .ff-wrap {
+    display: grid;
+    grid-template-columns: 20px repeat(3, 56px);
+    grid-template-rows: 20px repeat(3, 56px);
+    gap: 6px;
+  }
+  .ff-pad {}
+  .ff-idx { display: flex; align-items: center; justify-content: center; font-family: var(--ink-mono); font-size: 11px; color: #bbb; font-weight: 700; }
+  .ff-cell {
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 8px; font-family: var(--ink-mono); font-size: 20px; font-weight: 700;
+    transition: background 0.2s, border-color 0.2s, box-shadow 0.15s, transform 0.15s;
+  }
+  /* 像素值三色：0=背景（灰）／1=oldColor（蓝，起点原本的颜色）／
+     2=newColor（绿，dfs 已经处理过、染完就不会再变） */
+  .ff-cell.v0   { background: #f5f5f5; border: 1.5px solid #c9c9c9; color: #bbb; }
+  .ff-cell.v1   { background: rgba(120,160,225,0.35); border: 1.5px solid #5a82c8; color: #1a1a1a; }
+  .ff-cell.vnew { background: rgba(93,202,165,0.5); border: 1.5px solid #1D9E75; color: #0d3a2c; }
+  /* 调用栈状态：内嵌框——黑=当前执行，蓝=祖先帧仍开着 */
+  .ff-cell.on-stack { transform: translateY(-1px); }
+  .ff-cell.top     { box-shadow: inset 0 0 0 3px #1a1a1a; }
+  .ff-cell.stacked { box-shadow: inset 0 0 0 2px rgba(90,130,200,0.8); }
+  /* 正在检查的候选邻居 (newx, newy)：外描边框——紫=正在查，
+     灰=已经是 newColor 跳过，红=越界或颜色不对跳过 */
+  .ff-cell.probe-pending { box-shadow: 0 0 0 3px #9333C0; }
+  .ff-cell.probe-same    { box-shadow: 0 0 0 3px #aaa; opacity: 0.6; }
+  .ff-cell.probe-diff    { box-shadow: 0 0 0 3px #C4501E; opacity: 0.6; }
+  /* var-bar 挪进 image 卡片里（2026-08-11，原来是代码框下面单独一块）——
+     卡片内没有子元素间距规则，手动跟网格拉开一点 */
+  #ff-grid + .var-bar { margin-top: 14px; }
+
+  /* ── 递归树：形状运行时真跑一遍再算布局（叶子从左到右分配格子，
+     内部节点取子节点中点），跟 79 同一套算法。 ──────────────────────── */
+  #tree-svg { display: block; width: 340px; height: 300px; }
+  .edge { stroke: #d5d5d5; stroke-width: 2; }
+  .edge.on-path { stroke: #3A6FD4; stroke-width: 3; }
+  .node-box { fill: #f5f5f5; stroke: #c9c9c9; stroke-width: 1; transition: fill 0.2s; }
+  .node-box.n-current { stroke: #1a1a1a; stroke-width: 2.5; }
+  .node-box.n-stack   { stroke: rgba(90,130,200,0.55); }
+  .node-box.n-done    { fill: rgba(93,202,165,0.4); stroke: rgba(60,160,125,0.5); }
+  .node-text { font-family: var(--ink-mono); font-size: 12px; font-weight: 700; fill: #1a1a1a; }
+  .node-text.dim { fill: #b5b5b5; }
+
+  .grid-tree-row { display: flex; gap: 16px; align-items: flex-start; }
+
+  .fn-tag { display: inline-block; padding: 1px 8px; border-radius: 5px; background: rgba(199,146,234,0.18);
+            color: #6b3fa0; font-family: var(--ink-mono); font-size: 12px; font-weight: 700; }
+  .fn-note { margin-left: 8px; font-family: -apple-system, sans-serif; font-size: 11px; color: #aaa; }
+
+  /* 调用链：一层一行、按深度缩进，底色 = 这次调用在代码面板里的高亮底色
+     （跟 46/79 同一套 tintOf，只用在调用链/树上——像素格底色留给像素值） */
+  .call-chain { display: flex; flex-direction: column; gap: 4px; min-height: 150px; }
+  .chain-row { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 10px;
+               border-radius: 7px; font-family: var(--ink-mono); font-size: 12px;
+               color: #1a1a1a; white-space: nowrap; align-self: flex-start;
+               transition: box-shadow 0.15s; }
+  .chain-row.top { box-shadow: 0 0 0 1.5px #1a1a1a; font-weight: 700; }
+  .chain-dim { color: #8a8a8a; font-weight: 400; }
+  .chain-empty { font-family: var(--ink-mono); font-size: 12px; color: #bbb; }
+
+  /* 颜色图例从页头搬到代码框下面（跟 step-info 一起塞进 .code-stack），
+     一行一条，跟页头那种居中横排 flex-wrap 分开来 */
+  .legend-below { flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 0; max-width: none; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '733. Flood Fill',
+  link: 'https://leetcode.com/problems/flood-fill/',
+  legend: [
+    { color: '#ffffff', extra: 'border:1.5px solid #ddd; box-shadow: inset 0 0 0 3px #1a1a1a;', label: '黑框（内嵌）= 正在执行这一行的那次调用（board 上对应那个像素）' },
+    { color: '#ffffff', extra: 'border:1.5px solid #ddd; box-shadow: inset 0 0 0 2px rgba(90,130,200,0.8);', label: '蓝框（内嵌）= 还在调用栈上的祖先帧' },
+    { color: '#ffffff', extra: 'border:1.5px solid #ddd; box-shadow: 0 0 0 3px #9333C0;', label: '紫框 = 正在检查这个候选邻居 (newx, newy)' },
+    { color: '#ffffff', extra: 'border:1.5px solid #ddd; box-shadow: 0 0 0 3px #aaa;', label: '灰框 = 候选已经是 newColor，跳过' },
+    { color: '#ffffff', extra: 'border:1.5px solid #ddd; box-shadow: 0 0 0 3px #C4501E;', label: '红框 = 候选越界，或颜色跟 oldColor 不一样，跳过' },
+    { color: '#f5f5f5', extra: 'border:1px solid #c9c9c9;', label: '像素值 0 = 背景色，不属于这块要染色的连通区域' },
+    { color: 'rgba(120,160,225,0.35)', extra: 'border:1px solid #5a82c8;', label: '像素值 1 = oldColor，跟起点颜色相同、还没被染过' },
+    { color: 'rgba(93,202,165,0.5)', extra: 'border:1px solid #1D9E75;', label: '像素值 2 = newColor，dfs 已经处理过这一格，直接染色、不会再撤销' },
+    { color: 'rgba(120,160,225,0.22)', label: '调用链 / 递归树每次调用一种底色，方便区分同一时刻活着的多个帧（这套颜色跟像素框颜色是两回事）' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+  <script>
+  renderCodeBox({
+    code: `
+class Solution:
+    def floodFill(self, image: List[List[int]], sr: int, sc: int, newColor: int) -> List[List[int]]:
+        self.dfs(image, sr,sc, newColor, image[sr][sc])
+        return image
+
+    def dfs(self, image, i, j , newColor, oldColor):
+
+        image[i][j] = newColor
+
+        for (dx,dy) in [(0,1),(0,-1),(1,0),(-1,0)]:
+            newx = i + dx
+            newy = j + dy
+            if  not (0<= newx < len(image) and 0<=newy < len(image[0])):
+                continue
+            if  image[newx][newy] == newColor:
+                continue
+            if image[newx][newy] != oldColor:
+                continue
+
+            self.dfs(image, newx,newy, newColor, oldColor)`,
+  });
+  </script>
+
+  <!-- 步骤说明 + 颜色图例从页头搬到代码框下面：先搬 #info（保持在 code-panel
+       下面），再搬页头的 .legend（顺序排在 info 后面），最后把页头里现在空掉的
+       那行 .header-row 删掉，别留一条空的居中 flex 行占位置（跟 46/79 同一手法） -->
+  <script>
+  (function () {
+    const stack = document.querySelector('.code-stack');
+    stack.appendChild(document.getElementById('info'));
+    const legend = document.querySelector('.legend');
+    const legendRow = legend.parentElement;
+    legend.classList.add('legend-below');
+    stack.appendChild(legend);
+    legendRow.remove();
+  })();
+  </script>
+
+  <div class="viz-panel">
+    <div class="card">
+      <h3>调用链 — 现在这行代码是谁在跑</h3>
+      <div class="call-chain" id="call-chain"></div>
+    </div>
+
+    <div class="grid-tree-row">
+      <div class="card">
+        <h3>image · 3 × 3（Example 1）</h3>
+        <div class="ff-wrap" id="ff-grid"></div>
+        <div class="var-bar" id="var-bar"></div>
+      </div>
+      <div class="card">
+        <h3>递归树 — 每个节点是一次 dfs 调用</h3>
+        <svg id="tree-svg" viewBox="0 0 340 300"></svg>
+      </div>
+    </div>
+  </div>
+</div><!-- /.main -->
+</div><!-- /.content-wrapper -->
+
+<script>
+// ── 例子：LeetCode 733 官方 Example 1 ─────────────────────────────────────
+// image = [[1,1,1],[1,1,0],[1,0,1]], sr = 1, sc = 1, color = 2
+// 输出 [[2,2,2],[2,2,0],[2,0,1]] —— (2,2) 的 1 跟起点不是四连通，不会被染。
+const IMAGE = [[1, 1, 1], [1, 1, 0], [1, 0, 1]];
+const SR = 1, SC = 1, NEW_COLOR = 2;
+const OLD_COLOR = IMAGE[SR][SC];
+const R = IMAGE.length, C = IMAGE[0].length;
+const DIRS = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+const key = (i, j) => i + ',' + j;
+
+/* 行号表：正文从 1 开始，空行也占号（5/7/9/19 是空行）。按 ANIMATION_GUIDE：
+   每行可执行代码 ≥ 1 步，if/for 头每轮都停（True 和 False 都停），函数
+   调用行走两遍（发起 + 返回），def 行进入时也停。 */
+const L = {
+  FLOODFILL:    2,   // def floodFill(self, image, sr, sc, newColor)
+  CALL_DFS:     3,   // self.dfs(image, sr, sc, newColor, image[sr][sc])   调用 + 返回各一次
+  RETURN:       4,   // return image
+  DFS:          6,   // def dfs(self, image, i, j, newColor, oldColor)
+  SET_COLOR:    8,   // image[i][j] = newColor
+  FOR_DIR:     10,   // for (dx, dy) in [...]              每轮 + 取空各一次
+  NEWX:        11,   // newx = i + dx
+  NEWY:        12,   // newy = j + dy
+  BOUNDS_IF:   13,   // if not (0<=newx<len(image) and 0<=newy<len(image[0])):
+  BOUNDS_CONT: 14,   // continue
+  NEWCOLOR_IF: 15,   // if image[newx][newy] == newColor:
+  NEWCOLOR_CONT: 16, // continue
+  OLDCOLOR_IF: 17,   // if image[newx][newy] != oldColor:
+  OLDCOLOR_CONT: 18, // continue
+  RECURSE:     20,   // self.dfs(image, newx, newy, newColor, oldColor)   调用 + 返回各一次
+};
+
+// ── 真跑一遍 Lyon 的解法，边跑边记录调用树，生成步骤 ───────────────────────
+function buildSteps() {
+  const steps = [];
+  let image = IMAGE.map(row => [...row]);
+  let stack = [];          // [{ id, i, j, dir }]
+  let done = [];           // 已经返回的帧 id（子树走完；这题每个节点最终都会到这里）
+  let probe = null;        // 正在检查/正在等结果的候选邻居 { x, y, phase }
+  let fn = null;
+
+  const NODES = [];
+  let nodeSeq = 0;
+
+  function snap(line, info) {
+    const top = stack.length ? stack[stack.length - 1] : null;
+    steps.push({
+      line, info, fn,
+      image: image.map(r => [...r]),
+      stack: stack.map(f => ({ id: f.id, i: f.i, j: f.j })),
+      done: [...done],
+      probe: probe ? { ...probe } : null,
+      i: top ? top.i : null, j: top ? top.j : null,
+    });
+  }
+
+  snap(null, `Flood Fill 从起点 (sr, sc) = (${SR}, ${SC}) 出发：把跟它颜色相同（都是 oldColor=${OLD_COLOR}）、` +
+    `四连通能走到的像素全部改成 newColor=${NEW_COLOR}；颜色不同、或已经是 newColor 的格子不会继续扩散。`);
+  fn = 'floodFill';
+  snap(L.FLOODFILL, `Line 2: 进入 floodFill(image, sr=${SR}, sc=${SC}, newColor=${NEW_COLOR}) — image 是 ${R} 行 ${C} 列的像素矩阵。`);
+  snap(L.CALL_DFS, `Line 3: self.dfs(image, ${SR}, ${SC}, ${NEW_COLOR}, image[${SR}][${SC}]=${OLD_COLOR}) — ` +
+    `image[sr][sc] 现读出来的 ${OLD_COLOR} 就是 oldColor，整趟 dfs 全程只用这一个值判断"颜色是否相同"。`);
+
+  function dfs(i, j, parentId, depth) {
+    const id = nodeSeq++;
+    NODES.push({ id, i, j, parentId, depth });
+    const frame = { id, i, j, dir: null };
+    stack.push(frame);
+    fn = 'dfs';
+    probe = null;
+    snap(L.DFS, `Line 6: 进入 dfs(i=${i}, j=${j}, newColor=${NEW_COLOR}, oldColor=${OLD_COLOR})。`);
+
+    image[i][j] = NEW_COLOR;
+    snap(L.SET_COLOR, `Line 8: image[${i}][${j}] = newColor — 先把这一格直接染成 ${NEW_COLOR}，不等四个方向查完，` +
+      `之后也不会再撤销（跟 79 的 visited.add/remove 不一样，这题没有回溯）。`);
+
+    for (const [dx, dy] of DIRS) {
+      frame.dir = [dx, dy];
+      snap(L.FOR_DIR, `Line 10: for (dx, dy) in [(0,1),(0,-1),(1,0),(-1,0)] → (${dx}, ${dy}) — 从 (${i}, ${j}) 往这个方向探。`);
+
+      const newx = i + dx;
+      snap(L.NEWX, `Line 11: newx = i + dx = ${i} + ${dx} = ${newx}。`);
+      const newy = j + dy;
+      snap(L.NEWY, `Line 12: newy = j + dy = ${j} + ${dy} = ${newy} — 候选像素 (${newx}, ${newy})。`);
+
+      probe = { x: newx, y: newy, phase: 'pending' };
+      const oob = !(newx >= 0 && newx < R && newy >= 0 && newy < C);
+      snap(L.BOUNDS_IF, `Line 13: not (0<=newx<${R} and 0<=newy<${C}) → ${oob ? 'True（越界）' : 'False（在 image 内）'}。`);
+      if (oob) {
+        probe.phase = 'oob';
+        snap(L.BOUNDS_CONT, `Line 14: continue — (${newx}, ${newy}) 越界，跳过，试下一个方向。`);
+        probe = null;
+        continue;
+      }
+
+      const isNew = image[newx][newy] === NEW_COLOR;
+      snap(L.NEWCOLOR_IF, `Line 15: image[${newx}][${newy}] == newColor → ` +
+        (isNew ? `True（已经是 ${NEW_COLOR} 了，dfs 处理过这一格）。` : `False（现在还是 ${image[newx][newy]}）。`));
+      if (isNew) {
+        probe.phase = 'same';
+        snap(L.NEWCOLOR_CONT, `Line 16: continue — 已经染过了，跳过，试下一个方向。`);
+        probe = null;
+        continue;
+      }
+
+      const diffOld = image[newx][newy] !== OLD_COLOR;
+      snap(L.OLDCOLOR_IF, `Line 17: image[${newx}][${newy}] != oldColor → ` +
+        (diffOld ? `True（这格是 ${image[newx][newy]}，不是 oldColor=${OLD_COLOR}，不属于这块连通区域）。` : `False（颜色一样，可以继续扩散）。`));
+      if (diffOld) {
+        probe.phase = 'diff';
+        snap(L.OLDCOLOR_CONT, `Line 18: continue — 颜色跟起点不一样，跳过，试下一个方向。`);
+        probe = null;
+        continue;
+      }
+
+      probe = null;
+      snap(L.RECURSE, `Line 20: self.dfs(image, ${newx}, ${newy}, newColor, oldColor) — 调用，去把 (${newx}, ${newy}) 也染色，继续往外扩散。`);
+      dfs(newx, newy, id, depth + 1);
+      fn = 'dfs';
+      snap(L.RECURSE, `Line 20: dfs(${newx}, ${newy}) 返回 — 从这个方向能走到的都染完了，回到 (${i}, ${j}) 继续试下一个方向。`);
+    }
+
+    frame.dir = null;
+    snap(L.FOR_DIR, `Line 10: 四个方向都试过了 — dfs(${i}, ${j}) 结束，没有返回值，直接回到上一层。`);
+    done.push(id);
+    stack.pop();
+  }
+
+  dfs(SR, SC, null, 0);
+
+  fn = 'floodFill';
+  snap(L.CALL_DFS, `Line 3: dfs 返回 — 整块连通区域都染完了，共 ${NODES.length} 次 dfs 调用。`);
+  snap(L.RETURN, `Line 4: return image — 把染好色的 image 交回去。`);
+  fn = null;
+  snap(null, `✅ floodFill 返回 [${IMAGE.map((_, r) => '[' + steps[steps.length - 1].image[r].join(',') + ']').join(', ')}]，` +
+    `共 ${NODES.length} 次 dfs 调用。(2,2) 原本也是 1，但跟起点 (1,1) 不是四连通（隔着 (1,2)=0 和 (2,1)=0），没有被染色。`);
+
+  return { steps, NODES };
+}
+
+const BUILD = buildSteps();
+const STEPS = BUILD.steps;
+const NODES = BUILD.NODES;
+const NODE_BY_ID = {};
+NODES.forEach(n => { NODE_BY_ID[n.id] = n; });
+
+/* 树的形状是真跑出来的，没法像 46 那样提前手写坐标：叶子（没有孩子的
+   节点）按出现顺序从左到右分配格子，内部节点取自己孩子的首尾中点，
+   跟 79 同一套算法。 */
+const SLOT = 62, X0 = 34, Y0 = 24, DY = 48, NODE_W = 54, NODE_H = 26;
+(function layoutTree() {
+  const byParent = {};
+  NODES.forEach(n => { const k = n.parentId; (byParent[k] = byParent[k] || []).push(n); });
+  let nextSlot = 0;
+  function assign(n) {
+    const kids = byParent[n.id] || [];
+    if (!kids.length) {
+      n.slot = nextSlot++;
+    } else {
+      kids.forEach(assign);
+      n.slot = (kids[0].slot + kids[kids.length - 1].slot) / 2;
+    }
+  }
+  (byParent[null] || []).forEach(assign);
+  NODES.forEach(n => { n.x = X0 + n.slot * SLOT; n.y = Y0 + n.depth * DY; });
+})();
+
+/* 6 次 dfs 调用 = 6 种底色，复用 46/79 同一套生成方式拉开色相；
+   索引直接等于 nodeSeq，创建顺序就是 NODES 数组下标。 */
+const CALL_TINT = [
+  'rgba(126,158,221,0.24)', 'rgba(117,209,163,0.26)', 'rgba(227,192,109,0.30)', 'rgba(216,143,121,0.26)',
+  'rgba(180,131,216,0.26)', 'rgba(127,196,210,0.28)', 'rgba(209,166,117,0.30)', 'rgba(219,148,184,0.24)',
+];
+const FLOODFILL_TINT = 'rgba(150,150,150,0.18)';
+const tintOf = (id) => (id == null ? FLOODFILL_TINT : CALL_TINT[id % CALL_TINT.length]);
+
+let cur = -1;
+
+// ── 渲染（只读快照，无副作用） ─────────────────────────────────────────
+function renderGrid(s) {
+  const stackByCell = {};
+  s.stack.forEach((f, k) => { stackByCell[key(f.i, f.j)] = { top: k === s.stack.length - 1 }; });
+
+  const out = [];
+  for (let r = -1; r < R; r++) {
+    for (let c = -1; c < C; c++) {
+      if (r === -1 || c === -1) {
+        if (r === -1 && c >= 0 && c < C)      out.push(`<div class="ff-idx">${c}</div>`);
+        else if (c === -1 && r >= 0 && r < R) out.push(`<div class="ff-idx">${r}</div>`);
+        else                                   out.push('<div class="ff-pad"></div>');
+        continue;
+      }
+      const val = s.image[r][c];
+      const cls = ['ff-cell', val === 0 ? 'v0' : (val === NEW_COLOR ? 'vnew' : 'v1')];
+      const onStack = stackByCell[key(r, c)];
+      if (onStack) {
+        cls.push('on-stack');
+        cls.push(onStack.top ? 'top' : 'stacked');
+      }
+      if (s.probe && s.probe.x === r && s.probe.y === c) cls.push('probe-' + s.probe.phase);
+      out.push(`<div class="${cls.join(' ')}">${val}</div>`);
+    }
+  }
+  document.getElementById('ff-grid').innerHTML = out.join('');
+}
+
+function nodeState(s, id) {
+  if (s.done.indexOf(id) >= 0) return 'n-done';
+  const at = s.stack.findIndex(f => f.id === id);
+  if (at >= 0) return at === s.stack.length - 1 ? 'n-current' : 'n-stack';
+  return '';
+}
+
+function renderTree(s) {
+  const parts = [];
+  const stackIds = s.stack.map(f => f.id);
+  NODES.forEach(n => {
+    if (n.parentId == null) return;
+    const p = NODE_BY_ID[n.parentId];
+    const onPath = stackIds.indexOf(n.id) >= 0 && stackIds.indexOf(n.parentId) >= 0;
+    const x1 = p.x, y1 = p.y + NODE_H / 2, x2 = n.x, y2 = n.y - NODE_H / 2;
+    parts.push(`<line class="edge${onPath ? ' on-path' : ''}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`);
+  });
+  NODES.forEach(n => {
+    const st = nodeState(s, n.id);
+    const onStack = st === 'n-current' || st === 'n-stack';
+    const fill = onStack ? ` style="fill:${tintOf(n.id)}"` : '';
+    const label = '(' + n.i + ',' + n.j + ')';
+    parts.push(`<g><rect class="node-box ${st}"${fill} x="${n.x - NODE_W / 2}" y="${n.y - NODE_H / 2}" width="${NODE_W}" height="${NODE_H}" rx="6"/>` +
+      `<text class="node-text${st ? '' : ' dim'}" x="${n.x}" y="${n.y + 4}" text-anchor="middle">${label}</text></g>`);
+  });
+  document.getElementById('tree-svg').innerHTML = parts.join('');
+}
+
+function renderVars(s) {
+  const row = (name, val) => `<span class="var-row"><span class="var-name">${name}</span><span class="var-eq"> = </span><span class="var-val">${val}</span></span>`;
+  document.getElementById('var-bar').innerHTML =
+    `<span class="var-row"><span class="fn-tag">${s.fn ? s.fn + '()' : '—'}</span><span class="fn-note">当前所在函数</span></span>` +
+    row('(i, j)', s.i == null ? '-' : `(${s.i}, ${s.j})`) +
+    row('oldColor', OLD_COLOR) +
+    row('newColor', NEW_COLOR);
+}
+
+/* 调用链：从最外层往里一层一层列，缩进 = 递归深度。跟 79 一样——image 只写
+   名字（全程同一个对象），i/j 是每层各自的实参，写具体值。 */
+function renderChain(s) {
+  const host = document.getElementById('call-chain');
+  if (!s.fn) {
+    host.innerHTML = '<span class="chain-empty">还没开始 / 已经全部返回</span>';
+    return;
+  }
+  const rows = [{ id: null, text: `floodFill(image, sr=${SR}, sc=${SC}, newColor=${NEW_COLOR})`, depth: 0, top: !s.stack.length }];
+  s.stack.forEach((f, k) => {
+    rows.push({
+      id: f.id, depth: k + 1, top: k === s.stack.length - 1,
+      text: `dfs(i=${f.i}, j=${f.j})`,
+    });
+  });
+  host.innerHTML = rows.map(r =>
+    `<div class="chain-row${r.top ? ' top' : ''}" style="background:${tintOf(r.id)};margin-left:${r.depth * 18}px">` +
+      `<span>${r.text}</span></div>`).join('');
+}
+
+const EMPTY = { line: null, fn: null, image: IMAGE, stack: [], done: [], probe: null, i: null, j: null };
+
+function renderAll() {
+  const step = cur >= 0 ? STEPS[cur] : null;
+  const s = step || EMPTY;
+
+  renderChain(s);
+  renderGrid(s);
+  renderTree(s);
+  renderVars(s);
+  highlightLine(s.line);
+  renderCtrl(cur, STEPS.length, step ? step.info :
+    `点 Next 开始：从 (sr, sc) = (${SR}, ${SC}) 出发，把跟它颜色相同的四连通像素全部改成 newColor = ${NEW_COLOR}。`);
+}
+
+var render = renderAll;
+doReset();
+</script>
+</body>
+</html>

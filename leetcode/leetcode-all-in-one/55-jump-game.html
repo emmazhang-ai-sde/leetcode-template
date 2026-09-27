@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>55. Jump Game</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  /* nums 数组：一排格子 + 下面的下标行；格子上方一条 SVG 画"正在试的跳跃"弧线。
+     格子底色 = memo 的结论（绿 True / 红 False），还在栈上、没结论的格子用这次
+     调用的身份色，当前帧黑框 */
+  .arc-svg { display: block; }
+  .arc { fill: none; stroke: #3A6FD4; stroke-width: 2.5; }
+  .arc-tag { font-family: var(--ink-mono); font-size: 10px; font-weight: 700; fill: #3A6FD4; }
+  .nums-row { display: flex; gap: 8px; }
+  .num-cell { width: 52px; height: 46px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+              font-family: var(--ink-mono); font-size: 17px; font-weight: 700; color: #1a1a1a;
+              background: #f5f5f5; border: 1px solid #c9c9c9; transition: background 0.2s, box-shadow 0.15s; }
+  .num-cell.m-true  { background: rgba(93,202,165,0.4); border-color: rgba(60,160,125,0.5); }
+  .num-cell.m-false { background: rgba(224,133,133,0.3); border-color: rgba(200,90,90,0.5); }
+  .num-cell.reach   { border: 1.5px dashed #888; }
+  .num-cell.cur     { box-shadow: 0 0 0 2px #1a1a1a; }
+  .num-idx-row { display: flex; gap: 8px; margin-top: 4px; }
+  .num-idx { width: 52px; text-align: center; font-family: var(--ink-mono); font-size: 10.5px; color: #aaa; }
+  .num-flag-row { display: flex; gap: 8px; min-height: 16px; }
+  .num-flag { width: 52px; text-align: center; font-size: 12px; }
+  .memo-val { margin-top: 12px; font-family: var(--ink-mono); font-size: 12.5px; white-space: normal; max-width: 560px; line-height: 1.6; }
+
+  /* 递归树：节点里写 index，边上标 +step */
+  #tree-svg { display: block; }
+  .edge { stroke: #d5d5d5; stroke-width: 2; }
+  .edge.on-path { stroke: #3A6FD4; stroke-width: 3; }
+  .edge-tag { font-family: var(--ink-mono); font-size: 9.5px; fill: #b0b0b0; }
+  .edge-tag.on-path { fill: #3A6FD4; font-weight: 700; }
+  .node-box { fill: #f5f5f5; stroke: #c9c9c9; stroke-width: 1; transition: fill 0.2s; }
+  .node-box.n-hit { stroke-dasharray: 3 2; }
+  .node-box.n-current { stroke: #1a1a1a; stroke-width: 2.5; }
+  .node-box.n-stack   { stroke: rgba(90,130,200,0.55); }
+  .node-box.n-stack.n-hit, .node-box.n-current.n-hit { stroke-dasharray: 3 2; }
+  .node-box.n-done.r-true  { fill: rgba(93,202,165,0.4); stroke: rgba(60,160,125,0.5); }
+  .node-box.n-done.r-false { fill: rgba(224,133,133,0.3); stroke: rgba(200,90,90,0.5); }
+  .node-text { font-family: var(--ink-mono); font-size: 12px; font-weight: 700; fill: #1a1a1a; }
+  .node-text.dim { fill: #b5b5b5; }
+  .tree-note { margin-top: 8px; font-family: -apple-system, sans-serif; font-size: 11.5px; color: #888; line-height: 1.6; max-width: 420px; }
+
+  /* 四个块排成 2×2：左列 变量栏 / nums，右列 调用链 / 递归树（跟 64 一致） */
+  .viz-grid { display: grid; grid-template-columns: max-content max-content; gap: 16px; align-items: stretch; }
+  .viz-grid > .card, .viz-grid > .var-bar { min-width: 0; width: auto; }
+
+  .fn-tag { display: inline-block; padding: 1px 8px; border-radius: 5px; background: rgba(199,146,234,0.18);
+            color: #6b3fa0; font-family: var(--ink-mono); font-size: 12px; font-weight: 700; }
+  .fn-note { margin-left: 8px; font-family: -apple-system, sans-serif; font-size: 11px; color: #aaa; }
+  /* 变量名占固定宽度（最长的是 memo[index]，11 个字符），让每行的 = 对齐 */
+  #var-bar .var-name { display: inline-block; min-width: 11ch; }
+
+  /* 调用链：一层一行、按深度缩进，底色 = 这一帧的 index 的颜色 */
+  .call-chain { display: flex; flex-direction: column; gap: 4px; min-height: 132px; }
+  .chain-row { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 10px;
+               border-radius: 7px; font-family: var(--ink-mono); font-size: 12px;
+               color: #1a1a1a; white-space: nowrap; align-self: flex-start;
+               transition: box-shadow 0.15s; }
+  .chain-row.top { box-shadow: 0 0 0 1.5px #1a1a1a; font-weight: 700; }
+  .chain-i { color: #C4501E; font-weight: 700; }
+  .chain-dim { color: #8a8a8a; font-weight: 400; }
+  .chain-empty { font-family: var(--ink-mono); font-size: 12px; color: #bbb; }
+  .chain-note { margin-top: 10px; font-family: -apple-system, sans-serif; font-size: 11.5px; color: #888; line-height: 1.6; max-width: 460px; }
+
+  .legend-below { flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 0; max-width: none; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '55. Jump Game',
+  link: 'https://leetcode.com/problems/jump-game/',
+  examples: [
+    { id: 'ex1', label: '[2,3,1,1,4] -> true' },
+    { id: 'ex2', label: '[3,2,1,0,4] -> false' },
+  ],
+  legend: [
+    { color: 'rgba(249,203,66,0.30)', extra: 'box-shadow:inset 0 0 0 2px #1a1a1a;', label: '黑框 = 正在执行这一行的那次调用（数组上 = 这一帧站的下标）' },
+    { color: 'rgba(120,160,225,0.22)', label: '每个下标一种颜色 — 代码高亮行 / 调用链 / 树节点 / 数组格子同色；同一下标不管被调几次都是同一色' },
+    { color: '#f5f5f5', extra: 'border:1.5px dashed #888;', label: '树上虚线框 = 命中 memo 直接返回；数组上虚线框 = 当前帧这一层能跳到的范围' },
+    { color: 'rgba(93,202,165,0.4)', label: 'memo = True：从这个下标出发能到终点（dfs 返回 True）' },
+    { color: 'rgba(224,133,133,0.3)', label: 'memo = False：从这个下标出发到不了（dfs 返回 False）' },
+    { color: '#f5f5f5', extra: 'border:1px solid #c9c9c9;', label: '还没调用到 / 还没进 memo' },
+    { color: '#3A6FD4', extra: 'border-radius:2px;width:14px;height:3px;', label: '蓝弧 / 蓝边 = 调用栈上每一层正在试的那一跳（根 → 当前帧）' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+  <script>
+  renderCodeBox({
+    code: `
+class Solution:
+    def canJump(self, nums: List[int]) -> bool:
+            memo = {} #  if you are able to reach the last index at index x
+            memo[len(nums)-1] = True
+
+            return self.dfs(0, nums, memo)
+
+
+    def dfs(self, index, nums, memo):
+        if index >= len(nums):
+            return True
+
+        if index in memo:
+            return memo[index]
+
+        res = False
+        for step in range(nums[index],0, -1):
+            res = res or self.dfs(index + step, nums, memo)
+            if res:
+                memo[index] = res
+                return res
+        memo[index] = res
+        return False`,
+  });
+  </script>
+
+  <script>
+  (function () {
+    const stack = document.querySelector('.code-stack');
+    stack.appendChild(document.getElementById('info'));
+    const legend = document.querySelector('.legend');
+    const legendRow = legend.parentElement;
+    legend.classList.add('legend-below');
+    stack.appendChild(legend);
+    legendRow.remove();
+  })();
+  </script>
+
+  <div class="viz-panel">
+    <div class="viz-grid">
+      <div class="var-bar" id="var-bar"></div>
+      <div class="card">
+        <h3>调用链 — 现在这行代码是谁在跑</h3>
+        <div class="call-chain" id="call-chain"></div>
+        <div class="chain-note">memo 是所有层共用的同一个 dict（只写名字不写值）；nums 从不改、只写名字；index 按值传，每层各有一份；step / res 是每层自己的局部变量。</div>
+      </div>
+
+      <div class="card">
+        <h3>nums — 每格的数 = 站在这里最多能跳几步</h3>
+        <svg class="arc-svg" id="arc-svg"></svg>
+        <div class="nums-row" id="nums-row"></div>
+        <div class="num-idx-row" id="nums-idx-row"></div>
+        <div class="num-flag-row" id="nums-flag-row"></div>
+        <div class="memo-val" id="memo-val"></div>
+      </div>
+
+      <div class="card">
+        <h3>递归树 — 每个节点是一次 dfs(index) 调用</h3>
+        <svg id="tree-svg"></svg>
+        <div class="tree-note" id="tree-note"></div>
+      </div>
+    </div>
+  </div>
+</div><!-- /.main -->
+</div><!-- /.content-wrapper -->
+
+<script>
+// ── 例子：LeetCode 55 官方 Example 1 / 2（可切换） ────────────────────────
+const EXAMPLES = {
+  ex1: { nums: [2, 3, 1, 1, 4] },
+  ex2: { nums: [3, 2, 1, 0, 4] },
+};
+let NUMS = EXAMPLES.ex1.nums.slice();
+
+/* 行号表：正文从 1 开始，空行也占号（5/7/8/12/15 是空行）。
+   按 ANIMATION_GUIDE：每行可执行代码 ≥ 1 步，if/for 头每轮都停（True 和 False
+   都停），函数调用行走两遍（发起 + 返回），def 行进入时也停。 */
+const L = {
+  CJ:       2,   // def canJump(self, nums)   进入时一步
+  MEMO:     3,   // memo = {}
+  SEED:     4,   // memo[len(nums)-1] = True
+  CALL:     6,   // return self.dfs(0, nums, memo)   调用 + 返回各一次
+  DFS:      9,   // def dfs(self, index, nums, memo)   每次进入 dfs 一步
+  IFOVER:  10,   // if index >= len(nums):   True / False 各停一次
+  RETOVER: 11,   // return True（跳出数组也算到）
+  IFMEMO:  13,   // if index in memo:   True / False 各停一次
+  RETMEMO: 14,   // return memo[index]（命中）
+  RES:     16,   // res = False
+  FOR:     17,   // for step in range(nums[index],0, -1):   每轮 + 取空各一次
+  OR:      18,   // res = res or self.dfs(index + step, nums, memo)   调用 + 返回各一次
+  IFRES:   19,   // if res:   True / False 各停一次
+  SETT:    20,   // memo[index] = res（True）
+  RETT:    21,   // return res（True）
+  SETF:    22,   // memo[index] = res（False）
+  RETF:    23,   // return False
+};
+
+/* 色板按下标分：memo 的意义就是"同一个下标只算一次"，所以同一下标的所有调用
+   （第一次真算的 + 后面命中 memo 的）都用同一种底色。 */
+const CALL_TINT = [
+  'rgba(126,158,221,0.24)',
+  'rgba(227,192,109,0.30)',
+  'rgba(180,131,216,0.26)',
+  'rgba(216,143,121,0.26)',
+  'rgba(117,209,163,0.26)',
+  'rgba(127,196,210,0.28)',
+  'rgba(209,166,117,0.30)',
+  'rgba(219,148,184,0.24)',
+];
+const OUTER_TINT = 'rgba(150,150,150,0.18)';   // 外层 canJump()，不是 dfs
+const tintOf = (index) => index == null ? OUTER_TINT
+  : index >= NUMS.length ? OUTER_TINT : CALL_TINT[index % CALL_TINT.length];
+
+const fmt = (a) => '[' + a.join(', ') + ']';
+const fmtB = (v) => v === true ? 'True' : v === false ? 'False' : '-';
+const fmtMemo = (memo, order) => order.length
+  ? '{' + order.map(k => k + ': ' + fmtB(memo[k])).join(', ') + '}'
+  : '{}';
+
+// 递归树的节点：buildSteps() 跑算法时按调用顺序 push 进来，layoutTree() 再算坐标
+let NODES = [];
+
+// ── 真跑一遍 Lyon 的解法生成步骤 ──────────────────────────────────────────
+function buildSteps() {
+  const steps = [];
+  const n = NUMS.length;
+  const memo = {};        // 全程只有一份，所有层共用
+  const memoOrder = [];   // Python dict 的插入顺序
+  let memoExists = false;
+  let stack = [];         // dfs 调用栈：[{ id, index, kind, step, res }]
+  let done = [];
+  let fn = null;
+  let ret = null;
+  let hot = null;         // 这一步被读 / 写的 memo 下标
+  let callCount = 0;
+  NODES = [];
+
+  function setMemo(k, v) {
+    if (!(k in memo)) memoOrder.push(k);
+    memo[k] = v;
+  }
+
+  function snap(line, info) {
+    const top = stack.length ? stack[stack.length - 1] : null;
+    steps.push({
+      line, info, fn, ret, hot,
+      memo: memoExists ? Object.assign({}, memo) : null,
+      memoOrder: [...memoOrder],
+      stack: stack.map(f => Object.assign({}, f)),
+      done: [...done],
+      index: top ? top.index : null,
+      step: top ? top.step : null,
+      res: top ? top.res : null,
+    });
+    hot = null;
+  }
+
+  snap(null, 'DFS + memo：dfs(index) = 站在下标 index 能不能跳到最后一格。每一层从最大步开始往小试，' +
+    '跳到哪就递归问哪；有一条能到就立刻返回 True，全试完都不行才记 False。memo 记住每个下标的结论，' +
+    '同一下标不重复算。nums = ' + fmt(NUMS) + '，终点是下标 ' + (n - 1) + '。');
+
+  fn = 'canJump';
+  snap(L.CJ, 'Line 2: 进入 canJump(nums=' + fmt(NUMS) + ') — 入口函数，准备 memo 再从下标 0 出发。');
+  memoExists = true;
+  snap(L.MEMO, 'Line 3: memo = {} — memo[x] 记"从下标 x 出发能不能到终点"，之后所有层的 dfs 共用这同一份。');
+  setMemo(n - 1, true); hot = n - 1;
+  snap(L.SEED, 'Line 4: memo[len(nums)-1] = memo[' + (n - 1) + '] = True — 终点本身当然"能到"，这是递归的出口。');
+  snap(L.CALL, 'Line 6: 调用 self.dfs(0, nums, memo) — 从起点下标 0 开始问。');
+
+  function dfs(index, parentId, viaStep) {
+    const id = callCount++;
+    const kind = index >= n ? 'over' : (index in memo) ? 'hit' : 'full';
+    const parent = parentId == null ? null : NODES[parentId];
+    const node = { id, index, parent: parentId, kind, viaStep, result: null,
+                   depth: parent ? parent.depth + 1 : 0, children: [] };
+    NODES.push(node);
+    if (parent) parent.children.push(node);
+    const frame = { id, index, kind, step: null, res: null };
+    stack.push(frame);
+    fn = 'dfs';
+    snap(L.DFS, 'Line 9: 进入 dfs(index=' + index + ', nums, memo) — ' +
+      (kind === 'full' ? '站在下标 ' + index + '（最多跳 ' + (index < n ? NUMS[index] : '-') + ' 步），能到终点吗？' :
+       kind === 'hit' ? '下标 ' + index + ' 又被问到了。' : '已经跳出数组了。'));
+
+    if (index >= n) {
+      snap(L.IFOVER, 'Line 10: index=' + index + ' >= len(nums)=' + n + ' → True — 跳出了数组，Lyon 把这也算"到了"。');
+      snap(L.RETOVER, 'Line 11: return True。');
+      stack.pop(); done.push(id); node.result = true;
+      return true;
+    }
+    snap(L.IFOVER, 'Line 10: index=' + index + ' >= len(nums)=' + n + ' → False — 还在数组里。');
+
+    if (index in memo) {
+      hot = index;
+      snap(L.IFMEMO, 'Line 13: ' + index + ' in memo → True — 下标 ' + index + ' 已有结论 memo[' + index + '] = ' + fmtB(memo[index]) +
+        (index === n - 1 ? '（终点，一开始就填好的）' : '（之前算过的）') + '，不用再展开。');
+      hot = index;
+      snap(L.RETMEMO, 'Line 14: return memo[' + index + '] = ' + fmtB(memo[index]) + ' — 直接交回上一层。');
+      stack.pop(); done.push(id); node.result = memo[index];
+      return memo[index];
+    }
+    snap(L.IFMEMO, 'Line 13: ' + index + ' in memo → False — 下标 ' + index + ' 还没算过，往下走。');
+
+    frame.res = false;
+    snap(L.RES, 'Line 16: res = False — 先假设到不了，下面逐个步长试。');
+
+    const maxStep = NUMS[index];
+    for (let step = maxStep; step >= 1; step--) {
+      frame.step = step;
+      snap(L.FOR, 'Line 17: for step in range(nums[' + index + ']=' + maxStep + ', 0, -1) → step = ' + step +
+        ' — 从最大步往小试，先跳去下标 ' + (index + step) + '。');
+      snap(L.OR, 'Line 18: res = res or self.dfs(' + index + ' + ' + step + ') — res 现在是 False（一旦变 True 上一轮就 return 了），' +
+        'or 右边必须算：调用 dfs(' + (index + step) + ')。');
+      const r = dfs(index + step, id, step);
+      fn = 'dfs';
+      frame.res = frame.res || r;
+      snap(L.OR, 'Line 18: dfs(' + (index + step) + ') 返回 ' + fmtB(r) + ' → res = False or ' + fmtB(r) + ' = ' + fmtB(frame.res) + '。');
+      if (frame.res) {
+        snap(L.IFRES, 'Line 19: if res → True — 从下标 ' + index + ' 跳 ' + step + ' 步这条路能到终点，不用再试更小的步。');
+        setMemo(index, true); hot = index;
+        snap(L.SETT, 'Line 20: memo[' + index + '] = True — 记下结论。');
+        snap(L.RETT, 'Line 21: return True — 交回上一层。');
+        stack.pop(); done.push(id); node.result = true;
+        return true;
+      }
+      snap(L.IFRES, 'Line 19: if res → False — 跳 ' + step + ' 步这条路不行，回到 for 头试小一步。');
+    }
+    frame.step = null;
+    if (maxStep === 0) {
+      snap(L.FOR, 'Line 17: range(0, 0, -1) 是空的 — nums[' + index + '] = 0，站在这里一步也跳不了，循环一次都不进。');
+    } else {
+      snap(L.FOR, 'Line 17: range(' + maxStep + ', 0, -1) 已经走完 — ' + maxStep + ' 种步长全试过，没有一条能到终点。');
+    }
+    setMemo(index, false); hot = index;
+    snap(L.SETF, 'Line 22: memo[' + index + '] = res = False — 记下"从 ' + index + ' 出发到不了"，以后再有人问直接命中。');
+    snap(L.RETF, 'Line 23: return False — 交回上一层。');
+    stack.pop(); done.push(id); node.result = false;
+    return false;
+  }
+
+  const r = dfs(0, null, null);
+  fn = 'canJump';
+  ret = r;
+  const nFull = NODES.filter(x => x.kind === 'full').length;
+  const nHit = NODES.filter(x => x.kind === 'hit').length;
+  snap(L.CALL, 'Line 6: dfs(0) 返回 ' + fmtB(r) + '，return ' + fmtB(r) + ' — 整棵递归树走完：' +
+    NODES.length + ' 次调用里 ' + nFull + ' 次真算，' + nHit + ' 次命中 memo。');
+  fn = null;
+  snap(null, '✅ canJump 返回 ' + fmtB(r) + '，最终答案 = ' + (r ? 'true' : 'false') + '。' +
+    (r ? '一路先试最大步就成功了，memo 只起到"终点=True"的出口作用，没有一次回退。'
+       : '每个下标的 False 只算一次：下标 3 是 0 步的死路，2 和 1 不管怎么跳都落在 3 上，靠 memo 直接命中，不用重算。') +
+    ' 复杂度 O(n × max(nums))。');
+  return steps;
+}
+
+let STEPS = buildSteps();
+let cur = -1;
+
+// ── 递归树坐标：叶子按调用顺序从左到右排格子，内部节点取首尾孩子中点，y 按深度 ──
+const SLOT = 56, X0 = 30, Y0 = 22, DY = 50;
+const NODE_W = 38, NODE_H = 24;
+function layoutTree() {
+  let slot = 0;
+  let maxDepth = 0;
+  function place(nd) {
+    nd.children.forEach(place);
+    if (!nd.children.length) nd.x = X0 + (slot++) * SLOT;
+    else nd.x = (nd.children[0].x + nd.children[nd.children.length - 1].x) / 2;
+    nd.y = Y0 + nd.depth * DY;
+    if (nd.depth > maxDepth) maxDepth = nd.depth;
+  }
+  place(NODES[0]);
+  const w = Math.max(X0 * 2 + (slot - 1) * SLOT, 200);
+  const h = Y0 * 2 + maxDepth * DY;
+  const svg = document.getElementById('tree-svg');
+  svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+  svg.style.width = w + 'px';
+  svg.style.height = h + 'px';
+}
+layoutTree();
+
+// ── 渲染（只读快照，无副作用；Prev / Reset / lockStableSizes 干跑都靠这点）──
+const CELL = 52, GAP = 8, ARC_H = 46;
+const cellX = (k) => k * (CELL + GAP) + CELL / 2;
+
+function renderNums(s) {
+  const n = NUMS.length;
+  const top = s.stack.length ? s.stack[s.stack.length - 1] : null;
+  const onStack = {};
+  s.stack.forEach(f => { onStack[f.index] = true; });
+  const reach = (top && top.kind === 'full' && top.res != null)
+    ? { from: top.index + 1, to: Math.min(n - 1, top.index + NUMS[top.index]) } : null;
+  document.getElementById('nums-row').innerHTML = NUMS.map((v, k) => {
+    const cls = ['num-cell'];
+    let style = '';
+    if (s.memo && k in s.memo) cls.push(s.memo[k] ? 'm-true' : 'm-false');
+    else if (onStack[k]) style = ' style="background:' + tintOf(k) + '"';
+    if (reach && k >= reach.from && k <= reach.to) cls.push('reach');
+    if (s.hot === k || (top && top.index === k)) cls.push('cur');
+    return '<div class="' + cls.join(' ') + '"' + style + '>' + v + '</div>';
+  }).join('');
+  document.getElementById('nums-idx-row').innerHTML = NUMS.map((v, k) => '<div class="num-idx">' + k + '</div>').join('');
+  document.getElementById('nums-flag-row').innerHTML = NUMS.map((v, k) =>
+    '<div class="num-flag">' + (k === n - 1 ? '🏁' : k === 0 ? '▲' : '') + '</div>').join('');
+
+  // 调用栈上每一层正在试的那一跳画成弧线：index → index + step
+  const w = n * (CELL + GAP) - GAP;
+  const parts = [];
+  s.stack.forEach(f => {
+    if (f.step == null) return;
+    const x1 = cellX(f.index), x2 = cellX(f.index + f.step);
+    const mid = (x1 + x2) / 2, lift = Math.min(ARC_H - 8, 14 + f.step * 9);
+    parts.push('<path class="arc" d="M' + x1 + ' ' + ARC_H + ' Q' + mid + ' ' + (ARC_H - lift * 2) + ' ' + x2 + ' ' + ARC_H + '"/>');
+    parts.push('<circle cx="' + x2 + '" cy="' + ARC_H + '" r="3" fill="#3A6FD4"/>');
+    parts.push('<text class="arc-tag" x="' + mid + '" y="' + (ARC_H - lift - 3) + '" text-anchor="middle">+' + f.step + '</text>');
+  });
+  const svg = document.getElementById('arc-svg');
+  svg.setAttribute('viewBox', '0 0 ' + w + ' ' + ARC_H);
+  svg.style.width = w + 'px';
+  svg.style.height = ARC_H + 'px';
+  svg.innerHTML = parts.join('');
+
+  document.getElementById('memo-val').innerHTML =
+    '<span class="var-name">memo</span><span class="var-eq"> = </span>' +
+    '<span class="var-val">' + (s.memo ? fmtMemo(s.memo, s.memoOrder) : '—') + '</span>';
+}
+
+const stackIds = (s) => s.stack.map(f => f.id);
+
+function nodeState(s, id) {
+  if (s.done.indexOf(id) >= 0) return 'n-done';
+  const at = stackIds(s).indexOf(id);
+  if (at >= 0) return at === s.stack.length - 1 ? 'n-current' : 'n-stack';
+  return '';
+}
+
+function renderTree(s) {
+  const parts = [];
+  const ids = stackIds(s);
+  NODES.forEach(nd => {
+    if (nd.parent == null) return;
+    const p = NODES[nd.parent];
+    const onPath = ids.indexOf(nd.id) >= 0 && ids.indexOf(nd.parent) >= 0;
+    const x1 = p.x, y1 = p.y + NODE_H / 2, x2 = nd.x, y2 = nd.y - NODE_H / 2;
+    parts.push('<line class="edge' + (onPath ? ' on-path' : '') + '" x1="' + x1 + '" y1="' + y1 +
+      '" x2="' + x2 + '" y2="' + y2 + '"/>');
+    parts.push('<text class="edge-tag' + (onPath ? ' on-path' : '') + '" x="' + ((x1 + x2) / 2 + 5) +
+      '" y="' + ((y1 + y2) / 2 + 3) + '">+' + nd.viaStep + '</text>');
+  });
+  NODES.forEach(nd => {
+    const st = nodeState(s, nd.id);
+    const onStack = st === 'n-current' || st === 'n-stack';
+    const cls = ['node-box', st];
+    if (nd.kind === 'hit') cls.push('n-hit');
+    if (st === 'n-done') cls.push(nd.result ? 'r-true' : 'r-false');
+    const fill = onStack ? ' style="fill:' + tintOf(nd.index) + '"' : '';
+    parts.push('<g>' +
+      '<rect class="' + cls.join(' ') + '"' + fill + ' x="' + (nd.x - NODE_W / 2) + '" y="' + (nd.y - NODE_H / 2) +
+        '" width="' + NODE_W + '" height="' + NODE_H + '" rx="6"/>' +
+      '<text class="node-text' + (st ? '' : ' dim') + '" x="' + nd.x + '" y="' + (nd.y + 4) +
+        '" text-anchor="middle">' + nd.index + '</text>' +
+      '</g>');
+  });
+  document.getElementById('tree-svg').innerHTML = parts.join('');
+  document.getElementById('tree-note').textContent =
+    '节点里写的是 index，边上的 +step 是这一层选的步长（从大到小试）。绿 = 返回 True、红 = 返回 False；' +
+    '虚线框的节点命中 memo，下面不再长子树。';
+}
+
+function renderVars(s) {
+  const row = (name, val, note) => '<span class="var-row"><span class="var-name">' + name +
+    '</span><span class="var-eq"> = </span><span class="var-val">' + val + '</span>' +
+    (note ? '<span class="fn-note">' + note + '</span>' : '') + '</span>';
+  const top = s.stack.length ? s.stack[s.stack.length - 1] : null;
+  const memoIdx = (top && s.memo && top.index in s.memo) ? fmtB(s.memo[top.index]) : '-';
+  const d = (v) => v == null ? '-' : v;
+  document.getElementById('var-bar').innerHTML =
+    '<span class="var-row"><span class="fn-tag">' + (s.fn ? s.fn + '()' : '—') +
+      '</span><span class="fn-note">当前所在函数</span></span>' +
+    row('nums', fmt(NUMS)) +
+    row('len(nums)', NUMS.length) +
+    row('index', d(s.index), '当前这一层站的下标') +
+    row('nums[index]', s.index == null || s.index >= NUMS.length ? '-' : NUMS[s.index], '最多能跳几步') +
+    row('step', d(s.step), 'for 循环局部变量') +
+    row('res', fmtB(s.res), 'dfs 局部变量') +
+    row('memo[index]', memoIdx) +
+    row('ret', fmtB(s.ret));
+}
+
+/* 调用链卡片：从最外层往里一层一层列，缩进 = 递归深度。memo / nums 全程是同一份
+   对象，按 CH4 规范只写名字不写值；index 按值传、每层各一份，写具体数值；
+   step / res 是每层自己的局部变量，另外用 chain-i 标出来。 */
+function renderChain(s) {
+  const host = document.getElementById('call-chain');
+  if (!s.fn) {
+    host.innerHTML = '<span class="chain-empty">还没开始 / 已经全部返回</span>';
+    return;
+  }
+  const val = (v) => '<span class="var-val">' + v + '</span>';
+  const rows = [];
+  rows.push({ index: null, depth: 0, top: !s.stack.length, text: 'canJump(nums)', local: null, tag: null });
+  s.stack.forEach((f, k) => {
+    const locals = [];
+    if (f.step != null) locals.push('step = ' + f.step);
+    if (f.res != null) locals.push('res = ' + fmtB(f.res));
+    rows.push({
+      index: f.index, depth: k + 1, top: k === s.stack.length - 1,
+      text: 'dfs(index=' + val(f.index) + ', nums, memo)',
+      local: locals.length ? locals.join(', ') : null,
+      tag: f.kind === 'hit' ? '命中 memo' : f.kind === 'over' ? '跳出数组' : null,
+    });
+  });
+  host.innerHTML = rows.map(r =>
+    '<div class="chain-row' + (r.top ? ' top' : '') + '"' +
+      ' style="background:' + tintOf(r.index) + ';margin-left:' + (r.depth * 18) + 'px">' +
+      '<span>' + r.text + '</span>' +
+      (r.local ? '<span class="chain-i">' + r.local + '</span>' : '') +
+      (r.tag ? '<span class="chain-dim">→ ' + r.tag + '</span>' : '') +
+    '</div>').join('');
+}
+
+function tintLine(s) {
+  document.querySelectorAll('.code-line').forEach(el => { el.style.background = ''; });
+  if (s.line == null || !s.fn) return;
+  const el = document.querySelector('.code-line[data-l="' + s.line + '"]');
+  if (!el) return;
+  const top = s.stack.length ? s.stack[s.stack.length - 1] : null;
+  el.style.background = tintOf(top ? top.index : null);
+}
+
+const EMPTY = { line: null, info: null, fn: null, ret: null, hot: null, memo: null, memoOrder: [],
+                stack: [], done: [], index: null, step: null, res: null };
+
+function renderAll() {
+  const step = cur >= 0 ? STEPS[cur] : null;
+  const s = step || EMPTY;
+
+  renderChain(s);
+  renderNums(s);
+  renderTree(s);
+  renderVars(s);
+  highlightLine(s.line);
+  tintLine(s);
+  renderCtrl(cur, STEPS.length, step ? step.info :
+    '点 Next 开始：nums = ' + fmt(NUMS) + '，从下标 0 出发，每格的数是最多能跳的步数，问能不能跳到最后一格。');
+}
+
+function loadExample(id) {
+  const ex = EXAMPLES[id];
+  if (!ex) return;
+  stopAuto();
+  NUMS = ex.nums.slice();
+  STEPS = buildSteps();
+  layoutTree();
+  cur = -1;
+  render();
+  lockStableSizes();
+  Object.keys(EXAMPLES).forEach(key => {
+    const btn = document.getElementById('ex-' + key);
+    if (btn) btn.classList.toggle('auto-active', key === id);
+  });
+}
+
+var render = renderAll;
+loadExample('ex1');
+</script>
+</body>
+</html>

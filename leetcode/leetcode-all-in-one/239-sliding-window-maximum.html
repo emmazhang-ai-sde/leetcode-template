@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>239. Sliding Window Maximum — Monotonic Deque</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  /* 图例挪到代码框下面后改纵向单列排列（ANIMATION_GUIDE 硬性规则） */
+  .legend-below { flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 0; max-width: none; }
+  /* 步骤说明里 "变量 = 值" 的值：红色加粗（info 文案里用 {{值}} 标记） */
+  .step-info .iv { color: var(--ink-danger); font-weight: 700; }
+  /* "Line N: 代码 — 解说"的解说段：紫色荧光底（2026-08-25 用户要求），
+     infoHtml 自动把第一个 " — " 之后的文字包进来 */
+  .step-info .dash-note { background: rgba(199,146,234,0.30); border-radius: 3px; padding: 1px 3px; }
+
+  /* ── nums 数组 ── */
+  .lc239-arr { display: flex; align-items: flex-end; justify-content: center; gap: 6px; }
+  .lc239-cellw { width: 48px; display: flex; flex-direction: column; align-items: center; gap: 3px; font-family: var(--ink-mono); }
+  .lc239-cell {
+    width: 48px; height: 44px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    background: #f5f5f5; border: 1px solid #c9c9c9; color: #1a1a1a; font-size: 16px; font-weight: 800;
+    transition: background 0.2s, transform 0.2s, opacity 0.2s;
+  }
+  .lc239-cell.c-win   { background: rgba(120,160,225,0.3); border-color: rgba(90,130,200,0.55); }
+  .lc239-cell.c-cur   { background: rgba(249,203,66,0.55); border-color: #1a1a1a; transform: scale(1.08); }
+  .lc239-cell.c-max   { background: rgba(93,202,165,0.4); border-color: rgba(60,160,125,0.5); transform: scale(1.06); }
+  .lc239-cell.c-pop   { background: rgba(247,140,108,0.4); border-color: rgba(200,90,60,0.6); }
+  .lc239-cell.c-gone  { opacity: 0.3; }
+  .lc239-idx { height: 14px; font-size: 11px; color: #aaa; }
+  /* end 指针带两行（end = 下标 / num = 值，2026-08-26 用户要求），所有列
+     统一留两行高，格子底边才对得齐 */
+  .lc239-ptr { height: 30px; line-height: 14px; font-size: 11px; font-weight: 800; white-space: nowrap; text-align: center; }
+  .lc239-ptr.p-start { color: #3A6FD4; }
+  .lc239-ptr.p-end   { color: #B07800; }
+  .lc239-ptr.p-both  { color: #C4501E; }
+  .lc239-winbar { display: flex; justify-content: center; gap: 6px; height: 5px; margin-top: 5px; }
+  .lc239-seg { width: 48px; height: 5px; border-radius: 3px; background: transparent; transition: background 0.2s; }
+  .lc239-seg.c-win { background: rgba(120,160,225,0.55); }
+  .lc239-winlabel { min-height: 20px; text-align: center; font-family: var(--ink-mono); font-size: 12.5px; line-height: 20px; color: #555; margin-top: 6px; }
+
+  /* deque 盒子：左端 = 队头 queue[0]。盒里大字 = nums[idx]，小字 = idx */
+  .lc239-q { display: flex; align-items: flex-end; gap: 6px; min-height: 78px; }
+  .lc239-qcell { display: flex; flex-direction: column; align-items: center; gap: 3px; font-family: var(--ink-mono); }
+  .lc239-qbox {
+    width: 48px; height: 44px; border-radius: 8px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; background: rgba(120,160,225,0.3);
+    border: 1px solid rgba(90,130,200,0.55); transition: background 0.2s;
+  }
+  .lc239-qbox .qv { font-size: 15px; font-weight: 800; color: #1a1a1a; line-height: 1.1; }
+  .lc239-qbox .qi { font-size: 9.5px; color: #777; }
+  .lc239-qbox.c-head { background: rgba(93,202,165,0.4); border-color: rgba(60,160,125,0.5); }
+  .lc239-qbox.c-cmp  { background: rgba(247,140,108,0.4); border-color: rgba(200,90,60,0.6); }
+  .lc239-qbox.c-new  { background: rgba(249,203,66,0.55); border-color: #1a1a1a; }
+  .lc239-qbox.c-ghost { background: rgba(247,140,108,0.18); border: 1px dashed rgba(200,90,60,0.6); opacity: 0.65; }
+  .lc239-qtag { height: 14px; font-size: 10px; font-weight: 700; color: #3c9f7d; white-space: nowrap; }
+  .lc239-qtag.t-ghost { color: rgba(200,90,60,0.9); }
+  .lc239-qempty { font-family: var(--ink-mono); font-size: 12px; color: #aaa; align-self: center; }
+
+  /* result */
+  .lc239-res { display: flex; gap: 6px; min-height: 44px; align-items: center; }
+  .lc239-rbox {
+    width: 44px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    font-family: var(--ink-mono); font-size: 15px; font-weight: 800; color: #1a1a1a;
+    background: rgba(93,202,165,0.4); border: 1px solid rgba(60,160,125,0.5); transition: background 0.2s;
+  }
+  .lc239-rbox.c-new { background: rgba(249,203,66,0.55); border-color: #1a1a1a; }
+  .lc239-rghost { width: 44px; height: 40px; border-radius: 8px; border: 1px dashed #d9d9d9; }
+  .lc239-note { margin-top: 10px; font-family: var(--ink-mono); font-size: 11px; color: #999; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '239. Sliding Window Maximum — Monotonic Deque',
+  link: 'https://leetcode.com/problems/sliding-window-maximum/',
+  legend: [
+    { color: 'rgba(249,203,66,0.55)', label: '当前处理：num 进窗 / 刚 append 进队尾的下标 / 刚收进 result 的值' },
+    { color: 'rgba(120,160,225,0.3)', label: '窗口 [start..end] 内的元素 / 还留在 deque 里的候选下标' },
+    { color: 'rgba(247,140,108,0.4)', label: '正被比较 / 被弹出的队尾下标（值 ≤ num，再也当不上窗口最大）' },
+    { color: 'rgba(93,202,165,0.4)', label: '队头 queue[0] = 当前窗口最大值的下标 / 已收进 result' },
+    { color: '#f5f5f5', extra: 'border:1px solid #c9c9c9;', label: '还没进窗（灰）/ 已滑出窗口（淡）' },
+  ],
+});
+</script>
+
+<div class="main layout-grid">
+  <script>
+  renderCodeBox({
+    code: `
+class Solution:
+    def maxSlidingWindow(self, nums: List[int], k: int) -> List[int]:
+        queue = deque()
+        result = []
+        start = 0
+        for end, num in enumerate(nums):
+            # sliding windows 内可能的最大值对应的index 单调递减deque
+            while queue and nums[queue[-1]] <= num:
+                queue.pop()
+            queue.append(end)
+            if end - start + 1 == k:
+                result.append(nums[queue[0]])
+                # 如果sliding window 弹出最大值
+                if queue[0] == start:
+                    queue.popleft()
+                start +=1
+        return result`,
+  });
+  </script>
+
+  <!-- 颜色图例搬到代码框下面（ANIMATION_GUIDE 硬性规则）。步骤说明 #info
+       本页例外：保持 renderCodeBox 的默认位置（.code-stack 第一个子元素，
+       代码框上面）——2026-08-26 用户要求 -->
+  <script>
+  (function () {
+    const stack = document.querySelector('.code-stack');
+    const legend = document.querySelector('.legend');
+    const legendRow = legend.parentElement;
+    legend.classList.add('legend-below');
+    stack.appendChild(legend);
+    legendRow.remove();
+  })();
+  </script>
+
+  <div class="viz-panel">
+    <div class="var-bar" id="var-bar"></div>
+
+    <div class="card">
+      <h3>nums — 窗口 [start..end]，k = 3</h3>
+      <div class="lc239-arr" id="arr"></div>
+      <div class="lc239-winbar" id="winbar"></div>
+      <div class="lc239-winlabel" id="winlabel"></div>
+    </div>
+
+    <div class="card">
+      <h3>Monotonic Deque — 存下标，值单调递减，队头永远是窗口最大</h3>
+      <div class="lc239-q" id="qrow"></div>
+      <div class="lc239-note"># 队里存的是下标：盒内大字 = nums[idx]，小字 = idx。左端 = 队头 queue[0]</div>
+    </div>
+
+    <div class="card">
+      <h3>result — 每个满窗收一个最大值</h3>
+      <div class="lc239-res" id="resrow"></div>
+    </div>
+  </div>
+</div><!-- /.main -->
+</div>
+
+<script>
+(function () {
+  // ── 模拟（纯逻辑，无 DOM；验证脚本单独 eval 这一段）──────────────────────
+  const NUMS = [1, 3, -1, -3, 5, 3, 6, 7];
+  const K = 3;
+  const fmt = (a) => '[' + a.join(', ') + ']';
+
+  /* 行号表：1 class / 7、13 注释不执行。while 的上冒/弹出发生在 8-9 两行来回，
+     每次条件判断（True 或 False）都在 8 停一步。 */
+  const L = {
+    DEF: 2,      // def maxSlidingWindow
+    QUEUE: 3,    // queue = deque()
+    RESULT: 4,   // result = []
+    START: 5,    // start = 0
+    FOR: 6,      // for end, num in enumerate(nums)   每轮 + 取空各一步
+    WHILE: 8,    // while queue and nums[queue[-1]] <= num
+    POP: 9,      // queue.pop()
+    APPEND: 10,  // queue.append(end)
+    IFWIN: 11,   // if end - start + 1 == k
+    RESAPP: 12,  // result.append(nums[queue[0]])
+    IFHEAD: 14,  // if queue[0] == start
+    POPLEFT: 15, // queue.popleft()
+    INC: 16,     // start +=1
+    RET: 17,     // return result
+  };
+
+  function buildSteps() {
+    const steps = [];
+    const st = { q: [], res: [], start: null, end: null, num: null, inited: false };
+    function snap(line, info, hl) {
+      steps.push({ line, info, q: [...st.q], res: [...st.res],
+                   start: st.start, end: st.end, num: st.num, inited: st.inited,
+                   hl: hl || {} });
+    }
+
+    snap(null, '点 Next 开始：nums = ' + fmt(NUMS) + '，k = ' + K + '。窗口每滑一格收一个最大值——' +
+      '暴力每窗扫 k 个是 O(nk)，这题用一个「单调递减 deque」把它压到 O(n)。');
+    snap(L.DEF, 'Line 2: 进入 maxSlidingWindow(nums, k) — 思路：deque 里存下标，对应的值保持单调递减，' +
+      '这样队头永远是当前窗口最大值的下标。');
+    snap(L.QUEUE, 'Line 3: queue = deque() — 空的单调队列。之后只会从队尾弹「比新数小的」、从队头弹「滑出窗的」，' +
+      '每个下标最多进出各一次。');
+    snap(L.RESULT, 'Line 4: result = {{[]}} — 收每个满窗的最大值，最后返回它。');
+    st.start = 0;
+    st.inited = true;
+    snap(L.START, 'Line 5: start = {{0}} — 窗口左边界；右边界就是 for 里的 end。');
+
+    NUMS.forEach(function (num, end) {
+      st.end = end; st.num = num;
+      snap(L.FOR, 'Line 6: for → 第 ' + (end + 1) + '/' + NUMS.length + ' 个：end = {{' + end + '}}，num = {{' + num + '}}。',
+        { entering: end });
+
+      // while queue and nums[queue[-1]] <= num
+      for (;;) {
+        if (!st.q.length) {
+          snap(L.WHILE, 'Line 8: while — queue 是空的，条件不成立，不用弹。', { entering: end });
+          break;
+        }
+        const back = st.q[st.q.length - 1];
+        if (NUMS[back] <= num) {
+          snap(L.WHILE, 'Line 8: while — 队尾下标 ' + back + ' 的值 nums[' + back + '] = {{' + NUMS[back] +
+            '}} ≤ num = {{' + num + '}}：只要 ' + num + ' 在窗里，它就永远当不上最大，条件成立，弹。',
+            { entering: end, cmp: back });
+          st.q.pop();
+          snap(L.POP, 'Line 9: queue.pop() — 下标 ' + back + '（值 ' + NUMS[back] + '）从队尾弹出，队列保持单调递减。',
+            { entering: end, popped: back });
+        } else {
+          snap(L.WHILE, 'Line 8: while — 队尾下标 ' + back + ' 的值 nums[' + back + '] = {{' + NUMS[back] +
+            '}} > num = {{' + num + '}}，单调性没破，条件不成立，停止弹出。',
+            { entering: end, cmp: back, keep: true });
+          break;
+        }
+      }
+
+      st.q.push(end);
+      snap(L.APPEND, 'Line 10: queue.append(' + end + ') — 新下标进队尾。现在队里的值从头到尾：' +
+        fmt(st.q.map(i => NUMS[i])) + '，依然单调递减。', { appended: end });
+
+      if (end - st.start === K - 1) {
+        snap(L.IFWIN, 'Line 11: end - start + 1 = {{' + K + '}} == k — 窗口 [' + st.start + '..' + end +
+          '] 正好攒满 ' + K + ' 个，条件成立，该收答案了。');
+        const maxIdx = st.q[0];
+        st.res.push(NUMS[maxIdx]);
+        snap(L.RESAPP, 'Line 12: result.append(nums[queue[0]]) — 队头下标 ' + maxIdx + '，nums[' + maxIdx + '] = {{' +
+          NUMS[maxIdx] + '}} 就是这个窗口的最大值，收进 result。', { maxIdx: maxIdx, newRes: true });
+        if (st.q[0] === st.start) {
+          snap(L.IFHEAD, 'Line 14: queue[0] = {{' + st.q[0] + '}} == start = {{' + st.start +
+            '}} — 最大值正好停在窗口最左端，窗口一滑它就出界了，条件成立，得把它请出队头。', { headCheck: st.q[0] });
+          const h = st.q.shift();
+          snap(L.POPLEFT, 'Line 15: queue.popleft() — 下标 ' + h + '（值 ' + NUMS[h] + '）从队头弹掉，' +
+            '下一个窗口的最大换人。', { popleft: h });
+        } else {
+          snap(L.IFHEAD, 'Line 14: queue[0] = {{' + st.q[0] + '}} ≠ start = {{' + st.start +
+            '}} — 最大值不在窗口最左端，滑一格它还在窗里，条件不成立，不弹。', { headCheck: st.q[0] });
+        }
+        st.start += 1;
+        snap(L.INC, 'Line 16: start = {{' + st.start + '}} — 窗口左边界右移一格，准备迎接下一个 end。');
+      } else {
+        snap(L.IFWIN, 'Line 11: end - start + 1 = {{' + (end - st.start + 1) + '}} ≠ k = {{' + K +
+          '}} — 窗口还没攒满 ' + K + ' 个，条件不成立，继续往右扩。');
+      }
+    });
+
+    st.end = null; st.num = null;
+    snap(L.FOR, 'Line 6: nums 取完了，for 结束 — 每个下标最多进队一次、出队一次（队尾 pop 或队头 popleft），' +
+      '所以整个循环摊还 O(n)。');
+    snap(L.RET, 'Line 17: return result = {{' + fmt(st.res) + '}}。');
+    snap(null, '✅ result = {{' + fmt(st.res) + '}} — 单调递减 deque：队头永远是窗口最大；' +
+      '新数进来先把队尾所有 ≤ 它的弹光（它们再也没机会当最大），最大值滑出窗时从队头弹。O(n) 时间、O(k) 空间。');
+    return steps;
+  }
+  // ── 模拟结束 ──────────────────────────────────────────────────────────────
+
+  window.STEPS = buildSteps();
+  window.cur = -1;
+
+  // ── 渲染（只读快照，无副作用）──────────────────────────────────────────────
+  const EMPTY = { line: null, q: [], res: [], start: null, end: null, num: null, inited: false, hl: {} };
+
+  /* info 文案里 {{值}} → 红色加粗（.step-info .iv）。先整体转义再替换标记，
+     renderCtrl 只认纯文本，所以 renderAll 里先传空串、再覆写 #info 的 innerHTML。 */
+  function infoHtml(s) {
+    const e = String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return e.replace(/\{\{(.*?)\}\}/g, '<span class="iv">$1</span>')
+      // 第一个 " — " 之后的解说整段上紫色荧光底（只认空格夹着的单 em-dash，
+      // "——"连破折号不算分隔符）
+      .replace(/ — ([\s\S]+)$/, ' — <span class="dash-note">$1</span>');
+  }
+  const RES_TOTAL = NUMS.length - K + 1;
+
+  function renderArr(s) {
+    const h = s.hl;
+    const cells = [];
+    const segs = [];
+    for (let i = 0; i < NUMS.length; i++) {
+      const inWin = s.inited && s.end != null && i >= s.start && i <= s.end;
+      let cls = 'lc239-cell';
+      if (h.maxIdx === i) cls += ' c-max';
+      else if (h.entering === i && (s.line === L.FOR)) cls += ' c-cur';
+      else if (h.cmp === i && !h.keep) cls += ' c-pop';
+      else if (h.popped === i) cls += ' c-pop';
+      else if (inWin) cls += ' c-win';
+      else if (s.inited && i < s.start) cls += ' c-gone';
+
+      const isS = s.inited && s.start === i && s.end != null;
+      const isE = s.end === i;
+      let ptr = '', pcls = 'lc239-ptr';
+      if (isS && isE) { ptr = 's=e=' + i + '<br>num = ' + NUMS[i]; pcls += ' p-both'; }
+      else if (isS) { ptr = 'start'; pcls += ' p-start'; }
+      else if (isE) { ptr = 'end = ' + i + '<br>num = ' + NUMS[i]; pcls += ' p-end'; }
+
+      cells.push('<div class="lc239-cellw"><div class="' + cls + '">' + NUMS[i] + '</div>' +
+        '<div class="lc239-idx">' + i + '</div><div class="' + pcls + '">' + ptr + '</div></div>');
+      segs.push('<div class="lc239-seg' + (inWin ? ' c-win' : '') + '"></div>');
+    }
+    document.getElementById('arr').innerHTML = cells.join('');
+    document.getElementById('winbar').innerHTML = segs.join('');
+    document.getElementById('winlabel').textContent =
+      (s.inited && s.end != null && s.start <= s.end)
+        ? '窗口 [' + s.start + '..' + s.end + '] = ' + '[' + NUMS.slice(s.start, s.end + 1).join(', ') + ']'
+        : '';
+  }
+
+  function renderQueue(s) {
+    const h = s.hl;
+    const parts = [];
+    s.q.forEach(function (idx, pos) {
+      let cls = 'lc239-qbox';
+      if (h.cmp === idx && !h.keep && s.line === L.WHILE) cls += ' c-cmp';
+      else if (h.appended === idx) cls += ' c-new';
+      else if (pos === 0 && (h.maxIdx === idx || h.headCheck === idx)) cls += ' c-head';
+      else if (pos === 0) cls += ' c-head';
+      else if (h.cmp === idx && h.keep) cls += ' c-cmp';
+      const tag = pos === 0 ? 'front·max' : (pos === s.q.length - 1 ? 'back' : '');
+      parts.push('<div class="lc239-qcell"><div class="' + cls + '">' +
+        '<span class="qv">' + NUMS[idx] + '</span><span class="qi">idx ' + idx + '</span></div>' +
+        '<div class="lc239-qtag">' + tag + '</div></div>');
+    });
+    // 被弹出的那一步：在原来的位置画一个虚线幽灵盒
+    if (h.popped != null) {
+      parts.push('<div class="lc239-qcell"><div class="lc239-qbox c-ghost">' +
+        '<span class="qv">' + NUMS[h.popped] + '</span><span class="qi">idx ' + h.popped + '</span></div>' +
+        '<div class="lc239-qtag t-ghost">popped</div></div>');
+    }
+    if (h.popleft != null) {
+      parts.unshift('<div class="lc239-qcell"><div class="lc239-qbox c-ghost">' +
+        '<span class="qv">' + NUMS[h.popleft] + '</span><span class="qi">idx ' + h.popleft + '</span></div>' +
+        '<div class="lc239-qtag t-ghost">popleft</div></div>');
+    }
+    document.getElementById('qrow').innerHTML =
+      parts.length ? parts.join('') : '<div class="lc239-qempty">deque 空</div>';
+  }
+
+  function renderRes(s) {
+    const out = [];
+    for (let i = 0; i < RES_TOTAL; i++) {
+      if (i < s.res.length) {
+        const isNew = s.hl.newRes && i === s.res.length - 1;
+        out.push('<div class="lc239-rbox' + (isNew ? ' c-new' : '') + '">' + s.res[i] + '</div>');
+      } else {
+        out.push('<div class="lc239-rghost"></div>');
+      }
+    }
+    document.getElementById('resrow').innerHTML = out.join('');
+  }
+
+  function renderVars(s) {
+    const row = (n, v) => '<span class="var-row"><span class="var-name">' + n +
+      '</span><span class="var-eq"> = </span><span class="var-val">' + v + '</span></span>';
+    document.getElementById('var-bar').innerHTML =
+      row('k', K) +
+      row('start', s.start == null ? '-' : s.start) +
+      row('end', s.end == null ? '-' : s.end) +
+      row('num', s.num == null ? '-' : s.num) +
+      row('queue', fmt(s.q)) +
+      row('对应值', fmt(s.q.map(i => NUMS[i]))) +
+      row('result', fmt(s.res));
+  }
+
+  function renderAll() {
+    const step = cur >= 0 ? STEPS[cur] : null;
+    const s = step || EMPTY;
+    renderArr(s);
+    renderQueue(s);
+    renderRes(s);
+    renderVars(s);
+    highlightLine(s.line);
+    renderCtrl(cur, STEPS.length, '');
+    document.getElementById('info').innerHTML = infoHtml(step ? step.info :
+      '点 Next 开始：nums = [1, 3, -1, -3, 5, 3, 6, 7]，k = 3，逐步看单调递减 deque 怎么维护窗口最大值。');
+  }
+
+  window.render = renderAll;
+  doReset();
+})();
+</script>
+</body>
+</html>

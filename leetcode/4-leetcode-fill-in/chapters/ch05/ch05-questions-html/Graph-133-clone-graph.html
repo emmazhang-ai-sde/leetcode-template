@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>133. Clone Graph · 填空</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/fill-theme.css">
+<script src="../../assets/repo-corner.js" defer></script>
+</head>
+<body class="problem-page">
+<main class="problem-main">
+  <h1 class="prob-title">
+    <a id="probLink" href="https://leetcode.com/problems/clone-graph/description/" target="_blank" rel="noopener noreferrer">
+      <span class="prob-title__num" id="probNum">133.</span><span id="probName">Clone Graph</span>
+    </a>
+  </h1>
+
+  <div class="code-with-actions">
+    <div class="code-widget">
+      <div class="code-area">
+        <table class="code-table" id="ct" aria-label="代码填空">
+<tr><td class="ln">1</td><td class="lc"><span class="cm">"""</span></td></tr>
+<tr><td class="ln">2</td><td class="lc"><span class="cm"># Definition for a Node.</span></td></tr>
+<tr><td class="ln">3</td><td class="lc"><span class="cm">class Node:</span></td></tr>
+<tr><td class="ln">4</td><td class="lc"><span class="cm">    def __init__(self, val = 0, neighbors = None):</span></td></tr>
+<tr><td class="ln">5</td><td class="lc"><span class="cm">        self.val = val</span></td></tr>
+<tr><td class="ln">6</td><td class="lc"><span class="cm">        self.neighbors = neighbors if neighbors is not None else []</span></td></tr>
+<tr><td class="ln">7</td><td class="lc"><span class="cm">"""</span></td></tr>
+<tr><td class="ln">8</td><td class="lc"><span class="seg"></span></td></tr>
+<tr><td class="ln">9</td><td class="lc"><span class="seg">import collections</span></td></tr>
+<tr><td class="ln">10</td><td class="lc"><span class="seg">from typing import Optional</span></td></tr>
+<tr><td class="ln">11</td><td class="lc"><span class="seg"></span></td></tr>
+<tr><td class="ln">12</td><td class="lc"><span class="seg">class Solution:</span></td></tr>
+<tr><td class="ln">13</td><td class="lc"><span class="seg">    def cloneGraph(self, node: Optional['Node']) -&gt; Optional['Node']:</span></td></tr>
+<tr><td class="ln">14</td><td class="lc"><span class="seg">        if node is </span><span class="blank-group"><input type="text" class="blank" data-answer="None" data-answers='["None"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">None</span></span><span class="seg">:</span></td></tr>
+<tr><td class="ln">15</td><td class="lc"><span class="seg">            return None</span></td></tr>
+<tr><td class="ln">16</td><td class="lc"><span class="seg"></span></td></tr>
+<tr><td class="ln">17</td><td class="lc"><span class="seg">        queue = collections.deque(</span><span class="blank-group"><input type="text" class="blank" data-answer="[node]" data-answers='["[node]"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">[node]</span></span><span class="seg">)</span></td></tr>
+<tr><td class="ln">18</td><td class="lc"><span class="seg">        maps = {}</span></td></tr>
+<tr><td class="ln">19</td><td class="lc"><span class="seg">        while len(queue) &gt; 0:</span></td></tr>
+<tr><td class="ln">20</td><td class="lc"><span class="seg">            curr = queue.popleft()</span></td></tr>
+<tr><td class="ln">21</td><td class="lc"><span class="seg">            maps[curr] = </span><span class="blank-group"><input type="text" class="blank" data-answer="Node(curr.val)" data-answers='["Node(curr.val)"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">Node(curr.val)</span></span></td></tr>
+<tr><td class="ln">22</td><td class="lc"><span class="seg">            for nei in curr.neighbors:</span></td></tr>
+<tr><td class="ln">23</td><td class="lc"><span class="seg">                if nei not in </span><span class="blank-group"><input type="text" class="blank" data-answer="maps" data-answers='["maps"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">maps</span></span><span class="seg">:</span></td></tr>
+<tr><td class="ln">24</td><td class="lc"><span class="seg">                    queue.append(</span><span class="blank-group"><input type="text" class="blank" data-answer="nei" data-answers='["nei"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">nei</span></span><span class="seg">)</span></td></tr>
+<tr><td class="ln">25</td><td class="lc"><span class="seg"></span></td></tr>
+<tr><td class="ln">26</td><td class="lc"><span class="seg">        for old_node, new_node in maps.items():</span></td></tr>
+<tr><td class="ln">27</td><td class="lc"><span class="seg">            for old_nei in old_node.neighbors:</span></td></tr>
+<tr><td class="ln">28</td><td class="lc"><span class="seg">                newNei = maps[</span><span class="blank-group"><input type="text" class="blank" data-answer="old_nei" data-answers='["old_nei"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">old_nei</span></span><span class="seg">]</span></td></tr>
+<tr><td class="ln">29</td><td class="lc"><span class="seg">                new_node.neighbors.append(</span><span class="blank-group"><input type="text" class="blank" data-answer="newNei" data-answers='["newNei"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">newNei</span></span><span class="seg">)</span></td></tr>
+<tr><td class="ln">30</td><td class="lc"><span class="seg">        return </span><span class="blank-group"><input type="text" class="blank" data-answer="maps[node]" data-answers='["maps[node]"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">maps[node]</span></span></td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="controls">
+      <button type="button" class="btn-primary" id="btnCheck">Check all</button>
+      <button type="button" id="btnReset">Reset</button>
+      <button type="button" id="btnReveal">Reveal</button>
+      <button type="button" id="btnCopy">Copy</button>
+      <button type="button" id="btnToggleAnswers" aria-pressed="false">显示参考答案</button>
+      <span class="score" id="score"></span>
+      <span class="copy-toast" id="copyToast" aria-live="polite"></span>
+    </div>
+  </div>
+</main>
+<script src="../../assets/fill-blanks.js"></script>
+<script src="../../assets/fill-core.js"></script>
+</body>
+</html>

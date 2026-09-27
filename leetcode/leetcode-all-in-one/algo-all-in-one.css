@@ -1,0 +1,148 @@
+/* =========================================================================
+   algo-all-in-one.css — BFS / DFS 算法汇总页共用的样式
+   （2026-08-14 从合并版 bfs-dfs-all-in-one.html 的内联 <style> 抽出；
+   渲染逻辑同样共用，见 algo-all-in-one.js）。依赖 ink.css 的 --ink-* token。
+
+   布局：单算法页（bfs / dfs-all-in-one）每个类型一行——左边题目卡（行的
+   形式跟侧栏 chapter 面板一致：分类小标题 + 平铺题目行，题号带点）、
+   右边这个类型的 Lyon Python 模板卡，同一行顶对齐，没有模板的类型右边
+   留空（.algo-sec-grid）。对照页（bfs-dfs-all-in-one）每个 category 一个
+   小标题 + 双列：左 BFS 右 DFS，每张卡一个格子按行配对、上下边全对齐
+   （.combo-grid），只有一边的 category 另一边留空。卡宽都收缩到内容
+   （题目行 / 代码完整展开，不横向滚动）——左右两列各自按自己列里最宽
+   的卡收缩，不互相牵连（左列文字短就不会被右列的长卡拉宽，反之亦然）。
+   ========================================================================= */
+
+.algo-home { width: max-content; max-width: 100%; margin: 0 auto; padding-bottom: 48px; }
+.algo-detail-home { padding-top: 24px; }
+.algo-hero { text-align: center; padding-top: 34px; margin-bottom: 26px; }
+.algo-title { font-size: 34px; font-weight: 800; letter-spacing: -0.02em; color: var(--ink); }
+
+/* 对照页标题下面的 BFS vs DFS 速查表（bfs-dfs-all-in-one.html 独有，
+   其他两个单算法页不引用这个 class，放在共用 css 里只是省得单开文件）。
+   "Stamp-label rows" 版式：不用 <table>，每行一个 grid（标签列 + BFS/DFS
+   两个内容格），行与行之间虚线分隔，不画竖向格线；BFS/DFS 表头是实心
+   色块（跟侧栏 .algo-tag.bfs/.dfs 一个色系），比满格描边的表格更安静。 */
+.combo-compare {
+  max-width: 900px; margin: 0 auto 34px; overflow-x: auto;
+  background: #fff; border: var(--ink-border); border-radius: 10px;
+  box-shadow: var(--ink-shadow);
+}
+.combo-compare-head, .combo-compare-row {
+  display: grid; grid-template-columns: 170px 1fr 1fr;
+  min-width: 640px;
+}
+.combo-compare-head { border-bottom: var(--ink-border); }
+.combo-compare-head > div {
+  font-family: var(--ink-mono); font-size: 11px; font-weight: 800;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  padding: 10px 16px;
+}
+.combo-compare-head .cmp-bfs { color: #3A6FD4; background: rgba(120,160,225,0.14); border-left: var(--ink-border); }
+.combo-compare-head .cmp-dfs { color: #6b3fa0; background: rgba(199,146,234,0.14); border-left: var(--ink-border); }
+.combo-compare-row { border-bottom: 1.5px dashed var(--ink-ghost); }
+.combo-compare-row:last-child { border-bottom: none; }
+.combo-compare-row > div {
+  padding: 12px 16px; font-size: 13px; line-height: 1.6; color: var(--ink);
+}
+.combo-compare-label { font-weight: 800; color: var(--ink-soft); display: flex; align-items: center; }
+.cmp-bfs-cell, .cmp-dfs-cell { border-left: var(--ink-border); }
+.combo-compare-cell code {
+  background: var(--ink-chip); border-radius: 4px; padding: 1px 5px;
+  font-family: var(--ink-mono); font-size: 12px;
+}
+
+/* 两种页面的双列网格共用的底子；各自只差列宽定义（见下），窄屏
+   （<1200px）统一退回单列，见文件末尾的 media query。 */
+.algo-sec-grid, .combo-grid { display: grid; gap: 0 22px; }
+
+/* 单算法页：每个类型一行——左题目卡右模板卡，顶对齐；两列都收缩到
+   内容宽（整个 grid 共享列宽，取各列最宽的卡）。 */
+.algo-sec-grid { grid-template-columns: max-content max-content; align-items: start; }
+
+/* 对照页：category 小标题 + 双列（左 BFS 右 DFS）。每张卡一个 combo-cell
+   格子，JS 按行配对（行 1 = 左右题目卡，行 2 起 = 左右模板卡），grid 行高
+   + cell 里的 flex 拉伸让左右两列的卡上下边全部对齐（矮的补白到等高）。
+   两列各自 max-content：左列宽度只看左列卡，右列宽度只看右列卡，互不
+   拉扯（同单算法页 .algo-sec-grid 一个原理）。 */
+.combo-cat {
+  font-family: var(--ink-mono);
+  font-size: 24px; font-weight: 800;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--ink);
+  margin: 34px 4px 12px;
+  padding-bottom: 6px;
+  border-bottom: 3px solid var(--ink);
+  width: max-content;
+}
+.combo-cat:first-child { margin-top: 0; }
+.combo-grid { grid-template-columns: max-content max-content; }
+.combo-cell { display: flex; }
+.combo-cell .algo-card { flex: 1 1 auto; box-sizing: border-box; min-width: 0; }
+.combo-l { grid-column: 1; }
+.combo-r { grid-column: 2; }
+/* 对照页的 code box 按算法染色（很淡的冷色，同侧栏 BFS/DFS 标签一个
+   色系）：左列 BFS 淡蓝、右列 DFS 淡紫。单算法页不染，保持灰底。 */
+.combo-l .tmpl-code { background: rgba(120, 160, 225, 0.13); }
+.combo-r .tmpl-code { background: rgba(199, 146, 234, 0.12); }
+.combo-grid .combo-cat { grid-column: 1 / -1; }
+
+/* 窄屏：两种网格都退回单列。对照页的格子取消左右配对（按 DOM 顺序：
+   分类标题、BFS 一摞、DFS 一摞自动排）。 */
+@media (max-width: 1200px) {
+  .algo-sec-grid, .combo-grid { grid-template-columns: 1fr; }
+  .algo-sec-grid .pair-right:empty { display: none; }
+  .combo-grid .combo-cell,
+  .combo-grid .combo-cat { grid-column: 1; grid-row: auto !important; }
+}
+
+.algo-card {
+  background: #fff; border: var(--ink-border); border-radius: 10px;
+  box-shadow: var(--ink-shadow);
+  padding: 16px 18px 14px; margin-bottom: 18px;
+}
+.algo-card-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  padding: 0 6px 9px; margin-bottom: 7px;
+  border-bottom: var(--ink-border);
+}
+.algo-card-name { font-size: 15.5px; font-weight: 800; color: var(--ink); }
+
+.tree-sub { display: flex; align-items: baseline; gap: 8px; padding: 6px 6px 2px; }
+.tree-sub-name {
+  font-family: var(--ink-mono);
+  font-size: 11px; font-weight: 800; color: var(--ink);
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+.tree-item {
+  display: flex; align-items: baseline; gap: 8px;
+  padding: 3px 6px; border-radius: 6px;
+  text-decoration: none; color: var(--ink);
+  font-size: 13.5px; line-height: 1.5;
+  transition: background 0.15s;
+}
+.tree-item:hover { background: var(--ink-panel); }
+.tree-num {
+  font-family: var(--ink-mono);
+  font-size: 12.5px; color: var(--ink-muted);
+  flex: 0 0 36px; text-align: right;
+}
+.tree-name { font-weight: 600; min-width: 0; }
+.tree-anim { font-size: 11px; line-height: 1; opacity: 0.85; }
+
+/* ── 右列：Python 模板卡 ─────────────────────────────────────────────── */
+.tmpl-for {
+  font-family: var(--ink-mono);
+  font-size: 10px; font-weight: 700; color: var(--ink-faint);
+  text-transform: uppercase; letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.tmpl-code {
+  margin: 4px 0 2px;
+  background: var(--ink-panel);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-family: var(--ink-mono);
+  font-size: 12px; line-height: 1.55; color: var(--ink);
+  white-space: pre; overflow-x: auto;
+}

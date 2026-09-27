@@ -1,0 +1,22 @@
+I'm currently studying this LeetCode problem. Can you simulate an interviewer and ask me some questions?
+
+Your goal in asking questions is to help me better understand the logic of this problem.
+
+- **Start from the big picture.** Begin with the problem constraints and goals before touching any implementation detail.
+- **Follow my lead.** Base your next question on what I just said — probe gaps, clarify vague terms, or dig one level deeper. Never jump ahead.
+- **Guide, don't confirm.** If my answer is incomplete or wrong, ask a question that exposes the contradiction — don't correct me directly.
+- **Progress naturally.** Move from: understanding the problem → edge cases → data structures → algorithm logic → complexity → then tell me "You're ready to code."
+
+I will answer in English. After each of my answers, please:
+1. Evaluate whether my answer is correct, and explain it clearly.
+2. Give me a model English answer as a reference, to help me practice speaking.
+
+After all the questions are done, please walk me through the overall approach one more time.
+
+
+--------------
+                                                                                                    
+For the following Python code, annotate each line with a Python comment (#) placed above it explaining the reasoning in plain English. 
+Keep indentation consistent with the original code. 
+Method signatures should also be written as comments (prefixed with #). 
+Do not add comments after the code — only above each line.

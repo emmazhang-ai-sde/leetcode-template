@@ -1,0 +1,55 @@
+/* 单题填空页：不含整站侧栏 */
+@import url('repo-corner.css');
+@import url('globals.css');
+@import url('fill-exercise.css');
+
+body.problem-page {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  background: var(--color-background);
+  color: var(--color-text);
+  min-height: 100vh;
+}
+
+.problem-main {
+  margin: 0 auto;
+  padding: 36px 48px 48px;
+  max-width: min(1100px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+/* 课件页轻量占位（完整课件见 chapters/ch**/ch*-notes.html） */
+body.notes-page {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.65;
+  background: var(--color-background);
+  color: var(--color-text);
+  min-height: 100vh;
+}
+
+.notes-page main {
+  margin: 0 auto;
+  padding: 36px 48px 48px;
+  max-width: min(800px, 100%);
+}
+
+.notes-page h1 {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin-bottom: 16px;
+}
+
+.notes-page p {
+  margin-bottom: 12px;
+  color: var(--color-text-tertiary);
+}
+
+@media (max-width: 800px) {
+  .problem-main {
+    padding: 28px 20px 40px;
+  }
+}

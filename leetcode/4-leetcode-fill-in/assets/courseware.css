@@ -1,0 +1,489 @@
+/* 课件页：chapters/ch**/ch*-notes.html（及 iframe 内）正文、目录、模板卡、题链 */
+.chapter-notes-panel {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  border: none;
+  box-shadow: none;
+  outline: none;
+}
+
+.chapter-notes-panel[hidden] {
+  display: none !important;
+}
+
+.notes-main-sub {
+  margin: 0 0 16px;
+  font-size: 14px;
+  color: var(--color-text-tertiary);
+  line-height: 1.45;
+  width: 100%;
+}
+
+.notes-main-scroll {
+  width: 100%;
+  max-width: 100%;
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--color-text);
+  padding-bottom: 8px;
+}
+
+.chapter-notes-panel .notes-toc {
+  background: var(--color-background-secondary);
+  border: none;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+
+.chapter-notes-panel .notes-toc-title {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-transform: none;
+  color: var(--color-text);
+  margin-bottom: 10px;
+}
+
+.chapter-notes-panel .notes-toc ol {
+  padding-left: 18px;
+  margin: 0;
+}
+
+.chapter-notes-panel .notes-toc li {
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--color-text);
+}
+
+.chapter-notes-panel .notes-toc a {
+  color: var(--color-focus);
+  text-decoration: none;
+}
+
+.chapter-notes-panel .notes-toc a:hover {
+  text-decoration: underline;
+}
+
+.chapter-notes-panel .notes-section {
+  margin-bottom: 18px;
+  scroll-margin-top: 8px;
+}
+
+.chapter-notes-panel .notes-section:last-child {
+  margin-bottom: 0;
+}
+
+.chapter-notes-panel .notes-section-title {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-transform: none;
+  color: var(--color-text);
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: none;
+  line-height: 1.35;
+}
+
+.chapter-notes-panel .notes-checklist {
+  background: var(--color-background-secondary);
+  border: none;
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+.chapter-notes-panel .notes-checklist ul {
+  padding-left: 18px;
+  margin: 0;
+}
+
+.chapter-notes-panel .notes-checklist li {
+  font-size: 15px;
+  line-height: 1.75;
+  margin-bottom: 6px;
+  color: var(--color-text);
+}
+
+.chapter-notes-panel .notes-checklist li:last-child {
+  margin-bottom: 0;
+}
+
+.chapter-notes-panel .notes-checklist strong {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.chapter-notes-panel .notes-concept-block {
+  background: var(--color-background-secondary);
+  border: none;
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--color-text);
+}
+
+.chapter-notes-panel .notes-concept-block p {
+  margin: 0 0 8px;
+}
+
+.chapter-notes-panel .notes-concept-block p:last-child {
+  margin-bottom: 0;
+}
+
+.chapter-notes-panel .notes-concept-block ul {
+  padding-left: 18px;
+  margin: 6px 0 0;
+}
+
+.chapter-notes-panel .notes-concept-block li {
+  margin-bottom: 4px;
+}
+
+.chapter-notes-panel .notes-hl {
+  background: linear-gradient(180deg, transparent 58%, color-mix(in srgb, var(--color-tab-selected) 85%, transparent) 58%);
+  padding: 0 2px;
+}
+
+.chapter-notes-panel .notes-template-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: stretch;
+  min-width: 0;
+}
+
+@media (max-width: 960px) {
+  .chapter-notes-panel .notes-template-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.chapter-notes-panel .notes-tmpl-card {
+  background: var(--color-background-secondary);
+  border: none;
+  border-radius: 8px;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.chapter-notes-panel .notes-tmpl-header {
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: none;
+  background: var(--color-background);
+}
+
+.chapter-notes-panel .notes-tmpl-header-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.chapter-notes-panel .notes-lang-pill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
+}
+
+.chapter-notes-panel .notes-lang-py {
+  background: #3572a5;
+  color: #fff;
+}
+
+.chapter-notes-panel .notes-lang-java {
+  background: #b07219;
+  color: #fff;
+}
+
+.chapter-notes-panel pre.notes-code-block {
+  margin: 0;
+  padding: 12px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.55;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+  max-width: 100%;
+  overflow-x: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: pre-wrap;
+  tab-size: 4;
+  background: var(--color-background-secondary);
+  border-radius: 0 0 8px 8px;
+}
+
+.chapter-notes-panel .notes-code-block .kw {
+  color: #8b35c0;
+}
+
+.chapter-notes-panel .notes-code-block .fn {
+  color: var(--color-correct);
+}
+
+.chapter-notes-panel .notes-code-block .tp {
+  color: #1d6d8c;
+}
+
+.chapter-notes-panel .notes-code-block .num {
+  color: var(--color-correct);
+}
+
+.chapter-notes-panel .notes-code-block .cm {
+  color: var(--color-comment);
+}
+
+@media (prefers-color-scheme: dark) {
+  .chapter-notes-panel .notes-code-block .kw {
+    color: #d2a8ff;
+  }
+
+  .chapter-notes-panel .notes-code-block .tp {
+    color: #79c0ff;
+  }
+}
+
+.chapter-notes-panel code {
+  background: var(--color-background-secondary);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  border: none;
+}
+
+.chapter-notes-panel .notes-prob-group {
+  margin-bottom: 14px;
+}
+
+.chapter-notes-panel .notes-prob-group:last-child {
+  margin-bottom: 0;
+}
+
+.chapter-notes-panel .notes-prob-group-label {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-transform: none;
+  color: var(--color-text);
+  margin-bottom: 8px;
+}
+
+.chapter-notes-panel .notes-prob-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.chapter-notes-panel a.notes-prob-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  background: var(--color-background-secondary);
+  border: none;
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--color-text);
+  transition: background 0.12s;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.chapter-notes-panel a.notes-prob-item:hover {
+  background: color-mix(in srgb, var(--color-background-secondary) 90%, var(--color-focus));
+}
+
+@supports not (background: color-mix(in srgb, white, black)) {
+  .chapter-notes-panel a.notes-prob-item:hover {
+    opacity: 0.95;
+  }
+}
+
+.chapter-notes-panel .notes-prob-arrow {
+  flex-shrink: 0;
+  color: var(--color-text-tertiary);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.chapter-notes-panel a.notes-prob-item:hover .notes-prob-arrow {
+  color: var(--color-focus);
+}
+
+.chapter-notes-panel .notes-example-box {
+  background: var(--color-background);
+  border: none;
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--color-text);
+  margin-top: 8px;
+}
+
+.chapter-notes-panel .notes-example-box h4 {
+  font-size: 15px;
+  color: var(--color-text);
+  margin: 0 0 8px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.chapter-notes-panel table.notes-data {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.chapter-notes-panel table.notes-data th,
+.chapter-notes-panel table.notes-data td {
+  border: none;
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.chapter-notes-panel table.notes-data th {
+  background: var(--color-background-secondary);
+  font-weight: 600;
+}
+
+.chapter-notes-panel .notes-oa-box {
+  background: var(--color-background-secondary);
+  border: none;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--color-text);
+  margin-top: 10px;
+}
+
+.chapter-notes-panel .notes-oa-box ul {
+  padding-left: 18px;
+  margin: 6px 0 0;
+}
+
+.chapter-notes-panel .notes-oa-box a {
+  color: var(--color-focus);
+}
+
+.chapter-notes-panel h2.prob-title.notes-main-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--color-text);
+  letter-spacing: -0.03em;
+  margin-bottom: 6px;
+}
+
+.notes-standalone-wrap {
+  margin: 0 auto;
+  padding: 36px 48px 48px 20px;
+  padding-top: 44px;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.notes-standalone-wrap.notes-courseware-page {
+  max-width: min(var(--notes-courseware-content-max-width), 100%);
+  margin-left: 0;
+  margin-right: auto;
+}
+
+@media (max-width: 800px) {
+  .notes-standalone-wrap {
+    padding: 28px 20px 40px;
+  }
+}
+
+.chapter-notes-panel .notes-ch7-concept-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  align-items: stretch;
+  min-width: 0;
+  width: 100%;
+}
+
+@media (max-width: 960px) {
+  .chapter-notes-panel .notes-ch7-concept-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.chapter-notes-panel .notes-ch7-card .notes-ch7-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 15px;
+}
+
+.chapter-notes-panel .notes-ch7-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.chapter-notes-panel .notes-ch7-badge--heap {
+  background: #fff3c4;
+  color: #8a6500;
+}
+
+.chapter-notes-panel .notes-ch7-badge--topk {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.chapter-notes-panel .notes-ch7-badge--mono {
+  background: #ede9fe;
+  color: #4c1d95;
+}
+
+@media (prefers-color-scheme: dark) {
+  .chapter-notes-panel .notes-ch7-badge--heap {
+    background: #3d3526;
+    color: #f0e6a6;
+  }
+
+  .chapter-notes-panel .notes-ch7-badge--topk {
+    background: #163c30;
+    color: #7ee0b8;
+  }
+
+  .chapter-notes-panel .notes-ch7-badge--mono {
+    background: #2d2640;
+    color: #c4b5fd;
+  }
+}
+
+.chapter-notes-panel .notes-ch7-card ul {
+  padding-left: 18px;
+  margin: 0;
+}
+
+.chapter-notes-panel .notes-ch7-card li {
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--color-text);
+}

@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>20. Valid Parentheses</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  .lc20-layout .code-half { width: 600px; min-width: 0; }
+  .lc20-layout .viz-panel { width: max-content; min-width: 0; align-items: flex-start; }
+  .lc20-layout .code-stack,
+  .lc20-layout .code-panel { width: 100%; min-width: 0; }
+  .lc20-layout .code-panel { overflow-x: auto; }
+  .lc20-layout .card { width: fit-content; min-width: 0; max-width: 620px; }
+  .lc20-layout .step-info { min-height: 58px; }
+
+  /* ── Input string ─────────────────────────────────────────────────────── */
+  .char-row { display: flex; align-items: flex-end; gap: 6px; min-height: 66px; }
+  .char-wrap { width: 48px; text-align: center; font-family: 'SF Mono', Menlo, monospace; }
+  .char-index { height: 17px; color: #aaa; font-size: 11px; }
+  .char {
+    width: 48px; height: 44px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    background: #f5f5f5; color: #1a1a1a;
+    font-size: 20px; font-weight: 750;
+    transition: background .2s, transform .2s, opacity .2s;
+  }
+  .char.onstack { background: rgba(139,133,212,.22); }
+  .char.current { background: rgba(249,203,66,.50); transform: scale(1.08); }
+  .char.matched { background: rgba(93,202,165,.42); }
+  .char.fail { background: rgba(196,80,30,.30); transform: scale(1.08); }
+
+  .marker-row {
+    display: flex; gap: 6px; min-height: 34px; margin-top: 2px;
+    font: 700 11px/1.15 'SF Mono', Menlo, monospace;
+  }
+  .marker-cell {
+    width: 48px; display: flex; flex-direction: column;
+    align-items: center; justify-content: flex-start; color: transparent;
+  }
+  .marker-cell.active { color: #C4501E; }
+  .marker-cell.pop { color: #246b55; }
+  .marker-arrow { color: #007EA8; font-size: 14px; line-height: 12px; }
+  .marker-label { white-space: nowrap; }
+
+  /* ── Stack ────────────────────────────────────────────────────────────── */
+  .stack-area { display: flex; align-items: flex-end; gap: 26px; }
+  .stack-box {
+    min-height: 156px;
+    display: flex; flex-direction: column; justify-content: flex-end; gap: 6px;
+  }
+  .stk-row { display: flex; align-items: center; gap: 8px; }
+  .stk-cell {
+    width: 168px; height: 42px; border-radius: 8px;
+    display: flex; align-items: center; gap: 10px; padding: 0 12px;
+    background: rgba(139,133,212,.22);
+    font-family: 'SF Mono', Menlo, monospace;
+    transition: background .2s, transform .2s;
+  }
+  .stk-cell.top { transform: scale(1.03); }
+  .stk-cell.fail { background: rgba(196,80,30,.30); }
+  .stk-ch { font-size: 19px; font-weight: 750; color: #1a1a1a; }
+  .stk-exp { font-size: 12px; color: #555; }
+  .stk-exp b { color: #C4501E; font-weight: 700; }
+  .stk-note { font: 700 11px 'SF Mono', Menlo, monospace; color: #9333C0; white-space: nowrap; }
+  .stk-note .dim { color: #aaa; font-weight: 400; }
+  .stack-empty-box {
+    min-height: 42px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    color: #aaa; background: #f5f5f5;
+    font-family: 'SF Mono', Menlo, monospace; font-size: 13px;
+  }
+
+  /* ── Line-13 condition readout (sits to the right of the stack) ───────── */
+  .check {
+    min-height: 46px; padding-bottom: 2px;
+    display: flex; flex-direction: column; gap: 5px;
+    font: 13px/1.5 'SF Mono', Menlo, monospace; color: #555;
+  }
+  .check-row { white-space: nowrap; }
+  .f-var { color: #C4501E; font-weight: 700; }
+  .f-ok { color: #246b55; font-weight: 700; }
+  .f-bad { color: #a8341a; font-weight: 700; }
+  .f-tag { color: #888; }
+
+  /* ── match table ──────────────────────────────────────────────────────── */
+  /* One grid owns the headers and the rows, so 'key' and 'value' line up
+     exactly over the columns they label. */
+  .match-table {
+    display: grid; grid-template-columns: 110px 24px 110px;
+    gap: 7px; align-items: stretch;
+    font-family: 'SF Mono', Menlo, monospace; font-size: 13px;
+  }
+  .m-head {
+    color: #777; font-weight: 700; font-size: 11px;
+    padding: 0 6px 3px; text-align: center;
+    border-bottom: 1px solid #eee;
+  }
+  .m-head.m-gap { border-bottom: none; }
+  .m-cell {
+    min-height: 32px; border-radius: 7px; background: #f5f5f5;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 750; color: #1a1a1a;
+    transition: background .2s, transform .2s;
+  }
+  .m-colon { background: none; color: #aaa; font-weight: 700; }
+  .m-cell.active { background: rgba(139,133,212,.22); transform: scale(1.04); }
+  .m-cell.active.m-colon { background: none; color: #9333C0; }
+
+  /* ── Result ───────────────────────────────────────────────────────────── */
+  .answer-strip {
+    min-height: 48px; border-radius: 8px; padding: 10px 14px;
+    display: flex; align-items: center; justify-content: center;
+    font: 750 14px 'SF Mono', Menlo, monospace;
+  }
+  .answer-strip.pending { background: #f5f5f5; color: #aaa; font-weight: 400; }
+  .answer-strip.ok { background: rgba(93,202,165,.30); color: #1d5c48; }
+  .answer-strip.bad { background: rgba(196,80,30,.16); color: #7b2e14; }
+
+  @media (max-width: 1500px) {
+    .main.layout-grid.lc20-layout { grid-template-columns: minmax(0, 1fr); }
+    .main.layout-grid.lc20-layout .code-half,
+    .main.layout-grid.lc20-layout .viz-panel {
+      grid-column: 1; justify-self: center; width: fit-content; min-width: 0;
+    }
+    .main.layout-grid.lc20-layout .viz-panel { grid-row: 2; }
+  }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '20. Valid Parentheses',
+  link: 'https://leetcode.com/problems/valid-parentheses/',
+  examples: [
+    { id: 'valid',    label: '{[()]}' },
+    { id: 'mismatch', label: '([)]' },
+    { id: 'early',    label: '())' },
+    { id: 'leftover', label: '(()' },
+  ],
+  legend: [
+    { color: 'rgba(249,203,66,.50)', label: 'current char / popped opener' },
+    { color: 'rgba(139,133,212,.22)', label: 'opener waiting on the stack' },
+    { color: 'rgba(93,202,165,.42)', label: 'closed pair' },
+    { color: 'rgba(196,80,30,.30)', label: 'why it fails' },
+  ],
+});
+</script>
+  <div class="main layout-grid lc20-layout">
+    <script>
+    renderCodeBox({
+      code: `
+class Solution:
+    def isValid(self, s: str) -> bool:
+        match = {
+            '[': ']',
+            '(': ')',
+            '{': '}'
+        }
+        stack = []
+        for char in s:
+            if char in match:
+                stack.append(char)
+            else:
+                if not stack or char != match[stack.pop()]:
+                    return False
+        return len(stack) == 0`,
+    });
+    </script>
+
+    <div class="viz-panel">
+      <div class="card">
+        <h3 id="strTitle">Input String</h3>
+        <div class="char-row" id="charRow"></div>
+        <div class="marker-row" id="charMarkers"></div>
+      </div>
+      <div class="card">
+        <h3>match</h3>
+        <div class="match-table" id="matchTable"></div>
+      </div>
+      <div class="card">
+        <h3>Stack　(openers still waiting to be closed)</h3>
+        <div class="stack-area">
+          <div class="stack-box" id="stackBox"></div>
+          <div class="check" id="check"></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Result</h3>
+        <div class="answer-strip pending" id="answer">still scanning</div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+const MATCH = { '[': ']', '(': ')', '{': '}' };
+const EXAMPLES = {
+  valid:    '{[()]}',
+  mismatch: '([)]',
+  early:    '())',
+  leftover: '(()',
+};
+let S = EXAMPLES.valid;
+
+// ── Steps ────────────────────────────────────────────────────────────────
+// One snapshot per (code line x event). Each carries the full stack, the pairs
+// closed so far, and the result, so render() is a pure function of one step.
+function buildSteps() {
+  const steps = [];
+  const stack = [];   // [{ ch, idx }] — openers, with where they came from
+  const pairs = [];   // [[openIdx, closeIdx]] — closed pairs
+  let result = null;
+  let failIdx = null;
+
+  const snap = (line, phase, extra, info) => steps.push({
+    line, phase, result, failIdx,
+    stack: stack.map(e => ({ ...e })),
+    pairs: pairs.map(p => [...p]),
+    ...extra, info,
+  });
+
+  snap(3, 'init', {}, 'Build the match table: each opener maps to the one closer that can close it.');
+  snap(8, 'init', {}, 'Start with an empty stack. It holds the openers seen so far that are still waiting to be closed.');
+
+  for (let i = 0; i < S.length; i++) {
+    const ch = S[i];
+    snap(9, 'read', { i }, `Read char = '${ch}' at index ${i}.`);
+
+    if (MATCH[ch] !== undefined) {
+      snap(10, 'check', { i, matchKey: ch }, `'${ch}' is a key in match, so it is an opener.`);
+      stack.push({ ch, idx: i });
+      snap(11, 'push', { i, matchKey: ch },
+        `Push '${ch}'. It goes on top, so it must be closed before anything under it — that ordering is the whole point of the stack.`);
+    } else {
+      snap(10, 'check', { i }, `'${ch}' is not a key in match, so it is a closer. Go to the else branch.`);
+
+      if (stack.length === 0) {
+        failIdx = i;
+        result = false;
+        snap(13, 'empty', { i, reason: 'closer with an empty stack' },
+          `not stack is True, so the or short-circuits and stack.pop() never runs. There is no opener for '${ch}' to close.`);
+        snap(14, 'return', { i, reason: 'closer with an empty stack' }, 'Return False.');
+        return steps;
+      }
+
+      const top = stack[stack.length - 1];
+      const expected = MATCH[top.ch];
+      stack.pop();
+      snap(13, 'pop', { i, popped: { ...top }, expected, matchKey: top.ch },
+        `The stack is not empty, so Python evaluates the right side: stack.pop() takes '${top.ch}' off the top, and match['${top.ch}'] is '${expected}'.`);
+
+      if (ch === expected) {
+        pairs.push([top.idx, i]);
+        snap(13, 'match', { i, popped: { ...top }, expected, matchKey: top.ch },
+          `char '${ch}' equals '${expected}', so the condition is False and the loop moves on. '${top.ch}' at index ${top.idx} is now closed.`);
+      } else {
+        failIdx = i;
+        result = false;
+        snap(13, 'mismatch', { i, popped: { ...top }, expected, matchKey: top.ch, badOpenIdx: top.idx, reason: 'wrong closer' },
+          `char '${ch}' is not '${expected}', so the condition is True. The innermost opener '${top.ch}' at index ${top.idx} was closed by the wrong bracket.`);
+        snap(14, 'return', { i, popped: { ...top }, badOpenIdx: top.idx, reason: 'wrong closer' }, 'Return False.');
+        return steps;
+      }
+    }
+  }
+
+  result = stack.length === 0;
+  const left = stack.length;
+  snap(15, 'return', result ? {} : { reason: 'openers never closed' },
+    result
+      ? 'The loop finished and the stack is empty, so every opener was closed by the right closer in the right order. Return True.'
+      : `The loop finished, but the stack still holds ${left} opener${left > 1 ? 's' : ''} that nothing ever closed. len(stack) != 0, so return False.`);
+  return steps;
+}
+
+let STEPS = buildSteps();
+let cur = -1;
+
+const START = {
+  phase: 'start', stack: [], pairs: [], result: null, failIdx: null,
+  info: 'A closer must match the most recent unclosed opener — last in, first out. That is exactly a stack: push every opener, and pop one each time a closer arrives.',
+};
+
+function loadExample(id) {
+  S = EXAMPLES[id];
+  STEPS = buildSteps();
+  Object.keys(EXAMPLES).forEach(k => {
+    const b = document.getElementById('ex-' + k);
+    if (b) b.classList.toggle('auto-active', k === id);
+  });
+  doReset();
+  lockStableSizes(); // re-pin block heights for the new example's steps
+}
+
+// Variables and their values read red; operators and prose stay gray.
+function fv(text) {
+  return `<span class="f-var">${text}</span>`;
+}
+
+function charClass(s, i) {
+  const leftover = s.line === 15 && s.result === false;
+  if (s.failIdx === i || s.badOpenIdx === i) return 'fail';
+  if (leftover && s.stack.some(e => e.idx === i)) return 'fail';
+  if (s.pairs.some(([a, b]) => a === i || b === i)) return 'matched';
+  if (s.i === i || (s.popped && s.popped.idx === i)) return 'current';
+  if (s.stack.some(e => e.idx === i)) return 'onstack';
+  return '';
+}
+
+function markerCell(labels, kind = 'active') {
+  if (!labels.length) return '<div class="marker-cell"></div>';
+  return `<div class="marker-cell ${kind}">
+    <div class="marker-arrow">↑</div>
+    ${labels.map(l => `<div class="marker-label">${l}</div>`).join('')}
+  </div>`;
+}
+
+function renderChars(s) {
+  document.getElementById('charRow').innerHTML = [...S].map((ch, i) =>
+    `<div class="char-wrap"><div class="char-index">${i}</div><div class="char ${charClass(s, i)}">${ch}</div></div>`
+  ).join('');
+
+  document.getElementById('charMarkers').innerHTML = [...S].map((_, i) => {
+    if (s.popped && s.popped.idx === i) return markerCell(['pop()'], 'pop');
+    if (s.i === i) return markerCell(['char']);
+    return markerCell([]);
+  }).join('');
+}
+
+function renderStack(s) {
+  const box = document.getElementById('stackBox');
+  const leftover = s.line === 15 && s.result === false;
+  if (!s.stack.length) {
+    box.innerHTML = '<div class="stack-empty-box">stack = []</div>';
+    return;
+  }
+  // Rendered top-first, and the box is bottom-anchored, so the stack grows upward.
+  box.innerHTML = [...s.stack].reverse().map((e, k) => `
+    <div class="stk-row">
+      <div class="stk-cell ${k === 0 ? 'top' : ''} ${leftover ? 'fail' : ''}">
+        <span class="stk-ch">${e.ch}</span>
+        <span class="stk-exp">expects <b>${MATCH[e.ch]}</b></span>
+      </div>
+      <div class="stk-note">${k === 0 ? '&larr; top' : '<span class="dim">&nbsp;</span>'}<span class="dim">　from s[${e.idx}]</span></div>
+    </div>
+  `).join('');
+}
+
+function renderCheck(s) {
+  const box = document.getElementById('check');
+  const ch = s.i != null ? S[s.i] : null;
+
+  if (s.phase === 'pop') {
+    box.innerHTML =
+      `<div class="check-row">stack.pop() = ${fv(`'${s.popped.ch}'`)}</div>` +
+      `<div class="check-row">match[${fv(`'${s.popped.ch}'`)}] = ${fv(`'${s.expected}'`)}</div>`;
+  } else if (s.phase === 'match') {
+    box.innerHTML =
+      `<div class="check-row">char != match[stack.pop()]</div>` +
+      `<div class="check-row">${fv(`'${ch}'`)} != ${fv(`'${s.expected}'`)} &rarr; <span class="f-ok">False</span> <span class="f-tag">(pair closes)</span></div>`;
+  } else if (s.phase === 'mismatch' || (s.phase === 'return' && s.reason === 'wrong closer')) {
+    box.innerHTML =
+      `<div class="check-row">char != match[stack.pop()]</div>` +
+      `<div class="check-row">${fv(`'${ch}'`)} != ${fv(`'${s.expected ?? MATCH[s.popped.ch]}'`)} &rarr; <span class="f-bad">True</span> <span class="f-tag">(wrong closer)</span></div>`;
+  } else if (s.phase === 'empty' || (s.phase === 'return' && s.reason === 'closer with an empty stack')) {
+    box.innerHTML =
+      `<div class="check-row">not stack</div>` +
+      `<div class="check-row">not stack &rarr; <span class="f-bad">True</span> <span class="f-tag">(nothing to pop)</span></div>`;
+  } else if (s.line === 15) {
+    box.innerHTML = `<div class="check-row">len(stack) == 0 &rarr; ` +
+      (s.result ? '<span class="f-ok">True</span>' : '<span class="f-bad">False</span>') + `</div>`;
+  } else {
+    box.innerHTML = '<div class="check-row">no closer to check right now</div>';
+  }
+}
+
+function renderMatch(s) {
+  const head =
+    '<div class="m-head">key (opener)</div>' +
+    '<div class="m-head m-gap"></div>' +
+    '<div class="m-head">value (closer)</div>';
+  document.getElementById('matchTable').innerHTML = head + Object.entries(MATCH).map(([open, close]) => {
+    const on = s.matchKey === open ? 'active' : '';
+    return `<div class="m-cell ${on}">${open}</div>` +
+           `<div class="m-cell m-colon ${on}">:</div>` +
+           `<div class="m-cell ${on}">${close}</div>`;
+  }).join('');
+}
+
+function renderAnswer(s) {
+  const el = document.getElementById('answer');
+  if (s.result === true) {
+    el.className = 'answer-strip ok';
+    el.textContent = 'True　—　every opener is closed by the right closer, in the right order';
+  } else if (s.result === false) {
+    el.className = 'answer-strip bad';
+    el.textContent = `False　—　${s.reason}`;
+  } else {
+    el.className = 'answer-strip pending';
+    el.textContent = 'still scanning';
+  }
+}
+
+function render() {
+  const s = cur < 0 ? START : STEPS[cur];
+  highlightLine(cur < 0 ? null : s.line);
+  document.getElementById('strTitle').textContent = `Input String　s = "${S}"`;
+  renderChars(s);
+  renderStack(s);
+  renderCheck(s);
+  renderMatch(s);
+  renderAnswer(s);
+  renderCtrl(cur, STEPS.length, s.info);
+}
+
+loadExample('valid');
+</script>
+</body>
+</html>

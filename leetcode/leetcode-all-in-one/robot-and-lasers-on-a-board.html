@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Robot and Lasers on a Board</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  .oa-layout { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+  .oa-layout .card { width: 100%; min-width: 0; line-height: 1.7; }
+  .oa-layout .card p { margin: 0 0 10px; }
+  .oa-layout .card p:last-child { margin-bottom: 0; }
+  .oa-layout .card ul, .oa-layout .card ol { margin: 0 0 10px 20px; }
+  .oa-layout .card li { margin-bottom: 8px; }
+  .oa-layout .card code { background: var(--ink-chip); border-radius: 4px; padding: 1px 5px; font-family: var(--ink-mono); font-size: 12.5px; }
+  .oa-layout .card table { border-collapse: collapse; margin: 0 0 10px; font-size: 13px; }
+  .oa-layout .card th, .oa-layout .card td { border: 1px solid #ddd; padding: 4px 10px; text-align: left; }
+  .oa-layout .card th { background: var(--ink-panel); }
+  .oa-tag { display: inline-block; font-family: var(--ink-mono); font-size: 11px; letter-spacing: .03em; background: var(--ink-chip); border: var(--ink-border); border-radius: 6px; padding: 2px 8px; margin-bottom: 12px; }
+  .oa-layout .code-panel { padding: 0 54px 0 0; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: 'Robot and Lasers on a Board',
+  controls: false,
+});
+</script>
+
+<div class="oa-layout">
+  <div class="card">
+    <span class="oa-tag">TikTok OA · 2026-08-16 · no official LeetCode number</span>
+    <h3>Problem</h3>
+    <p>There is a <code>numRows × numColumns</code> board. Each laser is located at <code>[row, column]</code> and destroys every cell in its entire row and entire column.</p>
+    <p>A robot initially stands at <code>(curRow, curColumn)</code>. Its initial cell is protected, even if a laser covers that cell. The robot chooses one of four directions — up, down, left, or right — and then moves only in a straight line without turning.</p>
+    <p>Return the maximum number of safe cells the robot can move through before reaching a laser-covered cell or leaving the board. Coordinates are <strong>1-based</strong>.</p>
+    <p><strong>Example</strong></p>
+    <p><code>numRows = 8</code>, <code>numColumns = 8</code>, <code>curRow = 5</code>, <code>curColumn = 3</code>, <code>laserCoordinates = [[1, 6], [2, 8]]</code></p>
+    <p>Dangerous rows <code>{1, 2}</code>, dangerous columns <code>{6, 8}</code>:</p>
+    <table>
+      <tr><th>Direction</th><th>Safe cells</th><th>Count</th></tr>
+      <tr><td>Up</td><td><code>(4,3), (3,3)</code></td><td>2</td></tr>
+      <tr><td>Down</td><td><code>(6,3), (7,3), (8,3)</code></td><td>3</td></tr>
+      <tr><td>Left</td><td><code>(5,2), (5,1)</code></td><td>2</td></tr>
+      <tr><td>Right</td><td><code>(5,4), (5,5)</code></td><td>2</td></tr>
+    </table>
+    <p>Output: <code>3</code>.</p>
+  </div>
+</div>
+</div>
+</body>
+</html>

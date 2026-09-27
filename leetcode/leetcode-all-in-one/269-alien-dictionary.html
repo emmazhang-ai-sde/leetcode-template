@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>269. Alien Dictionary</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  /* words 输入卡片：一行一个单词，字母一格一格摆 */
+  .words-list { display: flex; flex-direction: column; gap: 7px; }
+  .word-row { display: flex; align-items: center; gap: 8px; transition: opacity 0.2s; }
+  .word-row.dimmed { opacity: 0.35; }
+  .word-label { width: 74px; font-family: var(--ink-mono); font-size: 11px; color: #999; text-align: right; }
+  .word-label .role-pre  { color: #3A6FD4; font-weight: 700; }
+  .word-label .role-curr { color: #6b3fa0; font-weight: 700; }
+  .word-cells { display: flex; gap: 5px; }
+  .w-cell { width: 34px; height: 32px; border-radius: 7px; display: flex; align-items: center; justify-content: center;
+            font-family: var(--ink-mono); font-size: 15px; font-weight: 700; color: #1a1a1a;
+            background: #f5f5f5; border: 1px solid #c9c9c9; transition: background 0.15s, box-shadow 0.15s; }
+  .w-cell.hot { background: rgba(249,203,66,0.55); border-color: rgba(200,160,30,0.6); }
+  .w-cell.same { background: rgba(120,160,225,0.3); border-color: rgba(90,130,200,0.55); }
+
+  /* 字母图：SVG 节点状态色沿用站内语义（黄=当前 / 蓝=队列 / 绿=完成 / 灰=未处理） */
+  #svg-graph { display: block; width: 100%; max-height: 320px; }
+
+  /* degree{} 入度表 */
+  .deg-grid { display: flex; gap: 8px; flex-wrap: wrap; }
+  .deg-cell { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 12px; border-radius: 8px;
+              background: #f5f5f5; border: 1px solid #e2e2e2; font-family: var(--ink-mono); min-width: 34px;
+              transition: background 0.15s; }
+  .deg-cell.zero { background: rgba(93,202,165,0.22); border-color: rgba(60,160,125,0.35); }
+  .deg-cell.active { background: rgba(249,203,66,0.55); border-color: rgba(200,160,30,0.6); }
+  .deg-c { font-size: 12px; font-weight: 700; color: #555; }
+  .deg-v { font-size: 15px; font-weight: 800; color: #1a1a1a; }
+
+  /* queue / res chips */
+  .chip-items { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; min-height: 28px; }
+  .q-item { padding: 3px 11px; border-radius: 6px; background: rgba(120,160,225,0.3); border: 1px solid rgba(90,130,200,0.45);
+            font-family: var(--ink-mono); font-size: 13px; font-weight: 700; }
+  .q-item.head { box-shadow: 0 0 0 1.5px #3A6FD4 inset; }
+  .res-item { padding: 3px 11px; border-radius: 6px; background: rgba(93,202,165,0.4); border: 1px solid rgba(60,160,125,0.45);
+              font-family: var(--ink-mono); font-size: 13px; font-weight: 700; }
+  .q-arrow { color: #aaa; font-size: 11px; }
+  .q-empty { color: #aaa; font-style: italic; font-size: 12px; }
+
+  .cards-row { display: flex; gap: 16px; align-items: flex-start; }
+
+  /* 颜色图例搬到代码框下面后：纵向单列排列 */
+  .legend-below { flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 0; max-width: none; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '269. Alien Dictionary',
+  link: 'https://leetcode.com/problems/alien-dictionary/',
+  legend: [
+    { color: '#f5f5f5', extra: 'border:1px solid #c9c9c9;width:11px;height:11px;border-radius:50%;', label: '字母已收集，还没轮到（入度未清零 / 未入队）' },
+    { color: 'rgba(120,160,225,0.3)', extra: 'width:11px;height:11px;border-radius:50%;', label: '入度已清零，在 queue 里排队' },
+    { color: 'rgba(249,203,66,0.55)', extra: 'width:11px;height:11px;border-radius:50%;', label: '当前正在处理（curr / 正在检查的字母）' },
+    { color: 'rgba(93,202,165,0.4)', extra: 'width:11px;height:11px;border-radius:50%;', label: '已进 res，顺序确定' },
+    { color: '#1D9E75', extra: 'border-radius:2px;width:14px;height:3px;', label: '正在建立 / 正在松弛的边' },
+    { color: 'rgba(249,203,66,0.55)', label: 'words 里正在看的字符' },
+    { color: 'rgba(120,160,225,0.3)', label: '这一位两个单词相同（比较下一位）' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+  <script>
+  renderCodeBox({
+    code: `
+class Solution:
+    def alienOrder(self, words: List[str]) -> str:
+        graph = collections.defaultdict(list)
+        degree = {}  #key letter value :  indegree
+
+        for word in words:
+            for ch in word:
+                if ch not in graph:
+                    degree[ch] = 0
+
+        for i in range(len(words) - 1):
+            word_pre = words[i]
+            word_curr = words[i+1]
+
+            if len(word_pre) > len(word_curr) and word_pre.startswith(word_curr):
+                return ""
+
+            m = min(len(word_pre), len(word_curr))
+
+            for j in range(m):
+                from_letter = word_pre[j]
+                to_letter = word_curr[j]
+                if from_letter != to_letter:
+                    if to_letter not in graph[from_letter]:
+                        graph[from_letter].append(to_letter)
+                        degree[to_letter] +=1
+                    break
+
+        queue = []
+
+        for key,val in degree.items():
+            if val == 0:
+                queue.append(key)
+
+        res = []
+        while queue:
+            curr = queue.pop(0)
+            res.append(curr)
+            for neighbour in graph[curr]:
+                degree[neighbour]-=1
+                if degree[neighbour] == 0:
+                    queue.append(neighbour)
+
+        if len(res) != len(degree):
+            return ""
+        return "".join(res)`,
+  });
+  </script>
+
+  <!-- 步骤说明 + 颜色图例从页头搬到代码框下面 -->
+  <script>
+  (function () {
+    const stack = document.querySelector('.code-stack');
+    stack.appendChild(document.getElementById('info'));
+    const legend = document.querySelector('.legend');
+    const legendRow = legend.parentElement;
+    legend.classList.add('legend-below');
+    stack.appendChild(legend);
+    legendRow.remove();
+  })();
+  </script>
+
+  <div class="viz-panel">
+    <div class="card">
+      <h3>words — 外星字典序排好的单词表</h3>
+      <div class="words-list" id="words-list"></div>
+      <div class="var-bar" id="var-bar" style="margin-top:12px;"></div>
+    </div>
+
+    <div class="cards-row">
+      <div class="card">
+        <h3>字母顺序图（from → to：from 排在 to 前面）</h3>
+        <svg id="svg-graph" viewBox="0 0 380 320" width="380" height="320">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="#b4b2a9"></path>
+            </marker>
+            <marker id="arrow-active" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="#1D9E75"></path>
+            </marker>
+          </defs>
+          <g id="graph-dyn"></g>
+        </svg>
+      </div>
+
+      <div class="viz-panel" style="gap:16px;">
+        <div class="card">
+          <h3>degree{} — 每个字母的入度</h3>
+          <div class="deg-grid" id="degree-display"></div>
+        </div>
+        <div class="card">
+          <h3>queue — 入度清零的字母排队</h3>
+          <div class="chip-items" id="queue-display"><span class="q-empty">空</span></div>
+        </div>
+        <div class="card">
+          <h3>res — 拓扑序（最终答案）</h3>
+          <div class="chip-items" id="res-display"><span class="q-empty">空</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div><!-- /.main -->
+</div><!-- /.content-wrapper -->
+
+<script>
+// ── 题目数据：LeetCode 269 官方 Example 1 ─────────────────────────────────
+const WORDS = ['wrt', 'wlf', 'er', 'ett', 'rftt'];
+
+// 字母节点位置：按拓扑层次摆，w/f 无前置在最上，链 w→e→r 往下，r 分叉出 l/t
+const POS = {
+  w: { x: 140, y: 40 },  f: { x: 285, y: 40 },
+  e: { x: 140, y: 120 },
+  r: { x: 140, y: 200 },
+  l: { x: 72,  y: 282 }, t: { x: 208, y: 282 },
+};
+const NODE_R = 22;
+
+// 行号表：跟代码面板 1:1，snap 只用常量不写裸数字
+const L = {
+  DEF: 2,        // def alienOrder(self, words)
+  GRAPH: 3,      // graph = collections.defaultdict(list)
+  DEGREE: 4,     // degree = {}
+  FOR_WORD: 6,   // for word in words:            每轮 + 取空各一步
+  FOR_CH: 7,     // for ch in word:               每轮 + 取空各一步
+  IF_NEW: 8,     // if ch not in graph:           True/False 都停
+  DEG_INIT: 9,   // degree[ch] = 0
+  FOR_I: 11,     // for i in range(len(words)-1)  每轮 + 取空各一步
+  PRE: 12,       // word_pre = words[i]
+  CURR: 13,      // word_curr = words[i+1]
+  IF_PREFIX: 15, // if len(pre) > len(curr) and pre.startswith(curr)
+  RET_PREFIX: 16,// return ""（本例走不到）
+  M: 18,         // m = min(len(pre), len(curr))
+  FOR_J: 20,     // for j in range(m)             每轮一步；break 跳出不再回头
+  FROM: 21,      // from_letter = word_pre[j]
+  TO: 22,        // to_letter = word_curr[j]
+  IF_DIFF: 23,   // if from_letter != to_letter:  True/False 都停
+  IF_NOEDGE: 24, // if to_letter not in graph[from_letter]:
+  ADD_EDGE: 25,  // graph[from_letter].append(to_letter)
+  DEG_INC: 26,   // degree[to_letter] +=1
+  BREAK: 27,     // break
+  QUEUE: 29,     // queue = []
+  FOR_KV: 31,    // for key,val in degree.items() 每轮 + 取空各一步
+  IF_ZERO: 32,   // if val == 0:                  True/False 都停
+  ENQ: 33,       // queue.append(key)
+  RES: 35,       // res = []
+  WHILE: 36,     // while queue:                  每轮 + 取空各一步
+  POP: 37,       // curr = queue.pop(0)
+  RES_APP: 38,   // res.append(curr)
+  FOR_NEI: 39,   // for neighbour in graph[curr]  每轮 + 取空各一步
+  DEG_DEC: 40,   // degree[neighbour]-=1
+  IF_ZERO2: 41,  // if degree[neighbour] == 0:    True/False 都停
+  ENQ2: 42,      // queue.append(neighbour)
+  IF_LEN: 44,    // if len(res) != len(degree):   False（无环）
+  RET_JOIN: 46,  // return "".join(res)
+};
+
+// ── 真跑一遍 Lyon 的解法生成步骤（不手写步骤数组）─────────────────────────
+function buildSteps() {
+  const steps = [];
+  const letters = [];   // degree 的 key 插入顺序（Python dict 保序）
+  const degree = {};
+  const graph = {};     // defaultdict(list)：访问即建 key
+  const edges = [];     // [[from, to], ...] 按建边顺序
+  let queue = [], res = [];
+  let pair = null;      // 阶段2正在比较的两个单词下标 [i, i+1]
+  let curr = null;      // BFS 当前处理的字母
+  const V = {};         // var-bar 读数
+
+  function snap(line, info, ex) {
+    steps.push(Object.assign({
+      line, info,
+      letters: [...letters],
+      degree: Object.assign({}, degree),
+      edges: edges.map(e => e.slice()),
+      queue: [...queue], res: [...res],
+      pair: pair ? pair.slice() : null,
+      curr,
+      focus: null,      // {w, c} 阶段1正在看的字符
+      cmp: null,        // {j, same} 阶段2正在对比的第 j 位
+      activeEdge: null, checking: null,
+      vars: Object.assign({}, V),
+    }, ex || {}));
+  }
+
+  snap(null,
+    '外星字典：words 已经按外星语的字典序排好，反推字母表顺序。\n' +
+    '三步走：① 收集所有出现过的字母；② 相邻单词两两比较，第一处不同的字符给出一条 ' +
+    'from → to 的边；③ Kahn 算法（BFS 拓扑排序）——入度为 0 的字母先出，逐个"解锁"后面的字母。');
+
+  snap(L.DEF, `Line 2: 进入 alienOrder(words=${JSON.stringify(WORDS)}) — 返回值是一个字符串：合法的字母表顺序。`);
+  snap(L.GRAPH, 'Line 3: graph = defaultdict(list) — 邻接表：graph[a] 存所有"排在 a 后面"的字母。');
+  snap(L.DEGREE, 'Line 4: degree = {} — 入度表：degree[b] = 有几个字母必须排在 b 前面。');
+
+  // ── 阶段 1：收集字母（Line 6-9）──
+  for (let wi = 0; wi < WORDS.length; wi++) {
+    const word = WORDS[wi];
+    snap(L.FOR_WORD, `Line 6: word = "${word}"（第 ${wi + 1} 个单词）— 逐个单词收集出现过的字母。`,
+      { focus: { w: wi, c: null } });
+    for (let ci = 0; ci < word.length; ci++) {
+      const ch = word[ci];
+      snap(L.FOR_CH, `Line 7: ch = '${ch}' — 逐个字符看。`, { focus: { w: wi, c: ci } });
+      const isNew = !(ch in degree);
+      snap(L.IF_NEW, `Line 8: '${ch}' not in graph → True — 注意这个条件恒为 True：graph 是 defaultdict，` +
+        '这个阶段从来没人往 graph 里塞过 key（建边在后面），所以这里等价于"无条件执行下一行"。',
+        { focus: { w: wi, c: ci } });
+      if (isNew) letters.push(ch);
+      degree[ch] = 0;
+      snap(L.DEG_INIT, isNew
+        ? `Line 9: degree['${ch}'] = 0 — 字母 ${ch} 首次登记，入度先记 0。`
+        : `Line 9: degree['${ch}'] = 0 — ${ch} 之前登记过，这里重复赋 0，值没变（所以恒 True 的条件也不出错）。`,
+        { focus: { w: wi, c: ci }, checking: ch });
+    }
+    snap(L.FOR_CH, `Line 7: "${word}" 的字符扫完 — 回到外层继续下一个单词。`, { focus: { w: wi, c: null } });
+  }
+  snap(L.FOR_WORD, `Line 6: words 全部扫完 — 共收集 ${letters.length} 个字母：{${letters.join(', ')}}，入度全是 0。`);
+
+  // ── 阶段 2：相邻单词比较建边（Line 11-27）──
+  for (let i = 0; i < WORDS.length - 1; i++) {
+    pair = [i, i + 1];
+    delete V.m; delete V.j; delete V.from_letter; delete V.to_letter;
+    V.i = i;
+    snap(L.FOR_I, `Line 11: i = ${i} — 只比相邻的两个单词：字典序是相邻可比的，隔行比较不出新信息。`);
+    const wordPre = WORDS[i];
+    V.word_pre = `"${wordPre}"`;
+    snap(L.PRE, `Line 12: word_pre = words[${i}] = "${wordPre}"。`);
+    const wordCurr = WORDS[i + 1];
+    V.word_curr = `"${wordCurr}"`;
+    snap(L.CURR, `Line 13: word_curr = words[${i + 1}] = "${wordCurr}"。`);
+
+    const lenBigger = wordPre.length > wordCurr.length;
+    const isPrefix = lenBigger && wordPre.startsWith(wordCurr);
+    snap(L.IF_PREFIX, lenBigger
+      ? `Line 15: len("${wordPre}")=${wordPre.length} > len("${wordCurr}")=${wordCurr.length} → True，` +
+        `但 "${wordPre}".startswith("${wordCurr}") → False → 整体 False — ` +
+        '只有像 ["abc","ab"] 这种"长的排在自己前缀的前面"才是非法字典，直接 return ""。'
+      : `Line 15: len("${wordPre}")=${wordPre.length} > len("${wordCurr}")=${wordCurr.length} → False（短路，` +
+        'startswith 都不用看）— 合法，继续。');
+    if (isPrefix) { snap(L.RET_PREFIX, 'Line 16: return "" — 非法字典。'); return steps; }
+
+    const m = Math.min(wordPre.length, wordCurr.length);
+    V.m = m;
+    snap(L.M, `Line 18: m = min(${wordPre.length}, ${wordCurr.length}) = ${m} — 只能比到短的那个结束。`);
+
+    for (let j = 0; j < m; j++) {
+      V.j = j;
+      snap(L.FOR_J, `Line 20: j = ${j} — 从头逐位对比这两个单词。`, { cmp: { j, same: false } });
+      const fromLetter = wordPre[j];
+      V.from_letter = `'${fromLetter}'`;
+      snap(L.FROM, `Line 21: from_letter = word_pre[${j}] = '${fromLetter}'。`, { cmp: { j, same: false } });
+      const toLetter = wordCurr[j];
+      V.to_letter = `'${toLetter}'`;
+      snap(L.TO, `Line 22: to_letter = word_curr[${j}] = '${toLetter}'。`, { cmp: { j, same: false } });
+
+      if (fromLetter !== toLetter) {
+        snap(L.IF_DIFF, `Line 23: '${fromLetter}' != '${toLetter}' → True — 第一处不同就是字典序给出的唯一信息：` +
+          `${fromLetter} 必须排在 ${toLetter} 前面。`, { cmp: { j, same: false } });
+        if (!graph[fromLetter]) graph[fromLetter] = [];
+        const hasEdge = graph[fromLetter].indexOf(toLetter) >= 0;
+        snap(L.IF_NOEDGE, hasEdge
+          ? `Line 24: '${toLetter}' not in graph['${fromLetter}'] → False — 这条边建过了，不能重复加入度。`
+          : `Line 24: '${toLetter}' not in graph['${fromLetter}'] → True — 这条边还没建过（去重：同一条边加两次入度就错了）。`,
+          { cmp: { j, same: false } });
+        if (!hasEdge) {
+          graph[fromLetter].push(toLetter);
+          edges.push([fromLetter, toLetter]);
+          snap(L.ADD_EDGE, `Line 25: graph['${fromLetter}'].append('${toLetter}') — 建边 ${fromLetter} → ${toLetter}。`,
+            { cmp: { j, same: false }, activeEdge: [fromLetter, toLetter] });
+          degree[toLetter] += 1;
+          snap(L.DEG_INC, `Line 26: degree['${toLetter}'] += 1 → ${degree[toLetter]} — ${toLetter} 又多了一个必须排在它前面的字母。`,
+            { cmp: { j, same: false }, activeEdge: [fromLetter, toLetter], checking: toLetter });
+        }
+        snap(L.BREAK, `Line 27: break — 第一处不同之后的位置不携带任何顺序信息（"${wordPre}" 和 "${wordCurr}" ` +
+          `后面的字符怎么排都不违反字典序），必须立刻停，多比就是错。`, { cmp: { j, same: false } });
+        break;
+      } else {
+        snap(L.IF_DIFF, `Line 23: '${fromLetter}' != '${toLetter}' → False — 这一位相同，比不出先后，看下一位。`,
+          { cmp: { j, same: true } });
+      }
+    }
+  }
+  pair = null;
+  delete V.i; delete V.word_pre; delete V.word_curr; delete V.m; delete V.j;
+  delete V.from_letter; delete V.to_letter;
+  snap(L.FOR_I, `Line 11: range(${WORDS.length - 1}) 走完 — 所有相邻单词对都比完了，图建好：共 ${edges.length} 条边。`);
+
+  // ── 阶段 3a：入度为 0 的字母先入队（Line 29-33）──
+  snap(L.QUEUE, 'Line 29: queue = [] — 准备 BFS 队列（Lyon 用 list + pop(0) 当队列用）。');
+  for (const key of letters) {
+    const val = degree[key];
+    V.key = `'${key}'`; V.val = val;
+    snap(L.FOR_KV, `Line 31: key='${key}', val=${val} — 遍历入度表（dict 保持插入顺序：${letters.join(', ')}）。`,
+      { checking: key });
+    snap(L.IF_ZERO, `Line 32: val == 0 → ${val === 0 ? 'True — 没有任何字母必须排在 ' + key + ' 前面，可以当起点'
+      : 'False — 还有 ' + val + ' 个字母压着 ' + key + '，先等'}。`, { checking: key });
+    if (val === 0) {
+      queue.push(key);
+      snap(L.ENQ, `Line 33: queue.append('${key}') — ${key} 入队。`, { checking: key });
+    }
+  }
+  delete V.key; delete V.val;
+  snap(L.FOR_KV, `Line 31: degree 遍历完 — 起点集合 queue = [${queue.join(', ')}]。`);
+
+  // ── 阶段 3b：BFS 拓扑排序（Line 35-42）──
+  snap(L.RES, 'Line 35: res = [] — 按确定的先后顺序收字母，收满就是答案。');
+  while (true) {
+    snap(L.WHILE, queue.length
+      ? `Line 36: while queue → 队列还有 ${queue.length} 个字母，继续。`
+      : 'Line 36: while queue → queue 空了，循环结束。');
+    if (!queue.length) break;
+
+    curr = queue.shift();
+    V.curr = `'${curr}'`;
+    snap(L.POP, `Line 37: curr = queue.pop(0) = '${curr}' — 从队头取出（pop(0) 保证先进先出）。`);
+    res.push(curr);
+    snap(L.RES_APP, `Line 38: res.append('${curr}') — ${curr} 的位置定了：第 ${res.length} 位。`);
+
+    const neis = graph[curr] || [];
+    if (!neis.length) {
+      snap(L.FOR_NEI, `Line 39: graph['${curr}'] 是空的 — 没有字母被 ${curr} 压着，直接回到 while。`);
+    } else {
+      for (const nb of neis) {
+        V.neighbour = `'${nb}'`;
+        snap(L.FOR_NEI, `Line 39: neighbour = '${nb}' — ${curr} 排定了，看它压着的字母。`,
+          { activeEdge: [curr, nb] });
+        degree[nb] -= 1;
+        snap(L.DEG_DEC, `Line 40: degree['${nb}'] -= 1 → ${degree[nb]} — 压着 ${nb} 的字母又少了一个。`,
+          { activeEdge: [curr, nb], checking: nb });
+        snap(L.IF_ZERO2, `Line 41: degree['${nb}'] == 0 → ${degree[nb] === 0
+          ? 'True — 排在 ' + nb + ' 前面的字母全部就位'
+          : 'False — 还差 ' + degree[nb] + ' 个，先不入队'}。`,
+          { activeEdge: [curr, nb], checking: nb });
+        if (degree[nb] === 0) {
+          queue.push(nb);
+          snap(L.ENQ2, `Line 42: queue.append('${nb}') — ${nb} 入队，等着排定位置。`,
+            { activeEdge: [curr, nb], checking: nb });
+        }
+      }
+      delete V.neighbour;
+      snap(L.FOR_NEI, `Line 39: graph['${curr}'] 遍历完 — ${curr} 处理结束。`);
+    }
+    curr = null;
+    delete V.curr;
+  }
+
+  // ── 收尾（Line 44-46）──
+  snap(L.IF_LEN, `Line 44: len(res)=${res.length} != len(degree)=${letters.length} → False — 所有字母都排进去了。` +
+    '（如果图里有环，环上字母的入度永远清不到 0、进不了队，res 就会缺人 → return ""。）');
+  const ans = res.join('');
+  snap(L.RET_JOIN, `Line 46: return "".join(res) — ✅ 最终答案 = "${ans}"。拓扑序不唯一，` +
+    'LeetCode 只要求任意一个合法顺序（官方示例给的 "wertf" 也是合法解之一）。');
+
+  return steps;
+}
+
+const STEPS = buildSteps();
+let cur = -1;
+
+// ── 渲染（只读快照，无副作用）────────────────────────────────────────────
+function renderWords(s) {
+  const inPair = (wi) => s.pair && (wi === s.pair[0] || wi === s.pair[1]);
+  document.getElementById('words-list').innerHTML = WORDS.map((word, wi) => {
+    const dim = (s.pair && !inPair(wi)) || (s.focus && s.focus.w !== wi);
+    let role = '';
+    if (s.pair && wi === s.pair[0]) role = ' <span class="role-pre">pre</span>';
+    if (s.pair && wi === s.pair[1]) role = ' <span class="role-curr">curr</span>';
+    const cells = word.split('').map((ch, ci) => {
+      const cls = ['w-cell'];
+      if (s.focus && s.focus.w === wi && s.focus.c === ci) cls.push('hot');
+      if (s.cmp && inPair(wi) && ci === s.cmp.j) cls.push(s.cmp.same ? 'same' : 'hot');
+      return `<div class="${cls.join(' ')}">${ch}</div>`;
+    }).join('');
+    return `<div class="word-row${dim ? ' dimmed' : ''}">` +
+      `<div class="word-label">words[${wi}]${role}</div><div class="word-cells">${cells}</div></div>`;
+  }).join('');
+}
+
+function mkEl(tag) { return document.createElementNS('http://www.w3.org/2000/svg', tag); }
+
+function nodeState(s, ch) {
+  if (ch === s.curr || ch === s.checking) return 'curr';
+  if (s.res.indexOf(ch) >= 0) return 'settled';
+  if (s.queue.indexOf(ch) >= 0) return 'queued';
+  return 'pending';
+}
+
+function renderGraph(s) {
+  const g = document.getElementById('graph-dyn');
+  g.innerHTML = '';
+
+  for (const [a, b] of s.edges) {
+    const pa = POS[a], pb = POS[b];
+    const isActive = s.activeEdge && s.activeEdge[0] === a && s.activeEdge[1] === b;
+    const dx = pb.x - pa.x, dy = pb.y - pa.y;
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+    const ux = dx / dist, uy = dy / dist;
+    const line = mkEl('line');
+    line.setAttribute('x1', pa.x + ux * NODE_R); line.setAttribute('y1', pa.y + uy * NODE_R);
+    line.setAttribute('x2', pb.x - ux * (NODE_R + 3)); line.setAttribute('y2', pb.y - uy * (NODE_R + 3));
+    line.setAttribute('stroke', isActive ? '#1D9E75' : '#c8c6be');
+    line.setAttribute('stroke-width', isActive ? '2.5' : '1.5');
+    line.setAttribute('marker-end', isActive ? 'url(#arrow-active)' : 'url(#arrow)');
+    g.appendChild(line);
+  }
+
+  for (const ch of s.letters) {
+    const p = POS[ch];
+    const state = nodeState(s, ch);
+    let fill = '#f5f5f5', stroke = '#c9c9c9', strokeW = 1;
+    if (state === 'curr') { fill = 'rgba(249,203,66,0.55)'; stroke = '#d4a800'; strokeW = 2.5; }
+    else if (state === 'queued') { fill = 'rgba(120,160,225,0.3)'; stroke = '#5a82c8'; strokeW = 1.5; }
+    else if (state === 'settled') { fill = 'rgba(93,202,165,0.4)'; stroke = '#3ca07d'; strokeW = 1.5; }
+
+    const circle = mkEl('circle');
+    circle.setAttribute('cx', p.x); circle.setAttribute('cy', p.y); circle.setAttribute('r', NODE_R);
+    circle.setAttribute('fill', fill); circle.setAttribute('stroke', stroke); circle.setAttribute('stroke-width', strokeW);
+    g.appendChild(circle);
+
+    const text = mkEl('text');
+    text.setAttribute('x', p.x); text.setAttribute('y', p.y);
+    text.setAttribute('text-anchor', 'middle'); text.setAttribute('dominant-baseline', 'central');
+    text.setAttribute('font-size', '15'); text.setAttribute('font-weight', '700'); text.setAttribute('fill', '#2C2C2A');
+    text.setAttribute('font-family', 'SF Mono, Menlo, monospace');
+    text.textContent = ch;
+    g.appendChild(text);
+  }
+}
+
+function renderDegree(s) {
+  document.getElementById('degree-display').innerHTML = s.letters.length
+    ? s.letters.map(ch => {
+        const v = s.degree[ch];
+        const cls = 'deg-cell' + (v === 0 ? ' zero' : '') + (s.checking === ch ? ' active' : '');
+        return `<div class="${cls}"><span class="deg-c">${ch}</span><span class="deg-v">${v}</span></div>`;
+      }).join('')
+    : '<span class="q-empty">空</span>';
+}
+
+function chipRow(list, cls) {
+  if (!list.length) return '<span class="q-empty">空</span>';
+  return list.map((v, i) =>
+    `<span class="${cls}${cls === 'q-item' && i === 0 ? ' head' : ''}">${v}</span>` +
+    (i < list.length - 1 ? '<span class="q-arrow">→</span>' : '')
+  ).join('');
+}
+
+function renderVars(s) {
+  const names = ['i', 'word_pre', 'word_curr', 'm', 'j', 'from_letter', 'to_letter', 'key', 'val', 'curr', 'neighbour'];
+  document.getElementById('var-bar').innerHTML = names.map(n =>
+    `<span class="var-row"><span class="var-name">${n}</span><span class="var-eq"> = </span>` +
+    `<span class="var-val">${s.vars[n] !== undefined ? s.vars[n] : '-'}</span></span>`
+  ).join('');
+}
+
+const EMPTY = { letters: [], degree: {}, edges: [], queue: [], res: [], pair: null, curr: null,
+                focus: null, cmp: null, activeEdge: null, checking: null, vars: {}, line: null };
+
+function renderAll() {
+  const step = cur >= 0 ? STEPS[cur] : null;
+  const s = step || EMPTY;
+
+  renderWords(s);
+  renderGraph(s);
+  renderDegree(s);
+  document.getElementById('queue-display').innerHTML = chipRow(s.queue, 'q-item');
+  document.getElementById('res-display').innerHTML = chipRow(s.res, 'res-item');
+  renderVars(s);
+  highlightLine(s.line);
+  renderCtrl(cur, STEPS.length, step ? step.info :
+    `点 Next 开始：words = ${JSON.stringify(WORDS)}，反推外星字母表的顺序。`);
+}
+
+var render = renderAll;
+doReset();
+</script>
+</body>
+</html>

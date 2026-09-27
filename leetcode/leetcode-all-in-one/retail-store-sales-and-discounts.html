@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Retail Store Sales and Discounts</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  /* 图例挪到代码框下面后改纵向单列（ANIMATION_GUIDE 硬性规则） */
+  .legend-below { flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 0; max-width: none; }
+
+  /* prices 价目表：一件商品一个 chip，建表时黄一下，建好常驻 */
+  .rt-prices-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .rt-price-chip { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 96px; padding: 8px 12px; border-radius: 8px; background: #f5f5f5; border: 1px solid #c9c9c9; font-family: var(--ink-mono); transition: background 0.2s; }
+  .rt-price-chip .nm { font-size: 13px; font-weight: 700; color: var(--ink); }
+  .rt-price-chip .pv { font-size: 12px; color: #888; }
+  .rt-price-chip.raw .pv { color: #bbb; }
+  .rt-price-chip.cur { background: rgba(249,203,66,0.55); border-color: transparent; }
+  .rt-price-chip.set { border-color: transparent; background: #fff; box-shadow: inset 0 0 0 1px #e2e2e2; }
+  .rt-price-chip.set .pv { color: var(--ink); font-weight: 700; }
+
+  /* logs 流水：一条一行，当前黄、处理完绿、没轮到灰 */
+  .rt-logs-col { display: flex; flex-direction: column; gap: 6px; }
+  .rt-log { font-family: var(--ink-mono); font-size: 12.5px; font-weight: 700; padding: 7px 10px; border-radius: 8px; background: #f5f5f5; border: 1px solid #c9c9c9; color: var(--ink); width: max-content; transition: background 0.2s, opacity 0.2s; }
+  .rt-log.doing { background: rgba(249,203,66,0.55); border-color: transparent; }
+  .rt-log.done { background: rgba(93,202,165,0.4); border-color: transparent; }
+
+  /* discounts：进行中的折扣，蓝底；remaining 会当场减 */
+  .rt-disc-box { min-height: 56px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .rt-disc { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border-radius: 8px; background: rgba(120,160,225,0.3); font-family: var(--ink-mono); }
+  .rt-disc .nm { font-size: 13px; font-weight: 800; color: var(--ink); }
+  .rt-disc .dv { font-size: 12px; color: #34557E; }
+  .rt-disc.touch { outline: 2px solid rgba(249,203,66,0.9); }
+  .rt-disc-empty { font-family: var(--ink-mono); font-size: 12px; color: #aaa; }
+
+  /* revenue：本步算式 + 累计大数字 */
+  .rt-rev-row { display: flex; align-items: baseline; gap: 16px; font-family: var(--ink-mono); min-height: 44px; }
+  .rt-rev-total { font-size: 30px; font-weight: 800; color: var(--ink); }
+  .rt-rev-add { font-size: 13px; color: #246B55; font-weight: 700; background: rgba(93,202,165,0.25); border-radius: 6px; padding: 4px 8px; }
+  .rt-rev-add:empty { display: none; }
+
+  /* OA 题面（notes.js 会挪进 Notes 区；后端不在时显示在动画下面） */
+  .oa-layout { max-width: 760px; margin: 24px auto 0; display: flex; flex-direction: column; gap: 16px; }
+  .oa-layout .card { width: 100%; min-width: 0; line-height: 1.7; }
+  .oa-layout .card p { margin: 0 0 10px; }
+  .oa-layout .card p:last-child { margin-bottom: 0; }
+  .oa-layout .card ul, .oa-layout .card ol { margin: 0 0 10px 20px; }
+  .oa-layout .card li { margin-bottom: 8px; }
+  .oa-layout .card code { background: var(--ink-chip); border-radius: 4px; padding: 1px 5px; font-family: var(--ink-mono); font-size: 12.5px; }
+  .oa-tag { display: inline-block; font-family: var(--ink-mono); font-size: 11px; letter-spacing: .03em; background: var(--ink-chip); border: var(--ink-border); border-radius: 6px; padding: 2px 8px; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: 'Retail Store Sales and Discounts',
+  legend: [
+    { color: 'rgba(249,203,66,0.55)', label: '当前 — 正在处理的价目条 / 交易 / 折扣' },
+    { color: 'rgba(120,160,225,0.3)', label: '进行中的折扣（discounts 里的条目）' },
+    { color: 'rgba(93,202,165,0.4)', label: '已处理完的交易 / 本步入账的金额' },
+    { color: '#f5f5f5', extra: 'border:1px solid #c9c9c9;', label: '还没轮到' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+  <script>
+  renderCodeBox({
+    code: `
+def solution(priceList, logs):
+    prices = {}
+
+    for entry in priceList:
+        item, price = entry.split(": ")
+        prices[item] = int(price)
+
+    # item -> [discount_amount, remaining_discount_count]
+    discounts = {}
+
+    revenue = 0
+
+    for log in logs:
+        if log.startswith("sell "):
+            data = log[len("sell "):]
+            item, count = data.split(", ")
+            count = int(count)
+
+            price = prices[item]
+
+            if item in discounts:
+                discount_amount, remaining = discounts[item]
+
+                discounted_count = min(count, remaining)
+                normal_count = count - discounted_count
+
+                revenue += discounted_count * (price - discount_amount)
+                revenue += normal_count * price
+
+                discounts[item][1] -= discounted_count
+            else:
+                revenue += count * price
+
+        elif log.startswith("discount_start "):
+            data = log[len("discount_start "):]
+            item, discount_amount, max_count = data.split(", ")
+
+            discounts[item] = [
+                int(discount_amount),
+                int(max_count)
+            ]
+
+        elif log.startswith("discount_end "):
+            item = log[len("discount_end "):]
+            del discounts[item]
+
+    return revenue`,
+  });
+  </script>
+  <script>
+  /* 动画区分布（2026-08-26 定稿，跟正常题一致）：步进控件由 notes.js 锚在
+     "Animation" 标题正下方；说明框保持 renderCodeBox 默认位置（代码框
+     上面，这页代码 1300px 高，说明沉下去就看不见了）；颜色图例挪到
+     代码框下面（ANIMATION_GUIDE 惯例）。 */
+  (function () {
+    const stack = document.querySelector('.code-stack');
+    const legend = document.querySelector('.legend');
+    const legendRow = legend.parentElement;
+    legend.classList.add('legend-below');
+    stack.appendChild(legend);
+    legendRow.remove();
+  })();
+  </script>
+
+  <div class="viz-panel">
+    <div class="var-bar" id="var-bar"></div>
+
+    <div class="card">
+      <h3>prices — 价目表（priceList 建出来的 dict）</h3>
+      <div class="rt-prices-row" id="rt-prices"></div>
+    </div>
+
+    <div class="card">
+      <h3>logs — 交易流水（按时间依次处理）</h3>
+      <div class="rt-logs-col" id="rt-logs"></div>
+    </div>
+
+    <div class="card">
+      <h3>discounts — 进行中的折扣（item → [减多少, 还剩几件]）</h3>
+      <div class="rt-disc-box" id="rt-disc"></div>
+    </div>
+
+    <div class="card">
+      <h3>revenue — 累计营收</h3>
+      <div class="rt-rev-row"><span class="rt-rev-total" id="rt-rev-total">-</span><span class="rt-rev-add" id="rt-rev-add"></span></div>
+    </div>
+  </div>
+</div><!-- /.main -->
+
+<!-- OA 题面：notes.js（problemToNotes）会把这块挪进 Notes 区当只读 Problem 卡 -->
+<div class="oa-layout">
+  <div class="card">
+    <span class="oa-tag">TikTok OA · 2026-08-08 · no official LeetCode number</span>
+    <h3>Problem</h3>
+    <p>Implement a simplified inventory tracker for a retail store. You're given a price list <code>priceList</code> (current price per item) and a chronological transaction log <code>logs</code> containing <code>sell</code>, <code>discount_start</code>, and <code>discount_end</code> records. Process all transactions and return the total revenue.</p>
+    <p>Each price list entry has the form <code>"&lt;item_name&gt;: &lt;price&gt;"</code>.</p>
+    <p><strong>Transaction formats</strong></p>
+    <ul>
+      <li><code>"sell &lt;item_name&gt;, &lt;count&gt;"</code> — sell <code>&lt;count&gt;</code> units of <code>&lt;item_name&gt;</code>.</li>
+      <li><code>"discount_start &lt;item_name&gt;, &lt;discount_amount&gt;, &lt;max_count&gt;"</code> — start selling <code>&lt;item_name&gt;</code> at <code>price - &lt;discount_amount&gt;</code>, for at most <code>&lt;max_count&gt;</code> units (≤ 100); extra units sell at the original price. Only one discount per item at a time.</li>
+      <li><code>"discount_end &lt;item_name&gt;"</code> — end the discount for <code>&lt;item_name&gt;</code> (guaranteed to have an active discount at that point).</li>
+    </ul>
+    <p><strong>Note:</strong> transactions arrive already sorted chronologically; a solution up to <code>O(logs.length^2 · priceList.length)</code> fits the time limit.</p>
+  </div>
+</div>
+</div><!-- /.content-wrapper -->
+
+<script>
+// ── Data（自拟例子，覆盖三种交易 + 折扣件数不够用的情况）────────────────────
+const PRICE_LIST = ['apple: 10', 'banana: 5'];
+const LOGS = [
+  'sell apple, 2',
+  'discount_start apple, 3, 2',
+  'sell apple, 3',
+  'discount_end apple',
+  'sell banana, 4',
+];
+
+// 行号表（renderCodeBox 从 1 起连续编号，空行/注释行也占号）
+const L = {
+  DEF: 1, PRICES: 2, FORP: 4, PSPLIT: 5, PSET: 6, DISC: 9, REV: 11,
+  FORL: 13, IFSELL: 14, SDATA: 15, SSPLIT: 16, SCOUNT: 17, SPRICE: 19,
+  IFDISC: 21, UNPACK: 22, DCNT: 24, NCNT: 25, RADD_D: 27, RADD_N: 28,
+  DECR: 30, ELSE: 31, RADD: 32, ELIF_S: 34, TDATA: 35, TSPLIT: 36, TSET: 38,
+  ELIF_E: 43, EITEM: 44, EDEL: 45, RET: 47,
+};
+
+// ── Step builder：真实模拟算法本身 ─────────────────────────────────────────
+function buildSteps() {
+  const steps = [];
+  const prices = {};     // 已建好的价目
+  let pi = null;         // 正在处理第几条 priceList
+  let li = null;         // 正在处理第几条 log
+  let done = 0;          // 已处理完的 log 条数
+  let discounts = {};    // item -> [amount, remaining]
+  let revenue = null;
+  let v = {};            // 当前 log 里已算出的局部变量（item/count/price/…）
+  let addExpr = null;    // 本步入账的算式（revenue 卡右侧绿块）
+  let result = null;
+
+  function snap(line, info) {
+    steps.push({
+      line, info, pi, li, done, revenue, addExpr, result,
+      prices: { ...prices },
+      discounts: JSON.parse(JSON.stringify(discounts)),
+      v: { ...v },
+    });
+  }
+
+  snap(null, '初始状态：2 件商品的价目表，5 条交易流水 — 点击 Next 开始');
+  snap(L.DEF, 'Line 1: 进入 solution(priceList, logs) — 先建价目表，再按时间扫流水');
+  snap(L.PRICES, 'Line 2: prices = {} — 空价目表，马上从 priceList 里建');
+
+  PRICE_LIST.forEach((entry, idx) => {
+    pi = idx;
+    snap(L.FORP, `Line 4: for 取下一条价目 — entry = "${entry}"（第 ${idx + 1}/${PRICE_LIST.length} 条）`);
+    const [item, price] = entry.split(': ');
+    snap(L.PSPLIT, `Line 5: 按 ": " 拆开 — item = "${item}"，price = "${price}"（还是字符串）`);
+    prices[item] = parseInt(price, 10);
+    snap(L.PSET, `Line 6: prices["${item}"] = ${prices[item]} — 转成整数写进价目表`);
+  });
+  pi = null;
+  snap(L.FORP, 'Line 4: priceList 取完了，for 结束 — 价目表建好');
+
+  snap(L.DISC, 'Line 9: discounts = {} — 进行中的折扣表，key 是商品、值是 [减多少, 还剩几件]');
+  revenue = 0;
+  snap(L.REV, 'Line 11: revenue = 0 — 营收从零开始累计');
+
+  LOGS.forEach((log, idx) => {
+    li = idx;
+    v = {};
+    addExpr = null;
+    snap(L.FORL, `Line 13: for 取下一条交易 — log = "${log}"（第 ${idx + 1}/${LOGS.length} 条）`);
+
+    const isSell = log.startsWith('sell ');
+    snap(L.IFSELL, `Line 14: log.startswith("sell ") → ${isSell ? 'True，这是卖货，走 sell 分支' : 'False，不是卖货，往下试别的前缀'}`);
+
+    if (isSell) {
+      const data = log.slice('sell '.length);
+      v.data = data;
+      snap(L.SDATA, `Line 15: 切掉前缀 "sell " — data = "${data}"`);
+      const [item, countStr] = data.split(', ');
+      v.item = item; v.countStr = countStr;
+      snap(L.SSPLIT, `Line 16: 按 ", " 拆开 — item = "${item}"，count = "${countStr}"（还是字符串）`);
+      const count = parseInt(countStr, 10);
+      v.count = count; delete v.countStr;
+      snap(L.SCOUNT, `Line 17: count = int("${countStr}") = ${count} — 这次卖 ${count} 件`);
+
+      const price = prices[item];
+      v.price = price;
+      snap(L.SPRICE, `Line 19: price = prices["${item}"] = ${price} — 查原价`);
+
+      const hasDisc = item in discounts;
+      snap(L.IFDISC, `Line 21: "${item}" in discounts → ${hasDisc ? 'True，这件商品有折扣，折扣件数优先用掉' : 'False，没有折扣，全按原价卖'}`);
+
+      if (hasDisc) {
+        const [discountAmount, remaining] = discounts[item];
+        v.discount_amount = discountAmount; v.remaining = remaining;
+        snap(L.UNPACK, `Line 22: 拆出折扣 — discount_amount = ${discountAmount}，remaining = ${remaining}（折扣名额还剩 ${remaining} 件）`);
+
+        const discountedCount = Math.min(count, remaining);
+        v.discounted_count = discountedCount;
+        snap(L.DCNT, `Line 24: discounted_count = min(${count}, ${remaining}) = ${discountedCount} — 折扣价最多卖这么多件`);
+
+        const normalCount = count - discountedCount;
+        v.normal_count = normalCount;
+        snap(L.NCNT, `Line 25: normal_count = ${count} - ${discountedCount} = ${normalCount} — 超出名额的按原价`);
+
+        revenue += discountedCount * (price - discountAmount);
+        addExpr = `+ ${discountedCount} × (${price} − ${discountAmount}) = ${discountedCount * (price - discountAmount)}`;
+        snap(L.RADD_D, `Line 27: revenue += ${discountedCount} × (${price} − ${discountAmount}) = ${discountedCount * (price - discountAmount)} — 折扣件入账，revenue = ${revenue}`);
+
+        revenue += normalCount * price;
+        addExpr = `+ ${normalCount} × ${price} = ${normalCount * price}`;
+        snap(L.RADD_N, `Line 28: revenue += ${normalCount} × ${price} = ${normalCount * price} — 原价件入账，revenue = ${revenue}`);
+
+        discounts[item][1] -= discountedCount;
+        addExpr = null;
+        snap(L.DECR, `Line 30: 折扣名额扣掉 ${discountedCount} 件 — discounts["${item}"] 还剩 ${discounts[item][1]} 件名额`);
+      } else {
+        snap(L.ELSE, 'Line 31: else 分支 — 没有折扣，直接按原价结算');
+        revenue += count * price;
+        addExpr = `+ ${count} × ${price} = ${count * price}`;
+        snap(L.RADD, `Line 32: revenue += ${count} × ${price} = ${count * price} — 全部原价入账，revenue = ${revenue}`);
+      }
+    } else {
+      const isStart = log.startsWith('discount_start ');
+      snap(L.ELIF_S, `Line 34: log.startswith("discount_start ") → ${isStart ? 'True，开一个折扣' : 'False，也不是开折扣'}`);
+
+      if (isStart) {
+        const data = log.slice('discount_start '.length);
+        v.data = data;
+        snap(L.TDATA, `Line 35: 切掉前缀 — data = "${data}"`);
+        const [item, discountAmount, maxCount] = data.split(', ');
+        v.item = item; v.discount_amount = discountAmount; v.max_count = maxCount;
+        snap(L.TSPLIT, `Line 36: 拆出三段 — item = "${item}"，discount_amount = "${discountAmount}"，max_count = "${maxCount}"`);
+        discounts[item] = [parseInt(discountAmount, 10), parseInt(maxCount, 10)];
+        snap(L.TSET, `Line 38: discounts["${item}"] = [${discounts[item][0]}, ${discounts[item][1]}] — 之后每件减 ${discounts[item][0]}，名额 ${discounts[item][1]} 件`);
+      } else {
+        const isEnd = log.startsWith('discount_end ');
+        snap(L.ELIF_E, `Line 43: log.startswith("discount_end ") → ${isEnd ? 'True，收掉一个折扣' : 'False'}`);
+        const item = log.slice('discount_end '.length);
+        v.item = item;
+        snap(L.EITEM, `Line 44: 切掉前缀 — item = "${item}"`);
+        delete discounts[item];
+        snap(L.EDEL, `Line 45: del discounts["${item}"] — 折扣结束，没用完的名额作废`);
+      }
+    }
+    done = idx + 1;
+  });
+
+  li = null;
+  v = {};
+  addExpr = null;
+  snap(L.FORL, 'Line 13: logs 取完了，for 结束 — 所有交易处理完毕');
+  result = revenue;
+  snap(L.RET, `✅ Line 47: return revenue = ${revenue} — 最终答案 = ${revenue}`);
+
+  return steps;
+}
+
+const STEPS = buildSteps();
+var cur = -1;
+
+// ── DOM init ───────────────────────────────────────────────────────────────
+(function buildDOM() {
+  document.getElementById('rt-prices').innerHTML = PRICE_LIST.map((entry, i) => {
+    const item = entry.split(': ')[0];
+    return `<div class="rt-price-chip raw" id="pc-${i}"><span class="nm">${item}</span><span class="pv" id="pcv-${i}">"${entry}"</span></div>`;
+  }).join('');
+  document.getElementById('rt-logs').innerHTML = LOGS.map((log, i) =>
+    `<div class="rt-log" id="log-${i}">"${log}"</div>`
+  ).join('');
+})();
+
+function renderVarBar(s) {
+  const v = s ? s.v : {};
+  const cell = (name, val) =>
+    `<span><span class="var-name">${name}</span> <span class="var-eq">=</span> <span class="var-val">${val === undefined ? '-' : val}</span></span>`;
+  return cell('item', v.item !== undefined ? `"${v.item}"` : undefined) +
+    cell('count', v.count) +
+    cell('price', v.price) +
+    cell('revenue', s && s.revenue !== null ? s.revenue : undefined);
+}
+
+// ── Render（只读快照，无副作用）────────────────────────────────────────────
+function render() {
+  const s = cur < 0 ? null : STEPS[cur];
+  highlightLine(s ? s.line : null);
+  renderCtrl(cur < 0 ? -1 : cur, STEPS.length, s ? s.info : '');
+  document.getElementById('var-bar').innerHTML = renderVarBar(s);
+
+  PRICE_LIST.forEach((entry, i) => {
+    const item = entry.split(': ')[0];
+    const chip = document.getElementById(`pc-${i}`);
+    const pv = document.getElementById(`pcv-${i}`);
+    const built = s && s.prices[item] !== undefined;
+    chip.className = 'rt-price-chip' + (s && s.pi === i ? ' cur' : built ? ' set' : ' raw');
+    pv.textContent = built ? `→ ${s.prices[item]}` : `"${entry}"`;
+  });
+
+  LOGS.forEach((_, i) => {
+    const el = document.getElementById(`log-${i}`);
+    const doing = s && s.li === i;
+    el.className = 'rt-log' + (doing ? ' doing' : s && i < s.done ? ' done' : '');
+  });
+
+  const disc = document.getElementById('rt-disc');
+  const entries = s ? Object.entries(s.discounts) : [];
+  if (!s || s.line === null || s.line < L.DISC) {
+    disc.innerHTML = '<span class="rt-disc-empty">（还没建）</span>';
+  } else if (!entries.length) {
+    disc.innerHTML = '<span class="rt-disc-empty">{}（当前没有进行中的折扣）</span>';
+  } else {
+    disc.innerHTML = entries.map(([item, [amt, rem]]) => {
+      const touch = s.v.item === item && s.line >= L.IFDISC;
+      return `<div class="rt-disc${touch ? ' touch' : ''}"><span class="nm">${item}</span><span class="dv">每件 −${amt} · 名额剩 ${rem}</span></div>`;
+    }).join('');
+  }
+
+  document.getElementById('rt-rev-total').textContent = s && s.revenue !== null ? s.revenue : '-';
+  document.getElementById('rt-rev-add').textContent = s && s.addExpr ? s.addExpr : '';
+}
+
+doReset();
+</script>
+</body>
+</html>

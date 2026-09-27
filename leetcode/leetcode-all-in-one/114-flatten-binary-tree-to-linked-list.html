@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>114. Flatten Binary Tree to Linked List</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  svg { display: block; width: 100%; max-height: 270px; }
+
+  /* 调用链：一层一行、按深度缩进，底色 = 这次调用在代码面板里的高亮底色
+     （同 78-subsets.html 的约定：代码高亮行 / 调用链 / 树节点三处同色，
+     状态另走别的通道——栈顶黑框，子树走完变绿，还没访问保持灰）。 */
+  .call-chain { display: flex; flex-direction: column; gap: 4px; min-height: 132px; }
+  .chain-row { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 10px;
+               border-radius: 7px; font-family: 'SF Mono', monospace; font-size: 12px;
+               color: #1a1a1a; white-space: nowrap; align-self: flex-start;
+               transition: box-shadow 0.15s; }
+  .chain-row.top { box-shadow: 0 0 0 1.5px #1a1a1a; font-weight: 700; }
+  .chain-i { color: #C4501E; font-weight: 700; }
+  .chain-dim { color: #8a8a8a; font-weight: 400; }
+  .chain-empty { font-family: 'SF Mono', monospace; font-size: 12px; color: #bbb; }
+  .chain-note { margin-top: 10px; max-width: 380px; font-size: 11.5px; line-height: 1.65; color: #8a8a8a; }
+  .chain-note b { color: #1a1a1a; font-weight: 700; }
+
+  .tree-result-row { display: flex; gap: 16px; align-items: flex-start; }
+
+  /* Flattened chain preview（从节点 1 沿当前 .right 指针走出来的预览，
+     跟"调用链"是两码事：这个看的是最终链表长什么样，不是谁在跑） */
+  .flat-chain-row { display: flex; align-items: center; flex-wrap: wrap; gap: 0; max-width: 220px; }
+  .flat-chain-cell { min-width: 34px; height: 34px; padding: 0 8px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; font-family: 'SF Mono', monospace; background: rgba(93,202,165,0.3); color: #1a1a1a; }
+  .flat-chain-arrow { margin: 0 3px; color: #999; font-size: 13px; font-family: 'SF Mono', monospace; }
+  .flat-chain-tag { margin-top: 8px; font-size: 11px; color: #999; }
+  .flat-chain-tag.done { color: #1D9E75; font-weight: 700; }
+  .chain-label { margin: 12px 0 0; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '114. Flatten Binary Tree to Linked List',
+  link: 'https://leetcode.com/problems/flatten-binary-tree-to-linked-list/',
+  legend: [
+    { color: 'rgba(120,160,225,0.28)', extra: 'box-shadow:inset 0 0 0 2px #1a1a1a;', label: '黑框 = 正在执行这一行的那次调用；底色按调用身份分——代码高亮行 / 调用链 / 树节点三处同色' },
+    { color: 'rgba(150,150,150,0.16)', label: '灰底 = 还在栈上的祖先调用，或 dfs(None)' },
+    { color: 'rgba(93,202,165,0.4)', label: '子树已展开完成 — dfs 已返回' },
+    { color: '#f5f5f5', extra: 'border:1px solid #ccc;', label: '尚未访问' },
+    { color: '#3A6FD4', extra: 'border-radius:2px;width:14px;height:3px;', label: '正在读/写的指针' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+  <script>
+  renderCodeBox({
+    prereq: `
+# Definition for a binary tree node.
+# class TreeNode:
+#     def __init__(self, val=0, left=None, right=None):
+#         self.val = val
+#         self.left = left
+#         self.right = right`,
+    code: `
+class Solution:
+    def dfs(self, root):
+
+        if not root:
+            return None
+
+        leftReturn = self.dfs(root.left)
+        rightReturn = self.dfs(root.right)
+
+        if leftReturn:
+            leftReturn.right = root.right
+            root.right = root.left
+            root.left = None
+
+        if rightReturn:
+            return rightReturn
+
+        if leftReturn:
+            return leftReturn
+
+        return root
+
+    def flatten(self, root: Optional[TreeNode]) -> None:
+        """
+        Do not return anything, modify root in-place instead.
+        """
+        self.dfs(root)`,
+  });
+  </script>
+
+  <div class="viz-panel">
+    <div class="card">
+      <h3>调用链 — 现在这行代码是谁在跑</h3>
+      <div class="call-chain" id="call-chain"></div>
+      <div class="chain-note">
+        <b>root.left / root.right</b> 改的是同一棵全局共享的树（原地写指针）；
+        <b>leftReturn / rightReturn</b> 是每一层 dfs 自己的局部变量，只属于那一帧，
+        子树返回之后才知道值。
+      </div>
+    </div>
+
+    <div class="tree-result-row">
+      <div class="card">
+        <h3>Binary Tree — 指针实时变化</h3>
+        <svg id="tree-svg" viewBox="0 0 360 270"></svg>
+      </div>
+
+      <div class="card">
+        <div class="flat-chain-row" id="flat-chain-row"></div>
+        <div class="flat-chain-tag" id="flat-chain-tag"></div>
+        <h3 class="chain-label">从节点 1 出发，沿当前 .right 指针走</h3>
+      </div>
+    </div>
+  </div>
+</div><!-- /.main -->
+</div><!-- /.content-wrapper -->
+
+<script>
+// ── Tree definition ──────────────────────────────────────────────────────
+// LeetCode 官方 Example 1：root = [1,2,5,3,4,null,6]，节点值本身互不相同
+// 且恰好可以直接当节点 id 用。dfs() 原地改写每个节点的 left/right 指针，
+// 所以这里用一份可变的 link 状态（而不是像 1120 那样用一份静态 EDGES）
+// 来驱动画面——树的边会在动画过程中真的"跳线"，这正是这道题的核心画面。
+//        1
+//       / \
+//      2   5
+//     / \   \
+//    3   4   6
+const ORIG = {
+  1: { left: 2, right: 5 },
+  2: { left: 3, right: 4 },
+  3: { left: null, right: null },
+  4: { left: null, right: null },
+  5: { left: null, right: 6 },
+  6: { left: null, right: null },
+};
+const POS = {
+  1: { x: 180, y: 50 },
+  2: { x: 100, y: 134 },
+  5: { x: 260, y: 134 },
+  3: { x: 60,  y: 218 },
+  4: { x: 140, y: 218 },
+  6: { x: 300, y: 218 },
+};
+const NODE_IDS = [1, 2, 3, 4, 5, 6];
+
+// 每次 dfs(nodeId) 调用一种底色，跟 78-subsets.html 的 CALL_TINT 同一个思路：
+// 递归最难受的就是"同样几行代码反复走，分不清这遍是谁在走"——颜色一换就知道
+// 换人了；调用链卡片、代码高亮行、树节点三处共用同一份色板。
+// FLATTEN 是外层 flatten() 自己的身份（对应 78 的 SUBSETS_TINT），
+// null 是 dfs(None) 调用，统一给一种低调的灰。
+const CALL_TINT = {
+  1: 'rgba(120,160,225,0.28)',  // 蓝
+  2: 'rgba(93,202,165,0.28)',   // 绿
+  3: 'rgba(249,203,66,0.34)',   // 黄
+  4: 'rgba(232,140,110,0.28)',  // 橙
+  5: 'rgba(199,146,234,0.28)',  // 紫
+  6: 'rgba(110,200,215,0.30)',  // 青
+};
+const FLATTEN_TINT = 'rgba(150,150,150,0.16)';
+const NONE_TINT = 'rgba(150,150,150,0.12)';
+function tintOf(id) {
+  if (id === 'FLATTEN') return FLATTEN_TINT;
+  if (id === null || id === undefined) return NONE_TINT;
+  return CALL_TINT[id];
+}
+
+// data-l line numbers (prereq occupies 1-6, main code continues from 7)
+const L = {
+  CHECK_NONE: 10, RET_NONE: 11,
+  LEFT_CALL: 13, RIGHT_CALL: 14,
+  CHECK_LEFT: 16, REWIRE_TAIL: 17, REWIRE_RIGHT: 18, REWIRE_LEFT_NONE: 19,
+  CHECK_RIGHT_RET: 21, RETURN_RIGHT: 22,
+  CHECK_LEFT_RET: 24, RETURN_LEFT: 25,
+  RETURN_ROOT: 27,
+  CALL_DFS_ROOT: 33,
+};
+
+// ── Build steps by actually simulating the recursion (postorder: left,
+// right, then rewire self — root is the very LAST node whose pointers get
+// fixed, so the full right-chain from node 1 only becomes correct on the
+// final rewire) ──────────────────────────────────────────────────────────
+function buildSteps() {
+  const steps = [];
+  let stack = [];     // frame objects: { node, leftReturn, rightReturn, ret }
+  let resolved = {};  // nodeId -> tail id returned by dfs(nodeId), once resolved
+  let activeEdge = null;
+  let link = {};
+  for (const id of NODE_IDS) link[id] = { ...ORIG[id] };
+
+  const cloneLink = () => { const o = {}; for (const k in link) o[k] = { ...link[k] }; return o; };
+  const cloneStack = () => stack.map(f => ({ ...f }));
+  const cloneResolved = () => ({ ...resolved });
+  function snap(line, info) {
+    steps.push({ line, info, stack: cloneStack(), resolved: cloneResolved(), activeEdge, link: cloneLink() });
+  }
+
+  snap(null, '点击 Next 开始：调用 flatten(root)，root 指向节点 1。');
+  snap(L.CALL_DFS_ROOT, 'Line 33: self.dfs(root) → 调用 dfs(1)。');
+
+  function dfs(nodeId) {
+    const frame = { node: nodeId, leftReturn: undefined, rightReturn: undefined, ret: undefined };
+    stack.push(frame);
+
+    if (nodeId === null) {
+      activeEdge = null;
+      snap(L.CHECK_NONE, '进入 dfs(None)。Line 10: not root → True。');
+      snap(L.RET_NONE, 'Line 11: return None — 空节点，直接返回。');
+      stack.pop();
+      return null;
+    }
+
+    activeEdge = null;
+    snap(L.CHECK_NONE, `进入 dfs(${nodeId})。Line 10: root=${nodeId} 存在 → 条件 False，继续往下执行。`);
+
+    const leftChild = link[nodeId].left;
+    activeEdge = leftChild != null ? [nodeId, leftChild] : null;
+    snap(L.LEFT_CALL, `Line 13: leftReturn = self.dfs(root.left) → ${leftChild != null ? `调用 dfs(${leftChild})` : '左子节点为 None，调用 dfs(None)'}`);
+    const leftReturn = dfs(leftChild);
+    activeEdge = null;
+    frame.leftReturn = leftReturn;
+    snap(L.LEFT_CALL, `递归返回 → leftReturn = ${leftReturn != null ? '节点 ' + leftReturn : 'None'}`);
+
+    const rightChild = link[nodeId].right;
+    activeEdge = rightChild != null ? [nodeId, rightChild] : null;
+    snap(L.RIGHT_CALL, `Line 14: rightReturn = self.dfs(root.right) → ${rightChild != null ? `调用 dfs(${rightChild})` : '右子节点为 None，调用 dfs(None)'}`);
+    const rightReturn = dfs(rightChild);
+    activeEdge = null;
+    frame.rightReturn = rightReturn;
+    snap(L.RIGHT_CALL, `递归返回 → rightReturn = ${rightReturn != null ? '节点 ' + rightReturn : 'None'}`);
+
+    snap(L.CHECK_LEFT, `Line 16: if leftReturn — leftReturn ${leftReturn != null ? `= 节点 ${leftReturn}，为真` : '= None，为假'}。`);
+    if (leftReturn != null) {
+      const oldRight = link[nodeId].right;
+      link[leftReturn].right = oldRight;
+      activeEdge = [leftReturn, oldRight];
+      snap(L.REWIRE_TAIL, `Line 17: leftReturn.right = root.right → 节点 ${leftReturn}.right 指向${oldRight != null ? '节点 ' + oldRight : ' None'}（把左边展开链的尾巴接到原右子树头上）。`);
+      activeEdge = null;
+
+      const oldLeft = link[nodeId].left;
+      link[nodeId].right = oldLeft;
+      activeEdge = [nodeId, oldLeft];
+      snap(L.REWIRE_RIGHT, `Line 18: root.right = root.left → 节点 ${nodeId}.right 现在指向节点 ${oldLeft}（原来的左孩子）。`);
+      activeEdge = null;
+
+      link[nodeId].left = null;
+      snap(L.REWIRE_LEFT_NONE, `Line 19: root.left = None — 节点 ${nodeId} 不再有左孩子。`);
+    }
+
+    snap(L.CHECK_RIGHT_RET, `Line 21: if rightReturn — rightReturn ${rightReturn != null ? `= 节点 ${rightReturn}，为真` : '= None，为假'}。`);
+    if (rightReturn != null) {
+      frame.ret = rightReturn;
+      resolved[nodeId] = rightReturn;
+      snap(L.RETURN_RIGHT, `Line 22: return rightReturn = 节点 ${rightReturn} — 把整条链的尾巴继续往上传。`);
+      stack.pop();
+      return rightReturn;
+    }
+
+    snap(L.CHECK_LEFT_RET, `Line 24: if leftReturn — leftReturn ${leftReturn != null ? `= 节点 ${leftReturn}，为真` : '= None，为假'}。`);
+    if (leftReturn != null) {
+      frame.ret = leftReturn;
+      resolved[nodeId] = leftReturn;
+      snap(L.RETURN_LEFT, `Line 25: return leftReturn = 节点 ${leftReturn}。`);
+      stack.pop();
+      return leftReturn;
+    }
+
+    frame.ret = nodeId;
+    resolved[nodeId] = nodeId;
+    snap(L.RETURN_ROOT, `Line 27: return root = 节点 ${nodeId} — 自己就是链尾（叶子节点）。`);
+    stack.pop();
+    return nodeId;
+  }
+
+  dfs(1);
+  snap(L.CALL_DFS_ROOT, 'Line 33: self.dfs(root) 递归全部返回 — flatten() 没有返回值，root 已经被原地改写完毕。');
+
+  const chain = [];
+  let walk = 1;
+  while (walk != null && chain.length <= NODE_IDS.length) { chain.push(walk); walk = link[walk].right; }
+  snap(null, `✅ flatten(root) 执行完毕！整棵树已按先序遍历原地展开成单链表：${chain.join(' → ')}`);
+
+  return steps;
+}
+
+const STEPS = buildSteps();
+let cur = -1;
+
+// ── Rendering ─────────────────────────────────────────────────────────────
+function renderTree(step) {
+  const svg = document.getElementById('tree-svg');
+  svg.innerHTML = '';
+  function mkEl(tag) { return document.createElementNS('http://www.w3.org/2000/svg', tag); }
+
+  const link = step.link;
+  const isActiveEdge = (a, b) => step.activeEdge && step.activeEdge[0] === a && step.activeEdge[1] === b;
+
+  for (const id of NODE_IDS) {
+    const p = POS[id];
+    const left = link[id].left, right = link[id].right;
+
+    if (left != null) {
+      const pb = POS[left];
+      const active = isActiveEdge(id, left);
+      const line = mkEl('line');
+      line.setAttribute('x1', p.x); line.setAttribute('y1', p.y);
+      line.setAttribute('x2', pb.x); line.setAttribute('y2', pb.y);
+      line.setAttribute('stroke', active ? '#3A6FD4' : '#c8c6be');
+      line.setAttribute('stroke-width', active ? '3' : '1.5');
+      if (!active) line.setAttribute('stroke-dasharray', '4,3');
+      svg.appendChild(line);
+    }
+    if (right != null) {
+      const pb = POS[right];
+      const active = isActiveEdge(id, right);
+      const line = mkEl('line');
+      line.setAttribute('x1', p.x); line.setAttribute('y1', p.y);
+      line.setAttribute('x2', pb.x); line.setAttribute('y2', pb.y);
+      line.setAttribute('stroke', active ? '#3A6FD4' : '#1a1a1a');
+      line.setAttribute('stroke-width', active ? '3' : '2');
+      svg.appendChild(line);
+    }
+  }
+
+  // 栈上每个节点用它自己那次调用的颜色填充（跟调用链、代码高亮行同色）；
+  // 栈顶（正在执行）额外加黑框，祖先帧只描浅蓝边——三处一眼对得上。
+  const stackIds = step.stack.map(f => f.node).filter(v => v !== null);
+  const topId = step.stack.length ? step.stack[step.stack.length - 1].node : null;
+
+  for (const id of NODE_IDS) {
+    const p = POS[id];
+    const isDone = step.resolved[id] !== undefined;
+    const onStack = stackIds.indexOf(id) >= 0;
+    const isTop = id === topId;
+    let fill = '#f5f5f5', stroke = '#c9c9c9', strokeW = 1.5;
+    if (isDone) { fill = 'rgba(93,202,165,0.4)'; stroke = '#1D9E75'; strokeW = 1.5; }
+    else if (onStack) { fill = tintOf(id); stroke = isTop ? '#1a1a1a' : 'rgba(90,130,200,0.55)'; strokeW = isTop ? 2.5 : 1.5; }
+
+    const g = mkEl('g');
+    const circle = mkEl('circle');
+    circle.setAttribute('cx', p.x); circle.setAttribute('cy', p.y); circle.setAttribute('r', 20);
+    circle.setAttribute('fill', fill); circle.setAttribute('stroke', stroke); circle.setAttribute('stroke-width', strokeW);
+    g.appendChild(circle);
+
+    const text = mkEl('text');
+    text.setAttribute('x', p.x); text.setAttribute('y', p.y);
+    text.setAttribute('text-anchor', 'middle'); text.setAttribute('dominant-baseline', 'central');
+    text.setAttribute('font-size', '14'); text.setAttribute('font-weight', '700'); text.setAttribute('fill', '#1a1a1a');
+    text.setAttribute('font-family', 'SF Mono, Menlo, monospace');
+    text.textContent = id;
+    g.appendChild(text);
+
+    if (link[id].right != null) {
+      const badge = mkEl('text');
+      badge.setAttribute('x', p.x); badge.setAttribute('y', p.y + 32);
+      badge.setAttribute('text-anchor', 'middle'); badge.setAttribute('font-size', '10');
+      badge.setAttribute('font-weight', '700'); badge.setAttribute('fill', '#3A6FD4');
+      badge.setAttribute('font-family', 'SF Mono, monospace');
+      badge.textContent = `.right→${link[id].right}`;
+      g.appendChild(badge);
+    }
+
+    svg.appendChild(g);
+  }
+}
+
+/* 调用链卡片：从最外层的 flatten(root) 往里一层一层列，缩进 = 递归深度。
+   每帧写清 leftReturn / rightReturn 一旦算出来是什么（子树返回之前是"·"）。
+   跟 78-subsets.html 的 renderChain() 同一个思路。 */
+function renderChain(step) {
+  const host = document.getElementById('call-chain');
+  if (step.line == null) {
+    host.innerHTML = '<span class="chain-empty">还没开始 / 已经全部返回</span>';
+    return;
+  }
+  const rows = [{ id: 'FLATTEN', text: 'flatten(root)', depth: 0, top: !step.stack.length, tagsHtml: '' }];
+  step.stack.forEach((f, k) => {
+    const label = f.node === null ? 'dfs(root=None)' : `dfs(root=节点${f.node})`;
+    const tags = [];
+    if (f.leftReturn !== undefined) tags.push(`<span class="chain-i">leftReturn=${f.leftReturn === null ? 'None' : '节点' + f.leftReturn}</span>`);
+    if (f.rightReturn !== undefined) tags.push(`<span class="chain-i">rightReturn=${f.rightReturn === null ? 'None' : '节点' + f.rightReturn}</span>`);
+    rows.push({ id: f.node, depth: k + 1, top: k === step.stack.length - 1, text: label, tagsHtml: tags.join('') });
+  });
+  host.innerHTML = rows.map(r =>
+    `<div class="chain-row${r.top ? ' top' : ''}" style="background:${tintOf(r.id)};margin-left:${r.depth * 18}px">` +
+      `<span>${r.text}</span>${r.tagsHtml}` +
+    `</div>`
+  ).join('');
+}
+
+/* 给当前高亮行换上"这次调用"的底色——shared.js 的 highlightLine 只管加 .hl
+   （固定淡紫），这里在它之后把 background 改成本次调用的颜色。line 33
+   （self.dfs(root) 那一行）永远算 flatten() 自己的身份，不管此时栈是否为空。 */
+function tintLine(step) {
+  document.querySelectorAll('.code-line').forEach(el => { el.style.background = ''; });
+  if (step.line == null) return;
+  const el = document.querySelector('.code-line[data-l="' + step.line + '"]');
+  if (!el) return;
+  const top = step.stack.length ? step.stack[step.stack.length - 1] : null;
+  const id = step.line === L.CALL_DFS_ROOT ? 'FLATTEN' : (top ? top.node : 'FLATTEN');
+  el.style.background = tintOf(id);
+}
+
+function renderFlatChain(step) {
+  const chain = [];
+  let walk = 1;
+  while (walk != null && chain.length <= NODE_IDS.length) { chain.push(walk); walk = step.link[walk].right; }
+  document.getElementById('flat-chain-row').innerHTML = chain.map((id, i) =>
+    (i ? '<span class="flat-chain-arrow">→</span>' : '') + `<div class="flat-chain-cell">${id}</div>`
+  ).join('');
+  const complete = chain.length === NODE_IDS.length;
+  document.getElementById('flat-chain-tag').textContent = complete ? '✅ 完整展开' : `${chain.length} / ${NODE_IDS.length} 个节点（还没接上左子树）`;
+  document.getElementById('flat-chain-tag').classList.toggle('done', complete);
+}
+
+function renderAll() {
+  const step = cur >= 0 ? STEPS[cur] : null;
+  const initLink = {}; for (const id of NODE_IDS) initLink[id] = { ...ORIG[id] };
+  const empty = { line: null, stack: [], resolved: {}, activeEdge: null, link: initLink };
+
+  if (!step) {
+    renderTree(empty);
+    renderChain(empty);
+    renderFlatChain(empty);
+    renderCtrl(-1, STEPS.length, '');
+    highlightLine(null);
+    tintLine(empty);
+    return;
+  }
+
+  renderTree(step);
+  renderChain(step);
+  renderFlatChain(step);
+  highlightLine(step.line);
+  tintLine(step);
+  renderCtrl(cur, STEPS.length, step.info);
+}
+
+var render = renderAll;
+doReset();
+</script>
+</body>
+</html>

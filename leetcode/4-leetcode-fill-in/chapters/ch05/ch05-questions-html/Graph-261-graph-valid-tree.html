@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>261. Graph Valid Tree · 填空</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/fill-theme.css">
+<script src="../../assets/repo-corner.js" defer></script>
+</head>
+<body class="problem-page">
+<main class="problem-main">
+  <h1 class="prob-title">
+    <a id="probLink" href="https://leetcode.com/problems/graph-valid-tree/description/" target="_blank" rel="noopener noreferrer">
+      <span class="prob-title__num" id="probNum">261.</span><span id="probName">Graph Valid Tree</span>
+    </a>
+  </h1>
+
+  <div class="code-with-actions">
+    <div class="code-widget">
+      <div class="code-area">
+        <table class="code-table" id="ct" aria-label="代码填空">
+<tr><td class="ln">1</td><td class="lc"><span class="seg">import collections</span></td></tr>
+<tr><td class="ln">2</td><td class="lc"><span class="seg"></span></td></tr>
+<tr><td class="ln">3</td><td class="lc"><span class="seg">class Solution:</span></td></tr>
+<tr><td class="ln">4</td><td class="lc"><span class="seg">    def validTree(self, n: int, edges: List[List[int]]) -&gt; bool:</span></td></tr>
+<tr><td class="ln">5</td><td class="lc"><span class="seg">        if len(edges) != </span><span class="blank-group"><input type="text" class="blank" data-answer="n-1" data-answers='["n-1","n - 1"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">n-1</span></span><span class="seg">:</span></td></tr>
+<tr><td class="ln">6</td><td class="lc"><span class="seg">            return False</span></td></tr>
+<tr><td class="ln">7</td><td class="lc"><span class="seg"></span></td></tr>
+<tr><td class="ln">8</td><td class="lc"><span class="seg">        # Create Graph</span></td></tr>
+<tr><td class="ln">9</td><td class="lc"><span class="seg">        graphs = collections.</span><span class="blank-group"><input type="text" class="blank" data-answer="defaultdict" data-answers='["defaultdict"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">defaultdict</span></span><span class="seg">(list)</span></td></tr>
+<tr><td class="ln">10</td><td class="lc"><span class="seg">        for edge in edges:</span></td></tr>
+<tr><td class="ln">11</td><td class="lc"><span class="seg">            graphs[edge[0]].append(</span><span class="blank-group"><input type="text" class="blank" data-answer="edge[1]" data-answers='["edge[1]"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">edge[1]</span></span><span class="seg">)</span></td></tr>
+<tr><td class="ln">12</td><td class="lc"><span class="seg">            graphs[edge[1]].append(</span><span class="blank-group"><input type="text" class="blank" data-answer="edge[0]" data-answers='["edge[0]"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">edge[0]</span></span><span class="seg">)</span></td></tr>
+<tr><td class="ln">13</td><td class="lc"><span class="seg"></span></td></tr>
+<tr><td class="ln">14</td><td class="lc"><span class="seg">        queue = collections.</span><span class="blank-group"><input type="text" class="blank" data-answer="deque" data-answers='["deque"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">deque</span></span><span class="seg">([])</span></td></tr>
+<tr><td class="ln">15</td><td class="lc"><span class="seg">        visited = {</span><span class="blank-group"><input type="text" class="blank" data-answer="0" data-answers='["0"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">0</span></span><span class="seg">}</span></td></tr>
+<tr><td class="ln">16</td><td class="lc"><span class="seg">        queue.append(</span><span class="blank-group"><input type="text" class="blank" data-answer="0" data-answers='["0"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">0</span></span><span class="seg">)</span></td></tr>
+<tr><td class="ln">17</td><td class="lc"><span class="seg">        while len(queue) &gt; 0:</span></td></tr>
+<tr><td class="ln">18</td><td class="lc"><span class="seg">            for _ in range(</span><span class="blank-group"><input type="text" class="blank" data-answer="len(queue)" data-answers='["len(queue)","len ( queue )"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">len(queue)</span></span><span class="seg">):</span></td></tr>
+<tr><td class="ln">19</td><td class="lc"><span class="seg">                curr = queue.</span><span class="blank-group"><input type="text" class="blank" data-answer="popleft" data-answers='["popleft"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">popleft</span></span><span class="seg">()</span></td></tr>
+<tr><td class="ln">20</td><td class="lc"><span class="seg">                neighbours = graphs.get(curr, </span><span class="blank-group"><input type="text" class="blank" data-answer="[]" data-answers='["[]"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">[]</span></span><span class="seg">)</span></td></tr>
+<tr><td class="ln">21</td><td class="lc"><span class="seg">                for neighbour in neighbours:</span></td></tr>
+<tr><td class="ln">22</td><td class="lc"><span class="seg">                    if </span><span class="blank-group"><input type="text" class="blank" data-answer="neighbour not in visited" data-answers='["neighbour not in visited"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">neighbour not in visited</span></span><span class="seg">:</span></td></tr>
+<tr><td class="ln">23</td><td class="lc"><span class="seg">                        visited.add(</span><span class="blank-group"><input type="text" class="blank" data-answer="neighbour" data-answers='["neighbour"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">neighbour</span></span><span class="seg">)</span></td></tr>
+<tr><td class="ln">24</td><td class="lc"><span class="seg">                        queue.append(</span><span class="blank-group"><input type="text" class="blank" data-answer="neighbour" data-answers='["neighbour"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">neighbour</span></span><span class="seg">)</span></td></tr>
+<tr><td class="ln">25</td><td class="lc"><span class="seg"></span></td></tr>
+<tr><td class="ln">26</td><td class="lc"><span class="seg">        return len(visited) == </span><span class="blank-group"><input type="text" class="blank" data-answer="n" data-answers='["n"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">n</span></span></td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="controls">
+      <button type="button" class="btn-primary" id="btnCheck">Check all</button>
+      <button type="button" id="btnReset">Reset</button>
+      <button type="button" id="btnReveal">Reveal</button>
+      <button type="button" id="btnCopy">Copy</button>
+      <button type="button" id="btnToggleAnswers" aria-pressed="false">显示参考答案</button>
+      <span class="score" id="score"></span>
+      <span class="copy-toast" id="copyToast" aria-live="polite"></span>
+    </div>
+  </div>
+</main>
+<script src="../../assets/fill-blanks.js"></script>
+<script src="../../assets/fill-core.js"></script>
+</body>
+</html>

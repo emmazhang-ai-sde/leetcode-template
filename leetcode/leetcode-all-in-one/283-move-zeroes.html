@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>283. Move Zeroes</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  /* nums 数组:格子 + 下标行 + fix/k 指针行 */
+  .nums-row { display: flex; gap: 8px; }
+  .num-cell { width: 56px; height: 48px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+              font-family: var(--ink-mono); font-size: 18px; font-weight: 750; color: #1a1a1a;
+              background: #f5f5f5; border: 1px solid #c9c9c9;
+              transition: background 0.2s, transform 0.2s, border-color 0.2s; }
+  .num-cell.settled { background: rgba(93,202,165,0.4); border-color: rgba(60,160,125,0.5); }
+  .num-cell.zero-span { background: rgba(120,160,225,0.3); border-color: rgba(90,130,200,0.5); }
+  .num-cell.at-k { background: rgba(249,203,66,0.55); border-color: rgba(200,160,30,0.6); transform: translateY(-2px); }
+  .num-cell.swapping { background: rgba(249,203,66,0.55); border-color: rgba(200,160,30,0.6); transform: scale(1.1); }
+  .num-idx-row { display: flex; gap: 8px; margin-top: 4px; }
+  .num-idx { width: 56px; text-align: center; font-family: var(--ink-mono); font-size: 10.5px; color: #aaa; }
+  .num-ptr-row { display: flex; gap: 8px; margin-top: 3px; min-height: 34px; }
+  .num-ptr { width: 56px; text-align: center; font-family: var(--ink-mono); font-size: 11.5px; font-weight: 700;
+             line-height: 1.35; white-space: nowrap; }
+  .num-ptr .p-fix { color: #3A6FD4; }
+  .num-ptr .p-k { color: #C4501E; }
+
+  /* 交换算式:swap 步显示具体是谁和谁换 */
+  .formula { min-height: 44px; margin-top: 10px; font: 13.5px/1.8 var(--ink-mono); color: #555; }
+  .f-var { color: #C4501E; font-weight: 700; }
+  .f-fix { color: #3A6FD4; font-weight: 700; }
+
+  /* 三段不变量:每段一行,label + 值 chips */
+  .seg-rows { display: flex; flex-direction: column; gap: 8px; font-family: var(--ink-mono); }
+  .seg-row { display: flex; align-items: center; gap: 10px; min-height: 34px; }
+  .seg-label { width: 220px; font-size: 12px; color: #777; font-weight: 700; }
+  .seg-chips { display: flex; gap: 5px; min-height: 30px; align-items: center; }
+  .seg-chip { min-width: 30px; height: 28px; padding: 0 8px; border-radius: 6px;
+              display: flex; align-items: center; justify-content: center;
+              font-size: 13px; font-weight: 750; color: #1a1a1a; }
+  .seg-chip.s-settled { background: rgba(93,202,165,0.4); }
+  .seg-chip.s-zero { background: rgba(120,160,225,0.3); }
+  .seg-chip.s-rest { background: #f5f5f5; border: 1px solid #c9c9c9; }
+  .seg-empty { font-size: 12px; color: #bbb; }
+  .seg-note { font-size: 11.5px; color: #b07a1a; font-family: -apple-system, sans-serif; }
+
+  .fn-tag { display: inline-block; padding: 1px 8px; border-radius: 5px; background: rgba(199,146,234,0.18);
+            color: #6b3fa0; font-family: var(--ink-mono); font-size: 12px; font-weight: 700; }
+  .fn-note { margin-left: 8px; font-family: -apple-system, sans-serif; font-size: 11px; color: #aaa; }
+
+  /* 颜色图例从页头搬到代码框下面后改纵向单列排列 */
+  .legend-below { flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 0; max-width: none; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '283. Move Zeroes',
+  link: 'https://leetcode.com/problems/move-zeroes/',
+  legend: [
+    { color: 'rgba(249,203,66,0.55)', label: 'k 正在看的格子 / 正在交换的两格' },
+    { color: 'rgba(93,202,165,0.4)', label: '非零前缀 nums[0:fix] — 已归位,相对顺序不变' },
+    { color: 'rgba(120,160,225,0.3)', label: '中间的 0 段 nums[fix:k] — 等着被换到后面' },
+    { color: '#f5f5f5', extra: 'border:1px solid #c9c9c9;', label: '还没扫到的格子' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+  <script>
+  renderCodeBox({
+    code: `
+class Solution:
+    def moveZeroes(self, nums: List[int]) -> None:
+        """
+        Do not return anything, modify nums in-place instead.
+        """
+        k, fix = 0,0
+
+        while  k < len(nums):
+            if nums[k] != 0:
+                nums[fix],nums[k] = nums[k],nums[fix]
+                fix +=1
+
+            k+=1`,
+  });
+  </script>
+
+  <!-- 步骤说明 + 颜色图例从页头搬到代码框下面 -->
+  <script>
+  (function () {
+    const stack = document.querySelector('.code-stack');
+    stack.appendChild(document.getElementById('info'));
+    const legend = document.querySelector('.legend');
+    const legendRow = legend.parentElement;
+    legend.classList.add('legend-below');
+    stack.appendChild(legend);
+    legendRow.remove();
+  })();
+  </script>
+
+  <div class="viz-panel">
+    <div class="var-bar" id="var-bar"></div>
+
+    <div class="card">
+      <h3>nums — k 往前扫,fix 指着下一个非零该放的位置</h3>
+      <div class="nums-row" id="nums-row"></div>
+      <div class="num-idx-row" id="nums-idx-row"></div>
+      <div class="num-ptr-row" id="nums-ptr-row"></div>
+      <div class="formula" id="formula"></div>
+    </div>
+
+    <div class="card">
+      <h3>三段不变量 — 循环全程保持</h3>
+      <div class="seg-rows" id="seg-rows"></div>
+    </div>
+  </div>
+</div><!-- /.main -->
+</div><!-- /.content-wrapper -->
+
+<script>
+// ── 例子:LeetCode 283 官方 Example 1 ────────────────────────────────────
+const INPUT = [0, 1, 0, 3, 12];
+
+/* 行号表:正文从 1 开始,3-5 是 docstring、7/12 是空行,都不执行不占步。
+   按 ANIMATION_GUIDE:while 头每轮 + 取空各停一次,if 头 True/False 都停。 */
+const L = {
+  DEF:  2,   // def moveZeroes(self, nums)
+  INIT: 6,   // k, fix = 0,0
+  WHILE: 8,  // while  k < len(nums)
+  IF:   9,   // if nums[k] != 0
+  SWAP: 10,  // nums[fix],nums[k] = nums[k],nums[fix]
+  FIX:  11,  // fix +=1
+  INC:  13,  // k+=1
+};
+
+const fmt = (a) => '[' + a.join(', ') + ']';
+
+// ── 真跑一遍 Lyon 的解法生成步骤 ─────────────────────────────────────────
+function buildSteps() {
+  const steps = [];
+  const nums = [...INPUT];
+  let k = 0, fix = 0;
+  let started = false;   // L6 执行之前 k/fix 还不存在,var-bar 显示 '-'
+
+  function snap(line, info, x) {
+    x = x || {};
+    steps.push({
+      line, info,
+      nums: [...nums],
+      k: started ? k : null,
+      fix: started ? fix : null,
+      swapA: x.swapA != null ? x.swapA : null,
+      swapB: x.swapB != null ? x.swapB : null,
+      inFn: line != null,
+    });
+  }
+
+  snap(null, '点 Next 开始:nums = ' + fmt(INPUT) + ',把所有 0 挪到末尾,' +
+    '非零元素保持相对顺序,而且必须原地改、不开新数组。');
+
+  snap(L.DEF, 'Line 2: 进入 moveZeroes(nums=' + fmt(INPUT) + ') — 题目要求不返回任何东西,直接改 nums 本身。');
+
+  k = 0; fix = 0; started = true;
+  snap(L.INIT, 'Line 6: k, fix = 0, 0 — k 负责往前扫每一个位置;fix 指着「下一个非零元素该放的位置」,' +
+    'fix 左边永远都是已经归位的非零。');
+
+  while (k < nums.length) {
+    snap(L.WHILE, 'Line 8: while k < len(nums) → ' + k + ' < ' + nums.length + ',成立 — 处理下标 ' + k + '。');
+    if (nums[k] !== 0) {
+      snap(L.IF, 'Line 9: nums[' + k + '] = ' + nums[k] + ',!= 0 → True — 是非零元素,' +
+        (k === fix ? '不过 k 和 fix 正好指同一格,这次交换换了个寂寞,但代码不用特判。'
+                   : '要把它跟 fix 位置上的 0 换过来。'));
+      const a = fix, b = k;
+      const tmp = nums[a]; nums[a] = nums[b]; nums[b] = tmp;
+      snap(L.SWAP, 'Line 10: nums[' + a + '], nums[' + b + '] = nums[' + b + '], nums[' + a + '] — ' +
+        nums[a] + ' 和 ' + nums[b] + ' 互换,nums 变成 ' + fmt(nums) + '。', { swapA: a, swapB: b });
+      fix += 1;
+      snap(L.FIX, 'Line 11: fix += 1 → fix = ' + fix + ' — 非零前缀又长了一格,nums[0:' + fix + '] 都是归好位的非零。');
+    } else {
+      snap(L.IF, 'Line 9: nums[' + k + '] = 0 → False — 是 0,什么都不做:留在原地,' +
+        '等后面出现非零时被换到 k 的位置去。');
+    }
+    k += 1;
+    snap(L.INC, 'Line 13: k += 1 → k = ' + k + ' — 不管刚才换没换,k 都往前走一步,每个位置只看一次。');
+  }
+  snap(L.WHILE, 'Line 8: while k < len(nums) → ' + k + ' < ' + nums.length + ' 不成立 — 全部扫完,循环结束,函数返回。');
+
+  snap(null, '✅ 结束:nums = ' + fmt(nums) + ' — 非零 1, 3, 12 保持原来的相对顺序,两个 0 全被挤到末尾。' +
+    'k 扫一遍 O(n),只用两个下标变量,原地 O(1) 额外空间。');
+  return steps;
+}
+
+const STEPS = buildSteps();
+let cur = -1;
+
+// ── 渲染(只读快照,无副作用)──────────────────────────────────────────────
+function cellClass(s, i) {
+  if (s.swapA != null && (i === s.swapA || i === s.swapB)) return 'swapping';
+  if (s.k == null) return '';
+  if (i < s.fix) return 'settled';
+  if (i === s.k && s.k < s.nums.length) return 'at-k';
+  if (i < s.k) return 'zero-span';
+  return '';
+}
+
+function renderNums(s) {
+  document.getElementById('nums-row').innerHTML = s.nums.map((v, i) =>
+    '<div class="num-cell ' + cellClass(s, i) + '">' + v + '</div>').join('');
+  document.getElementById('nums-idx-row').innerHTML = s.nums.map((v, i) =>
+    '<div class="num-idx">' + i + '</div>').join('');
+  document.getElementById('nums-ptr-row').innerHTML = s.nums.map((v, i) => {
+    const tags = [];
+    if (s.fix === i) tags.push('<span class="p-fix">↑fix</span>');
+    if (s.k === i) tags.push('<span class="p-k">↑k</span>');
+    return '<div class="num-ptr">' + tags.join('<br>') + '</div>';
+  }).join('');
+
+  const formula = document.getElementById('formula');
+  if (s.swapA != null) {
+    formula.innerHTML = 'nums[<span class="f-fix">' + s.swapA + '</span>], nums[<span class="f-var">' + s.swapB +
+      '</span>] = nums[<span class="f-var">' + s.swapB + '</span>], nums[<span class="f-fix">' + s.swapA +
+      '</span>] → ' + s.nums[s.swapA] + ' ↔ ' + s.nums[s.swapB];
+  } else if (s.k != null && s.k < s.nums.length) {
+    formula.innerHTML = 'nums[<span class="f-var">k</span>] = nums[<span class="f-var">' + s.k + '</span>] = ' +
+      s.nums[s.k] + (s.nums[s.k] !== 0 ? ' — 非零,该归位' : ' — 是 0,跳过');
+  } else {
+    formula.innerHTML = '';
+  }
+}
+
+function segChips(vals, cls) {
+  if (!vals.length) return '<span class="seg-empty">(空)</span>';
+  return vals.map(v => '<div class="seg-chip ' + cls + '">' + v + '</div>').join('');
+}
+
+function renderSegs(s) {
+  const host = document.getElementById('seg-rows');
+  if (s.k == null) {
+    host.innerHTML = '<span class="seg-empty">进入循环后,数组始终分成三段:非零前缀 / 中间的 0 / 还没扫的。</span>';
+    return;
+  }
+  const kEnd = Math.min(s.k, s.nums.length);
+  const settled = s.nums.slice(0, s.fix);
+  const zeros = s.nums.slice(s.fix, kEnd);
+  const rest = s.nums.slice(kEnd);
+  host.innerHTML =
+    '<div class="seg-row"><div class="seg-label">nums[0:fix] 非零已归位</div>' +
+      '<div class="seg-chips">' + segChips(settled, 's-settled') + '</div></div>' +
+    '<div class="seg-row"><div class="seg-label">nums[fix:k] 全是 0</div>' +
+      '<div class="seg-chips">' + segChips(zeros, 's-zero') + '</div></div>' +
+    '<div class="seg-row"><div class="seg-label">nums[k:] 还没扫到</div>' +
+      '<div class="seg-chips">' + segChips(rest, 's-rest') + '</div></div>' +
+    (s.swapA != null && s.swapA !== s.swapB
+      ? '<div class="seg-note">交换刚完成,fix 还没 +1:' + s.nums[s.swapA] +
+        ' 暂时挂在 0 段开头,下一步 fix += 1 它就归入非零前缀,不变量恢复。</div>'
+      : '');
+}
+
+function renderVars(s) {
+  const row = (name, val, note) => '<span class="var-row"><span class="var-name">' + name +
+    '</span><span class="var-eq"> = </span><span class="var-val">' + val + '</span>' +
+    (note ? '<span class="fn-note">' + note + '</span>' : '') + '</span>';
+  document.getElementById('var-bar').innerHTML =
+    '<span class="var-row"><span class="fn-tag">' + (s.inFn ? 'moveZeroes()' : '—') +
+      '</span><span class="fn-note">当前所在函数</span></span>' +
+    row('k', s.k == null ? '-' : s.k, '扫描指针') +
+    row('fix', s.fix == null ? '-' : s.fix, '下一个非零放这里') +
+    row('len(nums)', s.nums.length) +
+    row('nums', fmt(s.nums));
+}
+
+const EMPTY = { line: null, nums: [...INPUT], k: null, fix: null, swapA: null, swapB: null, inFn: false };
+
+function renderAll() {
+  const step = cur >= 0 ? STEPS[cur] : null;
+  const s = step || EMPTY;
+  renderNums(s);
+  renderSegs(s);
+  renderVars(s);
+  highlightLine(s.line);
+  renderCtrl(cur, STEPS.length, step ? step.info :
+    '点 Next 开始:nums = ' + fmt(INPUT) + ',把所有 0 挪到末尾,非零保持相对顺序,原地完成。');
+}
+
+var render = renderAll;
+doReset();
+</script>
+</body>
+</html>

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Online Assessments</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<link rel="stylesheet" href="algo-all-in-one.css">
+<style>
+  /* OA 汇总页（2026-08-16）：按"每一次 OA"分组的第二视角——题目本身
+     还在各自 chapter 里（做题/打卡/笔记都走那边），这里只是同一批题
+     按场次再列一遍。数据不另存：catalog.js 里 OA 题的 name 统一带
+     "(<公司> OA, <YYYY-MM-DD>)" 后缀，本页扫 LC_CATALOG 按这个后缀
+     分组派生——加新 OA 题只要按惯例命名，这页自动跟上。 */
+  .oa-board { display: flex; flex-direction: column; gap: 0; max-width: 640px; margin: 0 auto; }
+  .oa-board .algo-card { width: 100%; box-sizing: border-box; }
+  /* 行末的"在哪个 chapter"小灰字，顶到行最右 */
+  .oa-ch {
+    margin-left: auto; padding-left: 18px;
+    font-family: var(--ink-mono); font-size: 10.5px; font-weight: 700;
+    color: var(--ink-faint); white-space: nowrap;
+  }
+  .tree-item:hover .oa-ch { color: var(--ink-muted); }
+  .oa-count { font-family: var(--ink-mono); font-size: 11px; font-weight: 700; color: var(--ink-muted); }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+
+<div class="content-wrapper">
+  <div class="algo-home">
+    <div class="algo-hero">
+      <h1 class="algo-title">Online Assessments</h1>
+    </div>
+    <div class="oa-board" id="oa-board"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const CATALOG = window.LC_CATALOG;
+  if (!CATALOG) return;
+
+  // "题名 (公司 OA, 日期)" → { cleanName, company, date }。不匹配的不是 OA 题。
+  const OA_RE = /^(.*)\s+\(([^,()]+) OA, (\d{4}-\d{2}-\d{2})\)$/;
+
+  const groups = [...CATALOG.chapters, CATALOG.others].map(g => ({
+    short: g.id === 'others' ? 'Others' : g.title.split(' · ')[0],
+    sections: g.sections || [],
+  }));
+
+  const sessions = new Map();   // "公司 · 日期" → { company, date, items: [] }
+  groups.forEach(g => g.sections.forEach(sec => (sec.problems || []).forEach(p => {
+    const m = OA_RE.exec(p.name);
+    if (!m) return;
+    const key = m[2] + ' · ' + m[3];
+    if (!sessions.has(key)) sessions.set(key, { company: m[2], date: m[3], items: [] });
+    const file = p.anim || p.page ||
+      'placeholder.html?' + new URLSearchParams({
+        name: p.pageName || m[1],
+        link: 'https://leetcode.com/problemset/',
+      }).toString();
+    sessions.get(key).items.push({
+      name: p.pageName || m[1],
+      file,
+      hasAnim: !!p.anim,
+      chapter: g.short,
+    });
+  })));
+
+  // 新场次排前面；同一天多家公司再按公司名
+  const sorted = [...sessions.values()].sort((a, b) =>
+    b.date.localeCompare(a.date) || a.company.localeCompare(b.company));
+
+  document.getElementById('oa-board').innerHTML = sorted.map(s =>
+    '<div class="algo-card">' +
+      '<div class="algo-card-head">' +
+        '<span class="algo-card-name">' + s.company + ' · ' + s.date + '</span>' +
+        '<span class="oa-count">' + s.items.length + ' 题</span>' +
+      '</div>' +
+      s.items.map(it =>
+        '<a class="tree-item" href="' + it.file + '">' +
+          '<span class="tree-name">' + it.name + '</span>' +
+          (it.hasAnim ? '<span class="tree-anim" title="有动画">🎬</span>' : '') +
+          '<span class="oa-ch">' + it.chapter + '</span>' +
+        '</a>').join('') +
+    '</div>').join('');
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>All-in-One</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<link rel="stylesheet" href="algo-all-in-one.css">
+<style>
+  /* All-in-One（2026-09-02）：入口页，主区域只有标题 + 一行统计；内容全在
+     侧栏——进这页侧栏强制 'all' 模式（sidebar.js），把 Lyon's Chapters、OA
+     场次、TikTok 高频三个视角的卡摞在一起。跟 tiktok-frequent.html 同款。 */
+  .aio-sub {
+    text-align: center; margin-top: 8px;
+    font-size: 12.5px; color: var(--ink-muted);
+  }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+
+<div class="content-wrapper">
+  <div class="algo-home">
+    <div class="algo-hero">
+      <h1 class="algo-title">All-in-One</h1>
+      <div class="aio-sub" id="aio-sub"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const CATALOG = window.LC_CATALOG;
+  if (!CATALOG) return;
+  let lyon = 0, tiktok = 0;
+  const oa = new Set();
+  const OA_RE = /\(([^,()]+) OA, (\d{4}-\d{2}-\d{2})\)$/;
+  [...CATALOG.chapters, CATALOG.others].forEach(g => (g.sections || []).forEach(sec =>
+    (sec.problems || []).forEach(p => {
+      lyon++;
+      if (p.tiktok) tiktok++;
+      const m = OA_RE.exec(p.name);
+      if (m) oa.add(m[1] + m[2]);
+    })));
+  document.getElementById('aio-sub').textContent =
+    "Lyon's Chapters " + lyon + ' 题 · OA ' + oa.size + ' 场 · TikTok 高频 ' + tiktok + ' 题，三个视角都在左侧侧栏';
+})();
+</script>
+</body>
+</html>

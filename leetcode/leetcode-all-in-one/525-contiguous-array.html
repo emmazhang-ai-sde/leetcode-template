@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>525. Contiguous Array</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  .prefix525-layout .code-half { width: 610px; min-width: 0; }
+  .prefix525-layout .viz-panel { width: max-content; min-width: 0; align-items: flex-start; }
+  .prefix525-layout .code-stack,
+  .prefix525-layout .code-panel { width: 100%; min-width: 0; }
+  .prefix525-layout .code-panel { overflow-x: auto; }
+  .prefix525-layout .card { width: fit-content; min-width: 0; max-width: 620px; }
+  .prefix525-layout .step-info { min-height: 58px; }
+
+  .array-row { display: flex; align-items: flex-end; gap: 6px; min-height: 78px; }
+  .cell-wrap { width: 52px; text-align: center; font-family: 'SF Mono', Menlo, monospace; }
+  .cell-index { height: 17px; color: #aaa; font-size: 11px; }
+  .cell {
+    width: 52px; height: 42px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    background: #f5f5f5; color: #1a1a1a;
+    font-size: 17px; font-weight: 750;
+    transition: background .2s, transform .2s, opacity .2s;
+  }
+  .cell.unbuilt { color: #bbb; font-weight: 400; }
+  .cell.zeroed { background: rgba(0,126,168,.14); }
+  .cell.built { background: rgba(139,133,212,.22); }
+  .cell.source { background: rgba(249,203,66,.50); transform: scale(1.08); }
+  .cell.current { background: rgba(249,203,66,.50); transform: scale(1.08); }
+  .cell.target { background: rgba(93,202,165,.42); transform: scale(1.08); }
+  .cell.range { background: rgba(247,140,108,.28); }
+  .cell.best { background: rgba(196,80,30,.30); }
+
+  .marker-row {
+    display: flex;
+    gap: 6px;
+    min-height: 40px;
+    margin-top: 2px;
+    font: 700 11px/1.15 'SF Mono', Menlo, monospace;
+  }
+  .marker-cell {
+    width: 52px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    color: transparent;
+  }
+  .marker-cell.active { color: #C4501E; }
+  .marker-cell.need { color: #246b55; }
+  .marker-arrow { color: #007EA8; font-size: 14px; line-height: 12px; }
+  .marker-label { white-space: nowrap; }
+
+  .rule {
+    margin-top: 2px;
+    font: 12px/1.5 'SF Mono', Menlo, monospace; color: #555;
+    white-space: nowrap;
+  }
+  .rule strong { color: #007EA8; }
+
+  .map-table {
+    display: grid;
+    grid-template-columns: 104px 104px 1fr;
+    gap: 7px;
+    align-items: stretch;
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 12px;
+  }
+  .map-head {
+    color: #777; font-weight: 700; padding: 0 6px 3px;
+    border-bottom: 1px solid #eee;
+  }
+  .map-cell {
+    min-height: 30px; border-radius: 7px; background: #f5f5f5;
+    display: flex; align-items: center; padding: 5px 8px;
+    color: #333; transition: background .2s, transform .2s, opacity .2s;
+  }
+  .map-cell.key { justify-content: center; font-weight: 750; color: #9333C0; }
+  .map-cell.index { justify-content: center; color: #C4501E; font-weight: 750; }
+  .map-cell.hit { background: rgba(93,202,165,.42); transform: scale(1.03); }
+  .map-cell.new { background: rgba(139,133,212,.22); transform: scale(1.03); }
+  .map-empty {
+    grid-column: 1 / 4; min-height: 34px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    color: #aaa; background: #f5f5f5; font-family: 'SF Mono', Menlo, monospace;
+  }
+
+  .formula {
+    min-height: 74px; padding: 4px 0 0;
+    font: 13px/1.5 'SF Mono', Menlo, monospace; color: #555;
+    display: flex; align-items: flex-start; overflow-wrap: anywhere;
+  }
+  .formula strong { color: #C4501E; }
+  .formula-lines { display: inline-grid; grid-template-columns: max-content max-content max-content; column-gap: 8px; row-gap: 2px; }
+  .formula-line { display: contents; }
+  .formula-lhs { text-align: right; white-space: nowrap; }
+  .formula-eq { color: #007EA8; font-weight: 700; text-align: center; }
+  .formula-rhs { white-space: nowrap; }
+  .i-ref {
+    display: inline-block;
+    padding: 0 4px;
+    border-radius: 4px;
+    background: rgba(249,203,66,.50);
+    color: #1a1a1a;
+    font-weight: 700;
+  }
+  .prefix-state {
+    margin-top: 8px;
+    font: 13px/1.5 'SF Mono', Menlo, monospace;
+    color: #555;
+    white-space: nowrap;
+  }
+  .prefix-state .var-name { color: #9333C0; }
+  .prefix-state .var-eq { color: #007EA8; font-weight: 700; }
+  .prefix-state .var-val { color: #C4501E; font-weight: 700; }
+
+  .answer-strip {
+    min-height: 48px; border-radius: 8px; padding: 10px 12px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(196,80,30,.12);
+    color: #7b2e14; font: 750 14px 'SF Mono', Menlo, monospace;
+  }
+  .answer-strip.empty { background: #f5f5f5; color: #aaa; font-weight: 400; }
+
+  @media (max-width: 1500px) {
+    .main.layout-grid.prefix525-layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .main.layout-grid.prefix525-layout .code-half,
+    .main.layout-grid.prefix525-layout .viz-panel {
+      grid-column: 1;
+      justify-self: center;
+      width: fit-content;
+      min-width: 0;
+    }
+    .main.layout-grid.prefix525-layout .viz-panel { grid-row: 2; }
+  }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '525. Contiguous Array',
+  link: 'https://leetcode.com/problems/contiguous-array/',
+  legend: [
+    { color: 'rgba(249,203,66,.50)', label: 'current element / prefix' },
+    { color: 'rgba(0,126,168,.14)', label: '0 rewritten as -1' },
+    { color: 'rgba(139,133,212,.22)', label: 'prefix computed / new map entry' },
+    { color: 'rgba(93,202,165,.42)', label: 'earlier prefix with the same value' },
+    { color: 'rgba(247,140,108,.28)', label: 'candidate subarray' },
+    { color: 'rgba(196,80,30,.30)', label: 'longest so far (maxLen)' },
+  ],
+});
+</script>
+  <div class="main layout-grid prefix525-layout">
+    <script>
+    renderCodeBox({
+      code: `
+class Solution:
+    def findMaxLength(self, nums: List[int]) -> int:
+        for i in range(len(nums)):
+            if nums[i] == 0:
+                nums[i] = -1
+
+        prefix = [0] * (len(nums) + 1)
+        for i, num in enumerate(nums):
+            prefix[i+1] = prefix[i] + num
+
+        maxLen = 0
+        maps = {}   # prefix sum -> earliest prefix index
+
+        for index, val in enumerate(prefix):
+            if val in maps:
+                right = index - 1
+                maxLen = max(maxLen, right - maps[val] + 1)
+            if val not in maps:
+                maps[val] = index
+        return maxLen`,
+    });
+    </script>
+
+    <div class="viz-panel">
+      <div class="card">
+        <h3>Input Array　nums = [0, 1, 0, 0, 1, 1, 0]</h3>
+        <div class="array-row" id="numsRow"></div>
+        <div class="marker-row" id="numsMarkers"></div>
+        <div class="rule">rewrite <strong>0</strong> as <strong>-1</strong>, keep <strong>1</strong> — a balanced subarray now sums to 0</div>
+      </div>
+      <div class="card">
+        <h3>Prefix Sum Array　prefix[i] = (count of 1) - (count of 0) in nums[0:i]</h3>
+        <div class="array-row" id="prefixRow"></div>
+        <div class="marker-row" id="prefixMarkers"></div>
+        <div class="formula" id="formula"></div>
+        <div class="prefix-state">
+          <span class="var-name">prefix</span><span class="var-eq"> = </span><span class="var-val" id="vPrefix"></span>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Hash Map: prefix sum -> earliest prefix index</h3>
+        <div class="map-table" id="mapTable"></div>
+      </div>
+      <div class="card">
+        <h3>Longest Balanced Subarray</h3>
+        <div class="answer-strip empty" id="answer">no balanced subarray found yet</div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+const ORIG = [0, 1, 0, 0, 1, 1, 0];
+const NUMS = [-1, 1, -1, -1, 1, 1, -1];
+const N = NUMS.length;
+const PREFIX = [0, -1, 0, -1, -2, -1, 0, -1];
+const FINAL_MAP = new Map([[0, 0], [-1, 1], [-2, 4]]);
+
+// Phase 1 — rewrite every 0 as -1, in place (lines 3-5).
+const XFORM_STEPS = [
+  { line: 3, phase: 'xform', xform: 0, built: -1,
+    info: 'Walk over every index. A 0 will count as -1 and a 1 as +1, so a subarray with equal 0s and 1s sums to 0.' },
+  ...ORIG.flatMap((v, i) => {
+    const check = { line: 4, phase: 'xform', xform: i, tI: i, built: -1,
+      info: v === 0
+        ? `nums[${i}] = 0, so it must be rewritten as -1.`
+        : `nums[${i}] = 1, so leave it alone. Only the 0s change.` };
+    if (v !== 0) return [check];
+    return [check, { line: 5, phase: 'xform', xform: i + 1, tI: i, built: -1,
+      info: `nums[${i}] = -1. It now pulls the running sum down by 1, while a 1 pushes it up by 1.` }];
+  }),
+];
+
+// Phase 2 — build the prefix sums of the rewritten array (lines 7-9).
+const BUILD_STEPS = [
+  { line: 7, phase: 'build', xform: N, built: 0,
+    info: 'Allocate prefix with one extra slot. prefix[0] = 0 is the empty prefix, the sum before nums[0].' },
+  ...NUMS.flatMap((val, i) => [
+    { line: 8, phase: 'build', xform: N, built: i, activeNum: i, i, numsVal: val,
+      info: `Read nums[${i}] = ${val}.` },
+    { line: 9, phase: 'build', xform: N, built: i + 1, activeNum: i, freshPrefix: i + 1, i, numsVal: val,
+      info: `prefix[${i + 1}] = prefix[${i}] + nums[${i}] = ${PREFIX[i]} + ${val} = ${PREFIX[i + 1]}.` },
+  ]),
+];
+
+// Phase 3 — scan the prefix array, matching each value against the earliest
+// prefix index that produced it (lines 11-19).
+const SCAN_STEPS = (() => {
+  const out = [];
+  const maps = new Map();
+  let maxLen = 0;
+  let best = null;
+  const push = (line, extra, info) => out.push({
+    line, phase: 'scan', xform: N, built: N,
+    map: [...maps.entries()], maxLen, best, ...extra, info,
+  });
+
+  push(11, {}, 'maxLen = 0, the longest balanced subarray found so far.');
+  push(12, {}, 'Create the hash map. It remembers the earliest prefix index at which each prefix sum appeared.');
+
+  PREFIX.forEach((val, index) => {
+    push(14, { index, val },
+      `Prefix index ${index}: val = ${val}. Has this prefix sum been seen before?`);
+
+    if (maps.has(val)) {
+      const left = maps.get(val);
+      const right = index - 1;
+      const len = right - left + 1;
+      push(15, { index, val, hitKey: val, left, right },
+        `val = ${val} is already in maps at prefix index ${left}. prefix[${index}] - prefix[${left}] = 0, so nums[${left}..${right}] holds equally many 0s and 1s.`);
+      push(16, { index, val, hitKey: val, left, right },
+        `right = index - 1 = ${right}, the last nums index that prefix[${index}] covers.`);
+
+      const improved = len > maxLen;
+      if (improved) { maxLen = len; best = { left, right }; }
+      push(17, { index, val, hitKey: val, left, right, candidateLen: len, promoted: improved },
+        improved
+          ? `Length = right - maps[val] + 1 = ${right} - ${left} + 1 = ${len}. That beats the old best, so maxLen = ${len}.`
+          : `Length = ${right} - ${left} + 1 = ${len}, which does not beat maxLen = ${maxLen}. Keep the longer one.`);
+      push(18, { index, val, hitKey: val },
+        `val = ${val} is already in maps, so do not overwrite maps[${val}] = ${left}. Holding on to the earliest index is what keeps the subarrays as long as possible.`);
+    } else {
+      push(15, { index, val },
+        `val = ${val} is not in maps, so no earlier prefix cancels out with this one.`);
+      push(18, { index, val },
+        `val = ${val} is not in maps, so it is safe to record it.`);
+      maps.set(val, index);
+      push(19, { index, val, newKey: val },
+        `Store maps[${val}] = ${index}, the earliest prefix index whose sum is ${val}.`);
+    }
+  });
+
+  push(20, {}, `Return maxLen = ${maxLen}: nums[${best.left}..${best.right}] has three 0s and three 1s.`);
+  return out;
+})();
+
+const STEPS = [...XFORM_STEPS, ...BUILD_STEPS, ...SCAN_STEPS];
+
+const START = {
+  phase: 'start', xform: 0, built: -1, map: [], maxLen: 0, best: null,
+  info: 'Rewrite each 0 as -1. A balanced subarray then sums to 0, which means the prefix sums at its two ends are equal — so the answer is the widest gap between two equal prefix sums.',
+};
+
+let cur = -1;
+
+function cell(value, index, classes = '') {
+  return `<div class="cell-wrap"><div class="cell-index">${index}</div><div class="cell ${classes}">${value}</div></div>`;
+}
+
+function markerCell(labels, kind = 'active') {
+  if (!labels.length) return '<div class="marker-cell"></div>';
+  return `<div class="marker-cell ${kind}">
+    <div class="marker-arrow">↑</div>
+    ${labels.map(label => `<div class="marker-label">${label}</div>`).join('')}
+  </div>`;
+}
+
+function formulaLines(lines) {
+  return `<div class="formula-lines">${lines.map(([lhs, rhs]) => `
+    <div class="formula-line">
+      <span class="formula-lhs">${lhs}</span>
+      <span class="formula-eq">=</span>
+      <span class="formula-rhs">${rhs}</span>
+    </div>
+  `).join('')}</div>`;
+}
+
+function iRef() {
+  return '<span class="i-ref">i</span>';
+}
+
+// nums cell: the live candidate outranks the reigning best, which outranks the
+// per-phase cursors; a rewritten 0 keeps a faint tint whenever nothing else claims it.
+function numsClass(s, i) {
+  const inCand = s.left != null && s.right != null && i >= s.left && i <= s.right;
+  if (inCand) return s.promoted ? 'best' : 'range';
+  if (s.best && i >= s.best.left && i <= s.best.right) return 'best';
+  if (i === s.tI) return 'current';
+  if (i === s.activeNum) return 'source';
+  if (ORIG[i] === 0 && i < s.xform) return 'zeroed';
+  return '';
+}
+
+function prefixClass(s, i) {
+  if (s.hitKey != null && FINAL_MAP.get(s.hitKey) === i) return 'target';
+  if (i === s.index) return 'current';
+  if (i === s.freshPrefix) return 'source';
+  if (i <= s.built) return 'built';
+  return 'unbuilt';
+}
+
+function numsMarkers(s) {
+  return ORIG.map((_, i) => {
+    if (s.left != null && s.right != null) {
+      const labels = [];
+      if (i === s.left) labels.push('maps[val]');
+      if (i === s.right) labels.push('right');
+      return markerCell(labels);
+    }
+    if (i === s.tI) return markerCell([`i = ${i}`]);
+    if (i === s.activeNum) return markerCell([`i = ${i}`, `num = ${s.numsVal}`]);
+    return markerCell([]);
+  }).join('');
+}
+
+function prefixMarkers(s) {
+  return PREFIX.map((_, i) => {
+    if (s.hitKey != null && FINAL_MAP.get(s.hitKey) === i) return markerCell(['same val'], 'need');
+    const labels = [];
+    if (i === s.index) {
+      labels.push(`index = ${s.index}`, `val = ${s.val}`);
+      if (s.newKey != null) labels.push('store');
+    }
+    return markerCell(labels);
+  }).join('');
+}
+
+function renderMap(entries, s) {
+  const table = document.getElementById('mapTable');
+  if (!entries || entries.length === 0) {
+    table.innerHTML = '<div class="map-empty">maps = {}</div>';
+    return;
+  }
+  let html = '<div class="map-head">prefix</div><div class="map-head">index</div><div class="map-head">meaning</div>';
+  html += entries.map(([key, idx]) => {
+    const cls = key === s.hitKey ? 'hit' : key === s.newKey ? 'new' : '';
+    const meaning = idx === 0 ? 'empty prefix, before nums[0]' : `sum before nums[${idx}]`;
+    return `<div class="map-cell key ${cls}">${key}</div><div class="map-cell index ${cls}">${idx}</div><div class="map-cell ${cls}">${meaning}</div>`;
+  }).join('');
+  table.innerHTML = html;
+}
+
+function renderFormula(s) {
+  const formula = document.getElementById('formula');
+
+  if (s.freshPrefix != null) {
+    formula.innerHTML = formulaLines([
+      [`prefix[${iRef()} + 1]`, `prefix[${iRef()}] + nums[${iRef()}]`],
+      ['', `prefix[${s.i}] + nums[${s.i}]`],
+      ['', `${PREFIX[s.i]} + ${s.numsVal}`],
+      ['', `<strong>${PREFIX[s.freshPrefix]}</strong>`],
+    ]);
+    return;
+  }
+
+  if (s.val == null) {
+    formula.textContent = 'Two equal prefix sums bracket a stretch that sums to 0.';
+    return;
+  }
+
+  const lines = [
+    ['val', `prefix[${s.index}]`],
+    ['', `<strong>${s.val}</strong>`],
+    ['lookup', s.hitKey != null ? `maps[${s.val}] = ${FINAL_MAP.get(s.val)}` : `${s.val} not in maps`],
+  ];
+  if (s.candidateLen != null) {
+    lines.push(['length', 'right - maps[val] + 1']);
+    lines.push(['', `${s.right} - ${s.left} + 1 = <strong>${s.candidateLen}</strong>`]);
+  }
+  formula.innerHTML = formulaLines(lines);
+}
+
+function render() {
+  const s = cur < 0 ? START : STEPS[cur];
+  highlightLine(cur < 0 ? null : s.line);
+
+  document.getElementById('numsRow').innerHTML = ORIG.map((v, i) =>
+    cell(i < s.xform ? NUMS[i] : v, i, numsClass(s, i))).join('');
+  document.getElementById('numsMarkers').innerHTML = numsMarkers(s);
+
+  document.getElementById('prefixRow').innerHTML = PREFIX.map((v, i) =>
+    cell(i <= s.built ? v : '·', i, prefixClass(s, i))).join('');
+  document.getElementById('prefixMarkers').innerHTML = prefixMarkers(s);
+  document.getElementById('vPrefix').textContent =
+    `[${PREFIX.map((v, i) => (i <= s.built ? v : '·')).join(', ')}]`;
+
+  renderFormula(s);
+  renderMap(s.map, s);
+
+  const answer = document.getElementById('answer');
+  if (s.candidateLen != null) {
+    answer.className = 'answer-strip';
+    answer.textContent = `candidate nums[${s.left}..${s.right}], length ${s.candidateLen}　·　maxLen = ${s.maxLen}`;
+  } else if (s.best) {
+    answer.className = 'answer-strip';
+    answer.textContent = `maxLen = ${s.maxLen}, from nums[${s.best.left}..${s.best.right}]`;
+  } else {
+    answer.className = 'answer-strip empty';
+    answer.textContent = 'no balanced subarray found yet';
+  }
+
+  renderCtrl(cur, STEPS.length, s.info);
+}
+render();
+</script>
+</body>
+</html>

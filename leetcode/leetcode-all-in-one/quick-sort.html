@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quick Sort — 快速排序(Lyon 模板)</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  /* A 数组:格子 + 下标行 + left/right 指针行 */
+  .nums-row { display: flex; gap: 8px; }
+  .num-cell { width: 56px; height: 48px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+              font-family: var(--ink-mono); font-size: 18px; font-weight: 750; color: #1a1a1a;
+              background: #f5f5f5; border: 1px solid #c9c9c9;
+              transition: background 0.2s, transform 0.2s, border-color 0.2s; }
+  .num-cell.sorted { background: rgba(93,202,165,0.4); border-color: rgba(60,160,125,0.5); }
+  .num-cell.swapping { background: rgba(249,203,66,0.55); border-color: rgba(200,160,30,0.6); transform: scale(1.1); }
+  .num-idx-row { display: flex; gap: 8px; margin-top: 4px; }
+  .num-idx { width: 56px; text-align: center; font-family: var(--ink-mono); font-size: 10.5px; color: #aaa; }
+  .num-ptr-row { display: flex; gap: 8px; margin-top: 3px; min-height: 36px; }
+  .num-ptr { width: 56px; text-align: center; font-family: var(--ink-mono); font-size: 11.5px; font-weight: 700;
+             line-height: 1.35; white-space: nowrap; }
+  .num-ptr .p-left { color: #C4501E; }
+  .num-ptr .p-right { color: #3A6FD4; }
+
+  /* pivot 读数 + 切分完成时的三段布局(对应 Lyon 的注释 #start right left end) */
+  .formula { min-height: 46px; margin-top: 10px; font: 13.5px/1.8 var(--ink-mono); color: #555; }
+  .f-var { color: #C4501E; font-weight: 700; }
+  .f-right { color: #3A6FD4; font-weight: 700; }
+  .f-mid { color: #246b55; font-weight: 700; }
+
+  /* 调用链:一层一行、按深度缩进,底色 = 这次调用的专属色 */
+  .call-chain { display: flex; flex-direction: column; gap: 4px; min-height: 96px; }
+  .chain-row { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 10px;
+               border-radius: 7px; font-family: var(--ink-mono); font-size: 12px;
+               color: #1a1a1a; white-space: nowrap; align-self: flex-start;
+               transition: box-shadow 0.15s; }
+  .chain-row.top { box-shadow: 0 0 0 1.5px #1a1a1a; font-weight: 700; }
+  .chain-dim { color: #8a8a8a; font-weight: 400; }
+  .chain-empty { font-family: var(--ink-mono); font-size: 12px; color: #bbb; }
+  .viz-row { display: flex; align-items: flex-start; gap: 16px; }
+
+  /* 递归树 */
+  #tree-svg { display: block; width: 500px; height: 226px; }
+  .edge { stroke: #d5d5d5; stroke-width: 2; }
+  .edge.on-path { stroke: #3A6FD4; stroke-width: 3; }
+  .node-box { fill: #f5f5f5; stroke: #c9c9c9; stroke-width: 1; transition: fill 0.2s; }
+  .node-box.n-current { stroke: #1a1a1a; stroke-width: 2.5; }
+  .node-box.n-stack   { stroke: rgba(90,130,200,0.55); }
+  .node-box.n-done    { fill: rgba(93,202,165,0.4); stroke: rgba(60,160,125,0.5); }
+  .node-text { font-family: var(--ink-mono); font-size: 11px; font-weight: 700; fill: #1a1a1a; }
+  .node-text.dim { fill: #b5b5b5; }
+
+  .fn-tag { display: inline-block; padding: 1px 8px; border-radius: 5px; background: rgba(199,146,234,0.18);
+            color: #6b3fa0; font-family: var(--ink-mono); font-size: 12px; font-weight: 700; }
+  .fn-note { margin-left: 8px; font-family: -apple-system, sans-serif; font-size: 11px; color: #aaa; }
+
+  /* 颜色图例从页头搬到代码框下面后改纵向单列排列 */
+  .legend-below { flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 0; max-width: none; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: 'Quick Sort — 快速排序(Lyon 模板)',
+  link: 'https://leetcode.com/problems/sort-an-array/',
+  legend: [
+    { color: 'rgba(249,203,66,0.30)', extra: 'box-shadow:inset 0 0 0 2px #1a1a1a;', label: '黑框 = 正在执行这一行的那次调用(调用链顶帧)' },
+    { color: 'rgba(126,158,221,0.24)', label: '每次调用一种颜色 — 代码高亮行 / 调用链 / 树节点 / 当前处理段同色' },
+    { color: 'rgba(249,203,66,0.55)', label: '正在交换的两格' },
+    { color: 'rgba(93,202,165,0.4)', label: '已落到最终位置(该段调用返回,或被切分夹在中间)' },
+    { color: '#f5f5f5', extra: 'border:1px solid #c9c9c9;', label: '还没处理到' },
+    { color: '#C4501E', extra: 'border-radius:2px;width:14px;height:3px;', label: 'left 指针(从左往右找 >= pivot 的数)' },
+    { color: '#3A6FD4', extra: 'border-radius:2px;width:14px;height:3px;', label: 'right 指针(从右往左找 <= pivot 的数)' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+  <script>
+  renderCodeBox({
+    code: `
+class Solution:
+    def sortArray(self, nums: List[int]) -> List[int]:
+        self.quickSort(nums,0,len(nums)-1)
+        return nums
+
+    def quickSort(self,A,start,end):
+        if start >= end:
+            return
+
+        left,right = start,end
+        pivot = A[(start + end) // 2]
+
+        while left<=right:
+            while left<=right and A[left] < pivot:
+                left += 1
+            while left<=right and A[right] > pivot:
+                right -= 1
+            if left <=right:
+                temp = A[left]
+                A[left] = A[right]
+                A[right] = temp
+                left += 1
+                right -= 1
+        #start right left end
+        self.quickSort(A,start,right)
+        self.quickSort(A,left,end)`,
+  });
+  </script>
+
+  <!-- 步骤说明 + 颜色图例从页头搬到代码框下面 -->
+  <script>
+  (function () {
+    const stack = document.querySelector('.code-stack');
+    stack.appendChild(document.getElementById('info'));
+    const legend = document.querySelector('.legend');
+    const legendRow = legend.parentElement;
+    legend.classList.add('legend-below');
+    stack.appendChild(legend);
+    legendRow.remove();
+  })();
+  </script>
+
+  <div class="viz-panel">
+    <div class="viz-row">
+      <div class="card">
+        <h3>调用链 — 现在这行代码是谁在跑</h3>
+        <div class="call-chain" id="call-chain"></div>
+      </div>
+      <div class="var-bar" id="var-bar"></div>
+    </div>
+
+    <div class="card">
+      <h3>A — 每次调用只管自己的 [start, end] 段</h3>
+      <div class="nums-row" id="nums-row"></div>
+      <div class="num-idx-row" id="nums-idx-row"></div>
+      <div class="num-ptr-row" id="nums-ptr-row"></div>
+      <div class="formula" id="formula"></div>
+    </div>
+
+    <div class="card">
+      <h3>递归树 — 切一刀,左右两段各自再排</h3>
+      <svg id="tree-svg" viewBox="0 0 500 226"></svg>
+    </div>
+  </div>
+</div><!-- /.main -->
+</div><!-- /.content-wrapper -->
+
+<script>
+// ── 例子:LeetCode 912 官方 Example 1 ────────────────────────────────────
+const INPUT = [5, 2, 3, 1];
+
+/* 行号表:正文从 1 开始,5/9/12 是空行,24 是 Lyon 的注释 #start right left end,
+   都不执行不占步。按 ANIMATION_GUIDE:while/if 头 True/False 都停,内层 while
+   每查一次条件停一步,函数调用行走两遍(发起 + 返回),def 行进入时也停。 */
+const L = {
+  SORT_DEF: 2,   // def sortArray(self, nums)
+  CALL0:    3,   // self.quickSort(nums,0,len(nums)-1)   调用 + 返回各一次
+  RET:      4,   // return nums
+  QS_DEF:   6,   // def quickSort(self,A,start,end)
+  BASE_IF:  7,   // if start >= end
+  BASE_RET: 8,   // return
+  INIT:    10,   // left,right = start,end
+  PIVOT:   11,   // pivot = A[(start + end) // 2]
+  WHILE:   13,   // while left<=right   外层,每轮 + 取空各一次
+  WL:      14,   // while left<=right and A[left] < pivot   每查一次停一步
+  WL_INC:  15,   // left += 1
+  WR:      16,   // while left<=right and A[right] > pivot
+  WR_DEC:  17,   // right -= 1
+  IFSWAP:  18,   // if left <=right
+  T1:      19,   // temp = A[left]
+  T2:      20,   // A[left] = A[right]
+  T3:      21,   // A[right] = temp
+  LINC:    22,   // left += 1
+  RDEC:    23,   // right -= 1
+  REC1:    25,   // self.quickSort(A,start,right)   调用 + 返回各一次
+  REC2:    26,   // self.quickSort(A,left,end)      调用 + 返回各一次
+};
+
+const fmt = (a) => '[' + a.join(', ') + ']';
+
+/* 每次调用一种底色:sa = 外层 sortArray,q0..q4 = 5 次 quickSort 调用,
+   编号 = 真实调用顺序(先序)。递归树 TREE 里的 id 必须跟这个顺序一致。 */
+const CALL_TINT = {
+  sa: 'rgba(150,150,150,0.18)',
+  q0: 'rgba(126,158,221,0.24)',
+  q1: 'rgba(117,209,163,0.26)',
+  q2: 'rgba(227,192,109,0.30)',
+  q3: 'rgba(216,143,121,0.26)',
+  q4: 'rgba(180,131,216,0.26)',
+};
+const tintOf = (id) => CALL_TINT[id];
+
+const TREE = [
+  { id: 'q0', label: 'quickSort(0, 3)', x: 250, y: 30,  parent: null },
+  { id: 'q1', label: 'quickSort(0, 0)', x: 115, y: 113, parent: 'q0' },
+  { id: 'q2', label: 'quickSort(2, 3)', x: 365, y: 113, parent: 'q0' },
+  { id: 'q3', label: 'quickSort(2, 1)', x: 295, y: 196, parent: 'q2' },
+  { id: 'q4', label: 'quickSort(3, 3)', x: 430, y: 196, parent: 'q2' },
+];
+const NODE_W = 112, NODE_H = 28;
+const NODE_BY_ID = {};
+TREE.forEach(n => { NODE_BY_ID[n.id] = n; });
+
+// ── 真跑一遍 Lyon 的 quickSort 生成步骤 ─────────────────────────────────
+function buildSteps() {
+  const steps = [];
+  const A = [...INPUT];
+  const frames = [];             // 调用栈:{fn, id, start, end, left, right, pivot, temp}
+  const done = A.length ? new Array(A.length).fill(false) : [];
+  const finished = [];           // 已返回的 quickSort 调用 id(树节点变绿)
+  let callSeq = 0;
+
+  function snap(line, info, x) {
+    x = x || {};
+    steps.push({
+      line, info,
+      A: [...A],
+      frames: frames.map(f => ({ ...f })),
+      done: [...done],
+      finished: [...finished],
+      swapA: x.swapA != null ? x.swapA : null,
+      swapB: x.swapB != null ? x.swapB : null,
+      cut: !!x.cut,
+    });
+  }
+
+  snap(null, '点 Next 开始:nums = ' + fmt(INPUT) + '。快排 = 选一个 pivot,把小的换到左边、' +
+    '大的换到右边,切成两段,每段递归再排。');
+
+  function quickSort(start, end) {
+    const f = { fn: 'qs', id: 'q' + (callSeq++), start, end, left: null, right: null, pivot: null, temp: null };
+    frames.push(f);
+    snap(L.QS_DEF, 'Line 6: 进入 quickSort(A, ' + start + ', ' + end + ') — 这次调用只负责把 A[' +
+      start + '..' + end + '] 排好,别的段不归它管。');
+
+    if (start >= end) {
+      snap(L.BASE_IF, 'Line 7: start >= end → ' + start + ' >= ' + end + ',True — ' +
+        (start > end ? '这是个空段(切分时 right 越过了 start),没东西可排。'
+                     : '只剩一个元素,天然有序。'));
+      snap(L.BASE_RET, 'Line 8: return — 递归到底,直接返回。');
+      for (let i = start; i <= end; i++) done[i] = true;
+      finished.push(f.id);
+      frames.pop();
+      return;
+    }
+    snap(L.BASE_IF, 'Line 7: start >= end → ' + start + ' >= ' + end + ',False — 至少两个元素,要切分。');
+
+    f.left = start; f.right = end;
+    snap(L.INIT, 'Line 10: left, right = ' + start + ', ' + end + ' — 双指针从这段的两端相向而行。');
+    f.pivot = A[(start + end) >> 1];
+    snap(L.PIVOT, 'Line 11: pivot = A[(' + start + ' + ' + end + ') // 2] = A[' + ((start + end) >> 1) +
+      '] = ' + f.pivot + ' — 取中间位置的「值」当基准。注意存的是值不是下标:后面交换会把这个位置换掉,值不受影响。');
+
+    while (true) {
+      const ok = f.left <= f.right;
+      if (!ok) {
+        for (let i = f.right + 1; i < f.left; i++) done[i] = true;
+        snap(L.WHILE, 'Line 13: while left <= right → ' + f.left + ' <= ' + f.right + ',不成立 — 切分完成:' +
+          'A[' + start + '..' + f.right + '] 都 <= pivot,A[' + f.left + '..' + end + '] 都 >= pivot' +
+          (f.left - f.right > 1 ? ',夹在中间的 A[' + (f.right + 1) + '..' + (f.left - 1) + '] 已经落在最终位置'
+                                : '') + '。', { cut: true });
+        break;
+      }
+      snap(L.WHILE, 'Line 13: while left <= right → ' + f.left + ' <= ' + f.right + ',成立 — 继续这轮切分。');
+
+      while (true) {
+        const inRange = f.left <= f.right;
+        const cond = inRange && A[f.left] < f.pivot;
+        snap(L.WL, 'Line 14: ' + (!inRange
+          ? 'left(' + f.left + ') > right(' + f.right + ') → False — 指针交错,left 停下。'
+          : 'A[' + f.left + '] = ' + A[f.left] + ' < pivot(' + f.pivot + ')? ' + (cond ? 'True' : 'False') +
+            (cond ? ' — 这个数本来就该在左边,left 放过它。'
+                  : ' — A[' + f.left + '] 不小于 pivot(等于也停),它不该待在左边,left 停下等着换。')));
+        if (!cond) break;
+        f.left += 1;
+        snap(L.WL_INC, 'Line 15: left += 1 → left = ' + f.left + '。');
+      }
+
+      while (true) {
+        const inRange = f.left <= f.right;
+        const cond = inRange && A[f.right] > f.pivot;
+        snap(L.WR, 'Line 16: ' + (!inRange
+          ? 'left(' + f.left + ') > right(' + f.right + ') → False — 指针交错,right 停下。'
+          : 'A[' + f.right + '] = ' + A[f.right] + ' > pivot(' + f.pivot + ')? ' + (cond ? 'True' : 'False') +
+            (cond ? ' — 这个数本来就该在右边,right 放过它。'
+                  : ' — A[' + f.right + '] 不大于 pivot(等于也停),它不该待在右边,right 停下等着换。')));
+        if (!cond) break;
+        f.right -= 1;
+        snap(L.WR_DEC, 'Line 17: right -= 1 → right = ' + f.right + '。');
+      }
+
+      const doSwap = f.left <= f.right;
+      snap(L.IFSWAP, 'Line 18: left <= right → ' + f.left + ' <= ' + f.right + ',' +
+        (doSwap ? (f.left === f.right ? 'True — 两个指针停在同一格,自己换自己(代码不特判,省一个 if)。'
+                                      : 'True — 两边各停着一个放错边的数,交换。')
+                : 'False — 指针已经交错,这轮不用交换。'));
+      if (doSwap) {
+        const a = f.left, b = f.right;
+        f.temp = A[a];
+        snap(L.T1, 'Line 19: temp = A[' + a + '] = ' + f.temp + ' — 先把左边的数存起来,不然下一行就被覆盖了。',
+          { swapA: a, swapB: b });
+        A[a] = A[b];
+        snap(L.T2, 'Line 20: A[' + a + '] = A[' + b + '] = ' + A[b] + ' — 右边的数搬到左边' +
+          (a === b ? '(同一格,原样不动)' : ',此刻 ' + A[b] + ' 在数组里出现两次,别慌,temp 还留着底') + '。',
+          { swapA: a, swapB: b });
+        A[b] = f.temp;
+        snap(L.T3, 'Line 21: A[' + b + '] = temp = ' + f.temp + ' — 交换完成' +
+          (a === b ? '(换了个寂寞)' : ',A 变成 ' + fmt(A)) + '。', { swapA: a, swapB: b });
+        f.left += 1;
+        snap(L.LINC, 'Line 22: left += 1 → left = ' + f.left + ' — 换完的两个数不用再看。');
+        f.right -= 1;
+        snap(L.RDEC, 'Line 23: right -= 1 → right = ' + f.right + '。');
+      }
+    }
+
+    snap(L.REC1, 'Line 25: self.quickSort(A, ' + start + ', ' + f.right + ') — 递归排左段' +
+      (f.right < start ? '(start > right,空段,进去就返回)' : ' A[' + start + '..' + f.right + ']') + '。');
+    quickSort(start, f.right);
+    snap(L.REC1, 'Line 25: 左段返回 — ' +
+      (f.right < start ? '空段,啥也没干。' : 'A[' + start + '..' + f.right + '] 已经有序。'));
+
+    snap(L.REC2, 'Line 26: self.quickSort(A, ' + f.left + ', ' + end + ') — 递归排右段' +
+      (f.left > end ? '(left > end,空段,进去就返回)' : ' A[' + f.left + '..' + end + ']') + '。');
+    quickSort(f.left, end);
+    snap(L.REC2, 'Line 26: 右段返回 — ' +
+      (f.left > end ? '空段,啥也没干。' : 'A[' + f.left + '..' + end + '] 已经有序。') +
+      ' 左右都排完,A[' + start + '..' + end + '] 整段有序。');
+
+    for (let i = start; i <= end; i++) done[i] = true;
+    finished.push(f.id);
+    frames.pop();
+  }
+
+  frames.push({ fn: 'sortArray', id: 'sa', start: null, end: null, left: null, right: null, pivot: null, temp: null });
+  snap(L.SORT_DEF, 'Line 2: 进入 sortArray(nums=' + fmt(INPUT) + ') — 入口,把整个数组交给 quickSort。');
+  snap(L.CALL0, 'Line 3: self.quickSort(nums, 0, len(nums)-1) = quickSort(nums, 0, ' + (INPUT.length - 1) +
+    ') — 从整段开始递归。');
+  quickSort(0, INPUT.length - 1);
+  snap(L.CALL0, 'Line 3: quickSort 返回 — 整棵递归树走完,nums 已经原地有序。');
+  snap(L.RET, 'Line 4: return nums — ' + fmt(A) + '。');
+  frames.pop();
+
+  snap(null, '✅ 排序完成:' + fmt(INPUT) + ' → ' + fmt(A) + '。每层切分 O(n),平均切 O(log n) 层,' +
+    '平均 O(n log n);切分在原数组上交换,只用 O(log n) 递归栈。记住 Lyon 的注释 #start right left end:' +
+    '循环结束后 right 在 left 左边,左段递归到 right、右段从 left 开始,中间的数已经就位。');
+  return steps;
+}
+
+const STEPS = buildSteps();
+let cur = -1;
+
+// ── 渲染(只读快照,无副作用)──────────────────────────────────────────────
+const topFrame = (s) => s.frames.length ? s.frames[s.frames.length - 1] : null;
+
+function renderNums(s) {
+  const top = topFrame(s);
+  document.getElementById('nums-row').innerHTML = s.A.map((v, i) => {
+    let cls = 'num-cell', style = '';
+    if (s.swapA != null && (i === s.swapA || i === s.swapB)) cls += ' swapping';
+    else if (s.done[i]) cls += ' sorted';
+    else if (top && top.fn === 'qs' && i >= top.start && i <= top.end) style = 'background:' + tintOf(top.id) + ';';
+    return '<div class="' + cls + '" style="' + style + '">' + v + '</div>';
+  }).join('');
+  document.getElementById('nums-idx-row').innerHTML = s.A.map((v, i) =>
+    '<div class="num-idx">' + i + '</div>').join('');
+  document.getElementById('nums-ptr-row').innerHTML = s.A.map((v, i) => {
+    const tags = [];
+    if (top && top.fn === 'qs' && top.left === i) tags.push('<span class="p-left">↑left</span>');
+    if (top && top.fn === 'qs' && top.right === i) tags.push('<span class="p-right">↑right</span>');
+    return '<div class="num-ptr">' + tags.join('<br>') + '</div>';
+  }).join('');
+
+  const formula = document.getElementById('formula');
+  if (top && top.fn === 'qs' && top.pivot != null) {
+    let html = 'pivot = <span class="f-var">' + top.pivot + '</span>';
+    if (top.temp != null) html += '　temp = <span class="f-var">' + top.temp + '</span>';
+    if (s.cut) {
+      html += '<br>#start right left end → 左段 [<span class="f-right">' + top.start + ' .. ' + top.right +
+        '</span>] · 右段 [<span class="f-var">' + top.left + ' .. ' + top.end + '</span>]' +
+        (top.left - top.right > 1 ? ' · 中间 <span class="f-mid">已就位</span>' : '');
+    }
+    formula.innerHTML = html;
+  } else {
+    formula.innerHTML = '';
+  }
+}
+
+function renderChain(s) {
+  const host = document.getElementById('call-chain');
+  if (!s.frames.length) {
+    host.innerHTML = '<span class="chain-empty">还没开始 / 已经全部返回</span>';
+    return;
+  }
+  host.innerHTML = s.frames.map((f, k) => {
+    const isTop = k === s.frames.length - 1;
+    const text = f.fn === 'sortArray'
+      ? 'sortArray(nums)'
+      : 'quickSort(A, ' + f.start + ', ' + f.end + ')';
+    const extra = f.fn === 'qs' && f.pivot != null
+      ? '<span class="chain-dim">pivot=' + f.pivot + ' left=' + f.left + ' right=' + f.right + '</span>'
+      : '';
+    return '<div class="chain-row' + (isTop ? ' top' : '') + '"' +
+      ' style="background:' + tintOf(f.id) + ';margin-left:' + (k * 18) + 'px">' +
+      '<span>' + text + '</span>' + extra + '</div>';
+  }).join('');
+}
+
+function renderTree(s) {
+  const stackIds = s.frames.map(f => f.id);
+  const parts = [];
+  TREE.forEach(n => {
+    if (!n.parent) return;
+    const p = NODE_BY_ID[n.parent];
+    const onPath = stackIds.indexOf(n.id) >= 0 && stackIds.indexOf(n.parent) >= 0;
+    parts.push('<line class="edge' + (onPath ? ' on-path' : '') + '" x1="' + p.x + '" y1="' + (p.y + NODE_H / 2) +
+      '" x2="' + n.x + '" y2="' + (n.y - NODE_H / 2) + '"/>');
+  });
+  TREE.forEach(n => {
+    let st = '';
+    if (s.finished.indexOf(n.id) >= 0) st = 'n-done';
+    else {
+      const at = stackIds.indexOf(n.id);
+      if (at >= 0) st = at === s.frames.length - 1 ? 'n-current' : 'n-stack';
+    }
+    const onStack = st === 'n-current' || st === 'n-stack';
+    const fill = onStack ? ' style="fill:' + tintOf(n.id) + '"' : '';
+    parts.push('<g>' +
+      '<rect class="node-box ' + st + '"' + fill + ' x="' + (n.x - NODE_W / 2) + '" y="' + (n.y - NODE_H / 2) +
+        '" width="' + NODE_W + '" height="' + NODE_H + '" rx="7"/>' +
+      '<text class="node-text' + (st ? '' : ' dim') + '" x="' + n.x + '" y="' + (n.y + 4) +
+        '" text-anchor="middle">' + n.label + '</text>' +
+      '</g>');
+  });
+  document.getElementById('tree-svg').innerHTML = parts.join('');
+}
+
+function renderVars(s) {
+  const top = topFrame(s);
+  const val = (v) => (top && top.fn === 'qs' && v != null ? v : '-');
+  const row = (name, v, note) => '<span class="var-row"><span class="var-name">' + name +
+    '</span><span class="var-eq"> = </span><span class="var-val">' + v + '</span>' +
+    (note ? '<span class="fn-note">' + note + '</span>' : '') + '</span>';
+  document.getElementById('var-bar').innerHTML =
+    '<span class="var-row"><span class="fn-tag">' +
+      (top ? (top.fn === 'sortArray' ? 'sortArray()' : 'quickSort()') : '—') +
+      '</span><span class="fn-note">当前所在函数</span></span>' +
+    row('start', val(top && top.start), '本次调用管的段') +
+    row('end', val(top && top.end)) +
+    row('left', val(top && top.left)) +
+    row('right', val(top && top.right)) +
+    row('pivot', val(top && top.pivot), '存的是值不是下标') +
+    row('temp', val(top && top.temp)) +
+    row('A', fmt(s.A));
+}
+
+function tintLine(s) {
+  document.querySelectorAll('.code-line').forEach(el => { el.style.background = ''; });
+  const top = topFrame(s);
+  if (s.line == null || !top) return;
+  const el = document.querySelector('.code-line[data-l="' + s.line + '"]');
+  if (el) el.style.background = tintOf(top.id);
+}
+
+const EMPTY = { line: null, A: [...INPUT], frames: [], done: INPUT.map(() => false),
+                finished: [], swapA: null, swapB: null, cut: false };
+
+function renderAll() {
+  const step = cur >= 0 ? STEPS[cur] : null;
+  const s = step || EMPTY;
+  renderChain(s);
+  renderNums(s);
+  renderTree(s);
+  renderVars(s);
+  highlightLine(s.line);
+  tintLine(s);
+  renderCtrl(cur, STEPS.length, step ? step.info :
+    '点 Next 开始:nums = ' + fmt(INPUT) + ',用 Lyon 的 quickSort 模板原地排成升序。');
+}
+
+var render = renderAll;
+doReset();
+</script>
+</body>
+</html>

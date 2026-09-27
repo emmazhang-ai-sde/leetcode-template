@@ -1,0 +1,333 @@
+/* index：侧栏 + 主栏壳层、题单 tab（不含课件正文与填空格子） */
+/* 仅 index：禁止整页滚动，由侧栏 / 主栏各自 overflow */
+html:has(.page-shell) {
+  height: 100%;
+}
+
+html:has(.page-shell) body {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.page-shell {
+  /* 侧栏宽度由标题实测（JS）；与主栏间距略大 */
+  --nav-gap: 56px;
+  margin: 0 auto;
+  padding: 36px 48px 48px 20px;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 32px var(--nav-gap);
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.chapter-nav {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  align-self: stretch;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  box-sizing: border-box;
+  overflow-y: auto;
+  overflow-x: auto;
+  overscroll-behavior: contain;
+}
+
+
+.chapter-sidebar-title {
+  margin: 0 0 18px;
+  text-align: left;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--color-text);
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+button.nav-category-head {
+  width: 100%;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  display: block;
+  border: none;
+  appearance: none;
+  -webkit-appearance: none;
+  box-shadow: none;
+}
+
+button.nav-category-head:focus {
+  outline: none;
+}
+
+button.nav-category-head:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* 分类标题：仅当前题目所属分类为黄底；另一块为灰底 */
+.nav-category-head {
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  white-space: normal;
+  background: var(--color-background-secondary);
+  color: var(--color-text-tertiary);
+  text-decoration: none;
+  transition: background 0.12s, color 0.12s;
+}
+
+.nav-category-head.is-active {
+  background: var(--color-tab-selected);
+  color: var(--color-tab-selected-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* 套模板 / OOXX / Ch2 填空分类：无底色，保留字重、颜色与激活态下划线 */
+#navCategoryTemplate.nav-category-head,
+#navCategoryOoxx.nav-category-head,
+#navCategoryCh2Template.nav-category-head,
+#navCategoryCh2Traversal.nav-category-head,
+#navCategoryCh2Dfs.nav-category-head,
+#navCategoryCh3BfsTree.nav-category-head,
+#navCategoryCh3Topo.nav-category-head,
+#navCategoryCh3Dijkstra.nav-category-head,
+#navCategoryCh5Bfs.nav-category-head,
+#navCategoryCh5Dfs.nav-category-head,
+#navCategoryCh5GraphTheory.nav-category-head,
+#navCategoryCh5Topo.nav-category-head,
+#navCategoryCh5Uf.nav-category-head,
+#navCategoryCh9Ps.nav-category-head,
+#navCategoryCh9Stack.nav-category-head,
+#navCategoryCh9Dp.nav-category-head,
+#navCategoryCh8Sw.nav-category-head,
+#navCategoryCh8Sweep.nav-category-head,
+#navCategoryCh7Heap.nav-category-head,
+#navCategoryCh7TopK.nav-category-head,
+#navCategoryCh7Mono.nav-category-head,
+#navCh6GroupTp.nav-category-head,
+#navCh6GroupLl.nav-category-head,
+#navCategoryCh6Tp1.nav-category-head,
+#navCategoryCh6Tp2.nav-category-head,
+#navCategoryCh6Tp3.nav-category-head,
+#navCategoryCh6Tp4.nav-category-head,
+#navCategoryCh6Tp5.nav-category-head,
+#navCategoryCh6Ll1.nav-category-head,
+#navCategoryCh6Ll2.nav-category-head,
+#navCategoryCh6Extra.nav-category-head {
+  background: transparent;
+}
+
+#navCategoryCh6Tp1.nav-category-head,
+#navCategoryCh6Tp2.nav-category-head,
+#navCategoryCh6Tp3.nav-category-head,
+#navCategoryCh6Tp4.nav-category-head,
+#navCategoryCh6Tp5.nav-category-head,
+#navCategoryCh6Ll1.nav-category-head,
+#navCategoryCh6Ll2.nav-category-head,
+#navCategoryCh6Extra.nav-category-head {
+  font-size: 12px;
+}
+
+#navCategoryTemplate.nav-category-head.is-active,
+#navCategoryOoxx.nav-category-head.is-active,
+#navCategoryCh2Template.nav-category-head.is-active,
+#navCategoryCh2Traversal.nav-category-head.is-active,
+#navCategoryCh2Dfs.nav-category-head.is-active,
+#navCategoryCh3BfsTree.nav-category-head.is-active,
+#navCategoryCh3Topo.nav-category-head.is-active,
+#navCategoryCh3Dijkstra.nav-category-head.is-active,
+#navCategoryCh5Bfs.nav-category-head.is-active,
+#navCategoryCh5Dfs.nav-category-head.is-active,
+#navCategoryCh5GraphTheory.nav-category-head.is-active,
+#navCategoryCh5Topo.nav-category-head.is-active,
+#navCategoryCh5Uf.nav-category-head.is-active,
+#navCategoryCh9Ps.nav-category-head.is-active,
+#navCategoryCh9Stack.nav-category-head.is-active,
+#navCategoryCh9Dp.nav-category-head.is-active,
+#navCategoryCh8Sw.nav-category-head.is-active,
+#navCategoryCh8Sweep.nav-category-head.is-active,
+#navCategoryCh7Heap.nav-category-head.is-active,
+#navCategoryCh7TopK.nav-category-head.is-active,
+#navCategoryCh7Mono.nav-category-head.is-active,
+#navCh6GroupTp.nav-category-head.is-active,
+#navCh6GroupLl.nav-category-head.is-active,
+#navCategoryCh6Tp1.nav-category-head.is-active,
+#navCategoryCh6Tp2.nav-category-head.is-active,
+#navCategoryCh6Tp3.nav-category-head.is-active,
+#navCategoryCh6Tp4.nav-category-head.is-active,
+#navCategoryCh6Tp5.nav-category-head.is-active,
+#navCategoryCh6Ll1.nav-category-head.is-active,
+#navCategoryCh6Ll2.nav-category-head.is-active,
+#navCategoryCh6Extra.nav-category-head.is-active {
+  background: transparent;
+}
+
+/* 主栏紧贴侧栏右侧，间距 = --nav-gap；题目标题与代码左缘对齐 */
+.main-content {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding-top: 8px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.prob-tabs {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 10px;
+  align-items: stretch;
+  padding: 0;
+  min-width: 0;
+}
+
+.prob-tab {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.35;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  background: var(--color-background-secondary);
+  color: var(--color-text);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
+  text-align: left;
+  transition: background 0.12s;
+  outline: none;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.prob-tab:not(.is-selected):hover {
+  background: color-mix(in srgb, var(--color-background-secondary) 88%, var(--color-text));
+}
+
+@supports not (background: color-mix(in srgb, white, black)) {
+  .prob-tab:not(.is-selected):hover {
+    opacity: 0.92;
+  }
+}
+
+.prob-tab:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.prob-tab.is-selected {
+  background: var(--color-tab-selected);
+  color: var(--color-tab-selected-text);
+  box-shadow: none;
+}
+
+.nav-category-block--follow {
+  margin-top: 22px;
+}
+
+/* ── Chapter tab strip ── */
+.chapter-tab-strip {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.chapter-tab {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border: 1px solid var(--color-border-primary);
+  border-radius: 6px;
+  background: var(--color-background);
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.chapter-tab:hover:not(.is-active) {
+  background: var(--color-background-secondary);
+  color: var(--color-text);
+  border-color: var(--color-text-tertiary);
+}
+
+.chapter-tab.is-active {
+  background: var(--color-tab-selected);
+  color: var(--color-tab-selected-text);
+  border-color: transparent;
+  font-weight: 700;
+}
+
+.chapter-tab:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* Chapter panels: hidden via [hidden] attribute */
+.chapter-panel[hidden] {
+  display: none;
+}
+
+.prob-tabs--ch2 {
+  margin-top: 12px;
+}
+
+@media (max-width: 800px) and (pointer: coarse) {
+  .page-shell {
+    flex-direction: column;
+    padding: 28px 20px 40px;
+  }
+
+  .chapter-nav {
+    width: 100% !important;
+    max-width: 100%;
+    flex: 0 1 auto !important;
+    flex-basis: auto !important;
+    max-height: 45vh;
+    min-height: 0;
+  }
+
+  .chapter-sidebar-title,
+  #navCategoryNotes,
+  #navCategoryNotesCh2,
+  #navCategoryNotesCh3,
+  #navCategoryNotesCh7,
+  .nav-category-head {
+    white-space: normal;
+  }
+
+  .main-content {
+    transform: none;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+}

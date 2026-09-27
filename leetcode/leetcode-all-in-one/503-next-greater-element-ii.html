@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>503. Next Greater Element II — Monotonic Stack Animation</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  .code-line.hl { background: rgba(199,146,234,0.18); }
+  .viz-panel { gap: 14px; }
+  .ctrl { margin-bottom: 10px; }
+  .leg-box { width: 13px; height: 13px; border-radius: 3px; }
+
+  /* Cells */
+  .cell-group { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .cell { width: 44px; height: 44px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; font-family: 'SF Mono', monospace; background: #f5f5f5; color: #1a1a1a; transition: background 0.2s, transform 0.15s, opacity 0.2s; margin: 0 3px; }
+  .cell.active   { background: rgba(249,203,66,0.45); transform: scale(1.08); }
+  .cell.scanned  { opacity: 0.3; }
+  .cell.in-stack { background: rgba(139,133,212,0.25); }
+  .cell.popping  { background: rgba(93,202,165,0.45); transform: scale(1.1); }
+  .cell.querying { background: rgba(249,203,66,0.35); }
+  .cell.done     { background: rgba(247,140,108,0.18); opacity: 0.55; }
+  .cell.second-half { border: 2px dashed #c0a0e8; }
+  .cell-idx { font-size: 10px; color: #aaa; font-family: 'SF Mono', monospace; }
+
+  /* Pointer row */
+  .ptr-row { display: flex; margin-top: 4px; }
+  .ptr-cell { width: 44px; margin: 0 3px; display: flex; justify-content: center; font-size: 12px; font-weight: 700; color: #9333C0; }
+
+  /* Stack */
+  .stack-container { display: flex; flex-direction: column-reverse; align-items: center; gap: 4px; min-height: 160px; justify-content: flex-start; padding: 8px 0; }
+  .stack-cell { width: 88px; height: 44px; border-radius: 8px; display: flex; align-items: center; justify-content: center; gap: 5px; font-family: 'SF Mono', monospace; background: rgba(139,133,212,0.2); color: #1a1a1a; transition: all 0.25s; position: relative; }
+  .stack-cell.top     { background: rgba(139,133,212,0.4); }
+  .stack-cell.popping { background: rgba(93,202,165,0.45); transform: translateX(8px); }
+  .stack-cell.pushing { background: rgba(249,203,66,0.4); }
+  .stack-idx { font-size: 16px; font-weight: 800; }
+  .stack-val { font-size: 11px; color: #8B85D4; font-weight: 600; }
+  .stack-label { font-size: 10px; color: #8B85D4; font-weight: 600; position: absolute; right: -32px; top: 50%; transform: translateY(-50%); }
+  .stack-empty { font-size: 12px; color: #aaa; font-family: 'SF Mono', monospace; }
+  .stack-base { width: 96px; height: 3px; background: #ccc; border-radius: 2px; margin-top: 4px; }
+
+  /* Maps dict */
+  .maps-table { display: flex; flex-direction: column; gap: 6px; }
+  .maps-row { display: flex; align-items: center; gap: 8px; font-family: 'SF Mono', monospace; font-size: 12px; }
+  .maps-key { min-width: 48px; height: 34px; border-radius: 6px; background: #f0f0f0; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: 700; line-height: 1.2; padding: 2px 6px; }
+  .maps-kidx { font-size: 13px; }
+  .maps-kval { font-size: 10px; color: #8B85D4; }
+  .maps-arrow { color: #aaa; font-size: 14px; }
+  .maps-nge { min-width: 36px; height: 34px; border-radius: 6px; background: #f0f0f0; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; color: #aaa; padding: 0 8px; }
+  .maps-nge.filled  { background: rgba(247,140,108,0.3); color: #1a1a1a; }
+  .maps-nge.newest  { background: rgba(93,202,165,0.4); color: #1a1a1a; }
+  .maps-key.hit     { background: rgba(249,203,66,0.5); }
+
+  /* Result */
+  .res-cell { width: 44px; height: 44px; border-radius: 8px; margin: 0 3px; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; font-family: 'SF Mono', monospace; background: #f5f5f5; color: #aaa; transition: background 0.2s, color 0.2s; }
+  .res-cell.filled { background: rgba(247,140,108,0.25); color: #1a1a1a; }
+  .res-cell.newest { background: rgba(247,140,108,0.5); color: #1a1a1a; }
+  .array-equation { display: flex; align-items: flex-start; gap: 12px; margin-top: 8px; }
+  .array-equation + .array-equation { margin-top: 18px; }
+  .array-label { width: 76px; flex-shrink: 0; padding-top: 12px; font-size: 12px; color: #aaa; font-family: 'SF Mono', monospace; font-weight: 700; }
+  .array-blocks { display: flex; flex-direction: column; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '503. Next Greater Element II — Monotonic Stack Animation',
+  legend: [
+    { color: 'rgba(249,203,66,0.45)', label: 'current (index, num)' },
+    { color: 'rgba(139,133,212,0.25)', label: 'in stack' },
+    { color: 'rgba(93,202,165,0.45)', label: 'popped — NGE found' },
+    { color: '#f0f0f0', extra: 'opacity:0.4;', label: 'already scanned' },
+    { color: 'transparent', extra: 'border:2px dashed #c0a0e8;', label: '2nd copy' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+    <!-- Code panel -->
+    <script>
+    renderCodeBox({
+      code: `
+def nextGreaterElements(self, nums):
+    orignums = nums
+    nums = nums + nums
+    stack = []
+    maps = {}
+
+    for index, num in enumerate(nums):
+        while stack and num > nums[stack[-1]]:
+            key = stack.pop()
+            maps[key] = index
+        stack.append(index)
+
+    res = []
+
+    for index, num in enumerate(orignums):
+        if index not in maps:
+            res.append(-1)
+        else:
+            res.append(nums[maps[index]])
+    return res`,
+    });
+    </script>
+
+    <!-- Viz panel -->
+    <div class="viz-panel">
+
+      <!-- Vars bar -->
+      <div class="var-bar" id="vars-bar"><span class="var-dim">variable state</span></div>
+
+      <!-- Doubled nums array -->
+      <div class="card">
+        <h3>nums (doubled) — circular array trick</h3>
+        <div style="font-size:12px;color:#aaa;font-family:'SF Mono',monospace;margin-bottom:8px;">
+          orignums = [1, 2, 1] &nbsp;|&nbsp; nums = [1, 2, 1, <span style="color:#8B85D4;">1, 2, 1</span>]
+        </div>
+        <div style="display:flex;align-items:flex-end;" id="nums-row"></div>
+        <div style="display:flex;" id="ptr-row" class="ptr-row"></div>
+      </div>
+
+      <!-- Stack + Maps side by side -->
+      <div style="display:flex; gap:16px; align-items:flex-start;">
+
+        <!-- Stack -->
+        <div class="card" style="flex:1; display:flex; flex-direction:column; align-items:center;">
+          <h3 style="align-self:flex-start;">stack (stores indices)</h3>
+          <div style="font-size:11px;color:#8B85D4;margin-bottom:6px;">top ↑</div>
+          <div class="stack-container" id="stack-area">
+            <span class="stack-empty">stack = []</span>
+          </div>
+          <div class="stack-base"></div>
+          <div style="font-size:11px;color:#aaa;margin-top:4px;">bottom</div>
+        </div>
+
+        <!-- Maps dict -->
+        <div class="card" style="flex:1;">
+          <h3>maps[key_idx] → nge_val</h3>
+          <div style="font-size:11px;color:#aaa;font-family:'SF Mono',monospace;margin-bottom:8px;">key: index in nums&nbsp;&nbsp;value: NGE</div>
+          <div class="maps-table" id="maps-table">
+            <span style="color:#aaa;font-size:12px;font-family:'SF Mono',monospace;">maps = {}</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- orignums lookup + result -->
+      <div class="card">
+        <h3>Lookup orignums indices in maps → build res</h3>
+        <div class="array-equation">
+          <div class="array-label">orignums =</div>
+          <div class="array-blocks">
+            <div style="display:flex;" id="orig-row"></div>
+            <div style="display:flex;" id="orig-ptr-row" class="ptr-row"></div>
+          </div>
+        </div>
+        <div class="array-equation">
+          <div class="array-label">res =</div>
+          <div class="array-blocks">
+            <div style="display:flex;" id="result-row"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+const ORIGNUMS = [1, 2, 1];
+const NUMS = [...ORIGNUMS, ...ORIGNUMS];
+const N = ORIGNUMS.length;
+
+function buildSteps() {
+  const steps = [];
+
+  let stack = [];
+  let maps = {};
+  let numIdx = null;
+  let origIdx = null;
+  let poppingIdx = null;
+  let keyIdx = null;
+  let scannedSet = new Set();
+  let doneSet = new Set();
+  let res = null;
+  let newestMapsKey = null;
+  let hitMapKey = null;
+  let phase = 'scan';
+
+  function snap(line, info) {
+    steps.push({
+      line, info,
+      stack: [...stack],
+      maps: {...maps},
+      numIdx,
+      origIdx,
+      poppingIdx,
+      keyIdx,
+      scannedSet: new Set(scannedSet),
+      doneSet: new Set(doneSet),
+      res: res === null ? null : [...res],
+      newestMapsKey,
+      hitMapKey,
+      phase,
+    });
+  }
+
+  snap(2, 'Line 2: orignums = nums  (save original reference)');
+  snap(3, 'Line 3: nums = nums + nums  (double the array — simulates wrapping around)');
+  snap(4, 'Line 4: stack = []  (will store indices, not values)');
+  snap(5, 'Line 5: maps = {}  (maps[key_index] = nge_index)');
+
+  for (let i = 0; i < NUMS.length; i++) {
+    const num = NUMS[i];
+    numIdx = i;
+    newestMapsKey = null;
+
+    snap(7, `Line 7: index=${i}, num=${num}  (${i < N ? '1st copy' : '2nd copy'}, index ${i})`);
+
+    if (stack.length > 0 && num > NUMS[stack[stack.length - 1]]) {
+      snap(8, `Line 8: stack[-1]=${stack[stack.length-1]}, nums[${stack[stack.length-1]}]=${NUMS[stack[stack.length-1]]} < num(${num}) → TRUE, enter while`);
+    } else {
+      snap(8, stack.length === 0
+        ? `Line 8: stack is empty → condition FALSE, skip while`
+        : `Line 8: nums[stack[-1]=${stack[stack.length-1]}]=${NUMS[stack[stack.length-1]]} ≥ num(${num}) → FALSE, skip while`
+      );
+    }
+
+    while (stack.length > 0 && num > NUMS[stack[stack.length - 1]]) {
+      const topIdx = stack[stack.length - 1];
+      stack.pop();
+      keyIdx = topIdx;
+      poppingIdx = topIdx;
+      snap(9, `Line 9: key = stack.pop() → key = ${topIdx}  (nums[${topIdx}]=${NUMS[topIdx]})`);
+      maps[topIdx] = i;
+      newestMapsKey = topIdx;
+      snap(10, `Line 10: maps[${topIdx}] = ${i}  →  NGE of nums[${topIdx}]=${NUMS[topIdx]} is nums[${i}]=${num}`);
+      poppingIdx = null; keyIdx = null; newestMapsKey = null;
+
+      if (stack.length > 0 && num > NUMS[stack[stack.length - 1]]) {
+        snap(8, `Line 8: check again → nums[${stack[stack.length-1]}]=${NUMS[stack[stack.length-1]]} < ${num} → TRUE`);
+      } else {
+        snap(8, stack.length === 0
+          ? `Line 8: check again → stack empty → FALSE, exit while`
+          : `Line 8: check again → nums[${stack[stack.length-1]}]=${NUMS[stack[stack.length-1]]} ≥ ${num} → FALSE, exit while`
+        );
+      }
+    }
+    poppingIdx = null; keyIdx = null;
+
+    stack.push(i);
+    snap(11, `Line 11: stack.append(${i}) → stack = [${stack.join(', ')}]`);
+    scannedSet.add(i);
+  }
+
+  numIdx = null;
+  phase = 'result';
+  res = [];
+  const mapsStr = '{' + Object.entries(maps).map(([k, v]) => `${k}:${v}`).join(', ') + '}';
+  snap(13, `Line 13: Phase 1 done! maps = ${mapsStr}\nNow build res for each index in orignums.  res = []`);
+
+  for (let i = 0; i < N; i++) {
+    const num = ORIGNUMS[i];
+    origIdx = i;
+    hitMapKey = null;
+    snap(15, `Line 15: index=${i}, num=${num}`);
+    snap(16, `Line 16: index ${i} not in maps? → ${!(i in maps) ? 'YES — no NGE exists' : 'NO — NGE found in maps'}`);
+
+    if (!(i in maps)) {
+      res.push(-1);
+      snap(17, `Line 17: res.append(-1)  — nums[${i}]=${num} has no next greater in circular array`);
+    } else {
+      hitMapKey = i;
+      const ngeIdx = maps[i];
+      const ngeVal = NUMS[ngeIdx];
+      snap(19, `Line 19: res.append(nums[maps[${i}]]) = nums[${ngeIdx}] = ${ngeVal}`);
+      res.push(ngeVal);
+      hitMapKey = null;
+    }
+
+    doneSet.add(i);
+  }
+
+  origIdx = null;
+  snap(20, `Line 20: return res = [${res.join(', ')}] ✓`);
+
+  return steps;
+}
+
+const STEPS = buildSteps();
+let cur = -1;
+
+function buildDOM() {
+  const nrow = document.getElementById('nums-row');
+  nrow.innerHTML = '';
+  NUMS.forEach((val, i) => {
+    if (i === N) {
+      const div = document.createElement('div');
+      div.style.cssText = 'width:4px;background:#c0a0e8;border-radius:2px;margin:0 8px;align-self:stretch;min-height:44px;flex-shrink:0;';
+      nrow.appendChild(div);
+    }
+    const g = document.createElement('div');
+    g.className = 'cell-group';
+    const c = document.createElement('div');
+    c.className = 'cell' + (i >= N ? ' second-half' : '');
+    c.id = `nc-${i}`; c.textContent = val;
+    const idx = document.createElement('div');
+    idx.className = 'cell-idx'; idx.textContent = `[${i}]`;
+    g.appendChild(c); g.appendChild(idx);
+    nrow.appendChild(g);
+  });
+
+  const prow = document.getElementById('ptr-row');
+  prow.innerHTML = '';
+  NUMS.forEach((_, i) => {
+    if (i === N) {
+      const div = document.createElement('div');
+      div.style.cssText = 'width:4px;margin:0 8px;flex-shrink:0;';
+      prow.appendChild(div);
+    }
+    const pc = document.createElement('div');
+    pc.className = 'ptr-cell'; pc.id = `ptr-${i}`;
+    prow.appendChild(pc);
+  });
+
+  const orow = document.getElementById('orig-row');
+  orow.innerHTML = '';
+  ORIGNUMS.forEach((val, i) => {
+    const g = document.createElement('div');
+    g.className = 'cell-group';
+    const c = document.createElement('div');
+    c.className = 'cell'; c.id = `oc-${i}`; c.textContent = val;
+    const idx = document.createElement('div');
+    idx.className = 'cell-idx'; idx.textContent = `[${i}]`;
+    g.appendChild(c); g.appendChild(idx);
+    orow.appendChild(g);
+  });
+
+  const oprow = document.getElementById('orig-ptr-row');
+  oprow.innerHTML = '';
+  ORIGNUMS.forEach((_, i) => {
+    const pc = document.createElement('div');
+    pc.className = 'ptr-cell'; pc.id = `optr-${i}`;
+    oprow.appendChild(pc);
+  });
+
+  const rrow = document.getElementById('result-row');
+  rrow.innerHTML = '';
+  ORIGNUMS.forEach((_, i) => {
+    const g = document.createElement('div');
+    g.className = 'cell-group';
+    const c = document.createElement('div');
+    c.className = 'res-cell'; c.id = `res-${i}`; c.textContent = '?';
+    const idx = document.createElement('div');
+    idx.className = 'cell-idx'; idx.textContent = `[${i}]`;
+    g.appendChild(c); g.appendChild(idx);
+    rrow.appendChild(g);
+  });
+}
+
+function render() {
+  if (cur < 0) {
+    NUMS.forEach((_, i) => {
+      const el = document.getElementById(`nc-${i}`);
+      if (el) el.className = 'cell' + (i >= N ? ' second-half' : '');
+      const p = document.getElementById(`ptr-${i}`);
+      if (p) p.innerHTML = '';
+    });
+    ORIGNUMS.forEach((_, i) => {
+      const el = document.getElementById(`oc-${i}`);
+      if (el) el.className = 'cell';
+      const p = document.getElementById(`optr-${i}`);
+      if (p) p.innerHTML = '';
+      const r = document.getElementById(`res-${i}`);
+      if (r) { r.className = 'res-cell'; r.textContent = '?'; }
+    });
+    document.getElementById('stack-area').innerHTML = '<span class="stack-empty">stack = []</span>';
+    document.getElementById('maps-table').innerHTML = '<span style="color:#aaa;font-size:12px;font-family:\'SF Mono\',monospace;">maps = {}</span>';
+    renderCtrl(-1, STEPS.length, '');
+    document.getElementById('vars-bar').innerHTML = '<span class="var-dim">variable state</span>';
+    highlightLine(null);
+    return;
+  }
+
+  const s = STEPS[cur];
+  highlightLine(s.line);
+  renderCtrl(cur, STEPS.length, s.info);
+
+  // Vars bar
+  const parts = [];
+  if (s.phase === 'scan') {
+    if (s.numIdx !== null) parts.push(`<span><span class="var-name">index</span> <span class="var-eq">=</span> <span class="var-val">${s.numIdx}</span> <span class="var-name">num</span> <span class="var-eq">=</span> <span class="var-val">${NUMS[s.numIdx]}</span></span>`);
+    if (s.keyIdx !== null) parts.push(`<span><span class="var-name">key</span> <span class="var-eq">=</span> <span class="var-val">${s.keyIdx}</span></span>`);
+    parts.push(`<span><span class="var-name">stack</span> <span class="var-eq">=</span> <span style="color:#333;">[${s.stack.join(', ')}]</span></span>`);
+  } else {
+    if (s.origIdx !== null) parts.push(`<span><span class="var-name">index</span> <span class="var-eq">=</span> <span class="var-val">${s.origIdx}</span> <span class="var-name">num</span> <span class="var-eq">=</span> <span class="var-val">${ORIGNUMS[s.origIdx]}</span></span>`);
+    parts.push(`<span><span class="var-name">res</span> <span class="var-eq">=</span> <span style="color:#333;">[${s.res ? s.res.join(', ') : ''}]</span></span>`);
+  }
+  const mapsStr = '{' + Object.entries(s.maps).map(([k, v]) => `${k}→${v}`).join(', ') + '}';
+  parts.push(`<span><span class="var-name">maps</span> <span class="var-eq">=</span> <span style="color:#333;">${mapsStr}</span></span>`);
+  document.getElementById('vars-bar').innerHTML = parts.join('');
+
+  // Doubled nums cells
+  NUMS.forEach((_, i) => {
+    const el = document.getElementById(`nc-${i}`);
+    const ptr = document.getElementById(`ptr-${i}`);
+    if (!el) return;
+
+    const base = i >= N ? ' second-half' : '';
+    let cls = 'cell' + base;
+    let ptrHtml = '';
+
+    if (s.poppingIdx === i) {
+      cls = 'cell popping' + base;
+      ptrHtml = `<span style="color:#3A9E7E;font-weight:700;">✓</span>`;
+    } else if (s.numIdx === i) {
+      cls = 'cell active' + base;
+      ptrHtml = `<span style="color:#d4a800;font-weight:700;">idx</span>`;
+    } else if (s.stack.includes(i) && s.scannedSet.has(i)) {
+      cls = 'cell in-stack' + base;
+    } else if (s.scannedSet.has(i)) {
+      cls = 'cell scanned' + base;
+    }
+
+    el.className = cls;
+    if (ptr) ptr.innerHTML = ptrHtml;
+  });
+
+  // Stack
+  const stackArea = document.getElementById('stack-area');
+  if (s.stack.length === 0) {
+    stackArea.innerHTML = '<span class="stack-empty">stack = []</span>';
+  } else {
+    stackArea.innerHTML = '';
+    s.stack.forEach((idx, si) => {
+      const isTop = si === s.stack.length - 1;
+      const isPopping = s.poppingIdx === idx;
+      const isPushing = s.numIdx === idx && isTop && !isPopping;
+      const el = document.createElement('div');
+      el.className = 'stack-cell' + (isPopping ? ' popping' : isPushing ? ' pushing' : isTop ? ' top' : '');
+      const idxSpan = document.createElement('span');
+      idxSpan.className = 'stack-idx';
+      idxSpan.textContent = idx;
+      const valSpan = document.createElement('span');
+      valSpan.className = 'stack-val';
+      valSpan.textContent = `(${NUMS[idx]})`;
+      el.appendChild(idxSpan);
+      el.appendChild(valSpan);
+      if (isTop && !isPopping) {
+        const lbl = document.createElement('span');
+        lbl.className = 'stack-label';
+        lbl.textContent = '← top';
+        el.appendChild(lbl);
+      }
+      stackArea.appendChild(el);
+    });
+  }
+
+  // Maps table — display as key_index → NGE value (nums[maps[key]])
+  const mapsTable = document.getElementById('maps-table');
+  const keys = Object.keys(s.maps);
+  if (keys.length === 0) {
+    mapsTable.innerHTML = '<span style="color:#aaa;font-size:12px;font-family:\'SF Mono\',monospace;">maps = {}</span>';
+  } else {
+    mapsTable.innerHTML = '';
+    keys.forEach(k => {
+      const ki = parseInt(k);
+      const vi = s.maps[k];
+      const isHit = s.hitMapKey === ki;
+      const isNewest = s.newestMapsKey === ki;
+
+      const row = document.createElement('div');
+      row.className = 'maps-row';
+
+      const keyEl = document.createElement('div');
+      keyEl.className = 'maps-key' + (isHit ? ' hit' : '');
+      keyEl.innerHTML = `<span class="maps-kidx">[${ki}]</span><span class="maps-kval">${NUMS[ki]}</span>`;
+
+      const arr = document.createElement('span');
+      arr.className = 'maps-arrow';
+      arr.textContent = '→';
+
+      const ngeEl = document.createElement('div');
+      ngeEl.className = 'maps-nge filled' + (isNewest ? ' newest' : '');
+      ngeEl.textContent = NUMS[vi];
+
+      row.appendChild(keyEl);
+      row.appendChild(arr);
+      row.appendChild(ngeEl);
+      mapsTable.appendChild(row);
+    });
+  }
+
+  // orignums cells (phase 2)
+  ORIGNUMS.forEach((_, i) => {
+    const el = document.getElementById(`oc-${i}`);
+    const ptr = document.getElementById(`optr-${i}`);
+    if (!el) return;
+    if (s.phase === 'result') {
+      if (s.doneSet.has(i)) {
+        el.className = 'cell done';
+        if (ptr) ptr.innerHTML = '';
+      } else if (s.origIdx === i) {
+        el.className = 'cell querying';
+        if (ptr) ptr.innerHTML = `<span style="color:#d4a800;font-weight:700;">idx</span>`;
+      } else {
+        el.className = 'cell';
+        if (ptr) ptr.innerHTML = '';
+      }
+    } else {
+      el.className = 'cell';
+      if (ptr) ptr.innerHTML = '';
+    }
+  });
+
+  // Result cells
+  if (s.res !== null) {
+    ORIGNUMS.forEach((_, i) => {
+      const el = document.getElementById(`res-${i}`);
+      if (!el) return;
+      if (i < s.res.length) {
+        el.textContent = s.res[i];
+        el.className = (i === s.res.length - 1 && s.origIdx === i) ? 'res-cell newest' : 'res-cell filled';
+      } else {
+        el.textContent = '?'; el.className = 'res-cell';
+      }
+    });
+  } else {
+    ORIGNUMS.forEach((_, i) => {
+      const el = document.getElementById(`res-${i}`);
+      if (el) { el.textContent = '?'; el.className = 'res-cell'; }
+    });
+  }
+}
+
+buildDOM();
+doReset();
+</script>
+</body>
+</html>

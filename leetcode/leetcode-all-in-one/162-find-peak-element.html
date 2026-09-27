@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>162. Find Peak Element</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  .lc162-layout {
+    width: min(1320px, 100%);
+  }
+  .lc162-layout .code-half {
+    grid-column: 1;
+    grid-row: 1;
+    width: 620px;
+    max-width: 100%;
+    min-width: 0;
+    justify-self: end;
+  }
+  .lc162-layout .viz-panel {
+    grid-column: 2;
+    grid-row: 1;
+    width: fit-content;
+    max-width: 100%;
+    min-width: 0;
+    justify-self: start;
+    align-items: flex-start;
+  }
+  .lc162-layout .code-stack,
+  .lc162-layout .step-info,
+  .lc162-layout .code-panel {
+    width: 100%;
+    min-width: 0;
+  }
+  .lc162-layout .card,
+  .lc162-layout .var-bar {
+    width: fit-content;
+    max-width: 620px;
+    min-width: 0;
+  }
+  .lc162-layout .code-block { overflow-x: auto; }
+  .lc162-layout .step-info {
+    min-height: 48px;
+    padding: 8px 14px;
+    line-height: 20px;
+  }
+
+  .array-row {
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 8px;
+    min-height: 84px;
+  }
+  .cell-wrap {
+    width: 48px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    font-family: 'SF Mono', Menlo, monospace;
+  }
+  .cell-box {
+    width: 48px;
+    height: 44px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f5f5f5;
+    color: #1a1a1a;
+    font-size: 16px;
+    font-weight: 800;
+    transition: background 0.2s, transform 0.2s, opacity 0.2s, border 0.2s;
+  }
+  .cell-box.in-range { background: rgba(139,133,212,0.22); }
+  .cell-box.cmp-mid { background: rgba(249,203,66,0.50); transform: scale(1.08); }
+  .cell-box.cmp-prev { background: rgba(58,111,212,0.20); }
+  .cell-box.eliminated { background: #f0f0f0; color: #aaa; opacity: 0.55; }
+  .cell-box.peak { background: rgba(93,202,165,0.45); border: 2px solid #1D9E75; transform: scale(1.06); }
+  .cell-idx {
+    height: 14px;
+    font-size: 11px;
+    color: #aaa;
+  }
+  .cell-ptr {
+    height: 46px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-size: 11.5px;
+    line-height: 15px;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+  .ptr-arrow { font-size: 12px; line-height: 12px; color: #888; }
+  .lbl-s { color: #3A6FD4; }
+  .lbl-m { color: #B07800; }
+  .lbl-e { color: #C4501E; }
+
+  .brace-row {
+    position: relative;
+    height: 40px;
+    margin-top: 2px;
+  }
+  .brace-svg {
+    position: absolute;
+    top: 0;
+    visibility: hidden;
+  }
+  .brace-label {
+    position: absolute;
+    top: 18px;
+    transform: translateX(-50%);
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #6B65B8;
+    white-space: nowrap;
+    visibility: hidden;
+  }
+
+  .answer-line {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 14px;
+    font-weight: 700;
+    color: #1D9E75;
+    text-align: center;
+  }
+  .answer-line.empty {
+    color: #aaa;
+    font-weight: 500;
+  }
+
+  @media (max-width: 1100px) {
+    .main.layout-grid.lc162-layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .main.layout-grid.lc162-layout .code-half,
+    .main.layout-grid.lc162-layout .viz-panel {
+      grid-column: 1;
+      justify-self: center;
+    }
+    .main.layout-grid.lc162-layout .viz-panel { grid-row: 2; }
+  }
+
+  @media (max-width: 700px) {
+    .array-row { gap: 5px; }
+    .cell-wrap,
+    .cell-box {
+      width: 40px;
+    }
+    .cell-box {
+      height: 40px;
+      font-size: 14px;
+    }
+  }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '162. Find Peak Element',
+  link: 'https://leetcode.com/problems/find-peak-element/',
+  examples: [
+    { id: 'ex1', label: '[1,2,3,1] -> 2' },
+    { id: 'ex2', label: '[1,2,1,3,5,6,4] -> 5' },
+    { id: 'ex3', label: '[1,2,3,4,5] -> 4' },
+    { id: 'ex4', label: '[5,4,3,2,1] -> 0' },
+  ],
+  legend: [
+    { color: 'rgba(139,133,212,0.22)', label: 'current search range [start, end]' },
+    { color: 'rgba(249,203,66,0.50)', label: 'nums[mid] — value being tested' },
+    { color: 'rgba(58,111,212,0.20)', label: 'nums[mid-1] — comparison partner' },
+    { color: '#f0f0f0', extra: 'border:1px solid #ccc;', label: 'eliminated — cannot hold the chosen peak' },
+    { color: 'rgba(93,202,165,0.45)', extra: 'border:2px solid #1D9E75;', label: 'final peak returned' },
+  ],
+});
+</script>
+
+<div class="main layout-grid lc162-layout">
+  <script>
+  renderCodeBox({
+    code: `
+class Solution:
+    def findPeakElement(self, nums: List[int]) -> int:
+        if not nums:
+            return -1
+
+        start = 0
+        end = len(nums) - 1
+        while start + 1 < end:
+            mid = (start + end) // 2
+            if nums[mid] > nums[mid-1]:
+                start = mid
+            else:
+                end = mid
+
+        if nums[start] < nums[end]:
+            return end
+        else:
+            return start`,
+  });
+  </script>
+
+  <div class="viz-panel">
+    <div class="card">
+      <h3 id="input-title">Input  nums = [1, 2, 3, 1]</h3>
+      <div class="array-row" id="array-row"></div>
+      <div class="brace-row">
+        <svg class="brace-svg" id="brace-svg"><path id="brace-path" fill="none" stroke="#8B85D4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <div class="brace-label" id="brace-label"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Answer</h3>
+      <div class="answer-line empty" id="answer">no peak found yet</div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+const EXAMPLES = {
+  ex1: { nums: [1, 2, 3, 1] },
+  ex2: { nums: [1, 2, 1, 3, 5, 6, 4] },
+  ex3: { nums: [1, 2, 3, 4, 5] },
+  ex4: { nums: [5, 4, 3, 2, 1] },
+};
+
+let NUMS = EXAMPLES.ex1.nums.slice();
+
+// data-l line numbers from renderCodeBox (no prereq block, so numbering starts at 1)
+const L = {
+  GUARD: 3, RET_NEG1: 4,
+  INIT_START: 6, INIT_END: 7,
+  WHILE: 8, MID: 9, CMP: 10, SET_START: 11, SET_END: 13,
+  FINAL_CMP: 15, RET_END: 16, RET_START: 18,
+};
+
+function buildSteps() {
+  const steps = [];
+  const n = NUMS.length;
+  let start = null, end = null, mid = null;
+  let cmpA = null, cmpB = null, isRising = null;
+  let finalA = null, finalB = null, finalRising = null, finalAnswer = null;
+
+  function snap(line, info) {
+    steps.push({ line, info, start, end, mid, cmpA, cmpB, isRising, finalA, finalB, finalRising, finalAnswer });
+  }
+
+  snap(null, `Click Next to start: binary search nums = [${NUMS.join(', ')}] for a peak (an index whose value beats both neighbors, treating out-of-bounds as -∞).`);
+
+  if (n === 0) {
+    snap(L.GUARD, 'nums is empty, so "if not nums" is True.');
+    finalAnswer = -1;
+    snap(L.RET_NEG1, 'return -1');
+    return steps;
+  }
+
+  snap(L.GUARD, `nums has ${n} element${n > 1 ? 's' : ''}, so "if not nums" is False — continue.`);
+
+  start = 0;
+  snap(L.INIT_START, 'start = 0');
+  end = n - 1;
+  snap(L.INIT_END, `end = len(nums) - 1 = ${end}`);
+
+  while (true) {
+    const cond = start + 1 < end;
+    snap(L.WHILE, cond
+      ? `start + 1 = ${start + 1} < end = ${end} → keep narrowing.`
+      : `start + 1 = ${start + 1} >= end = ${end} → stop; only two candidates remain.`);
+    if (!cond) { cmpA = cmpB = isRising = null; break; }
+
+    mid = Math.floor((start + end) / 2);
+    snap(L.MID, `mid = (start + end) // 2 = (${start} + ${end}) // 2 = ${mid}`);
+
+    cmpA = NUMS[mid];
+    cmpB = NUMS[mid - 1];
+    isRising = cmpA > cmpB;
+    snap(L.CMP, `Compare nums[mid] = ${cmpA} with nums[mid-1] = ${cmpB}.`);
+
+    if (isRising) {
+      start = mid;
+      snap(L.SET_START, `nums[mid] > nums[mid-1] → still rising, so a peak sits at mid or to its right → start = mid = ${start}.`);
+    } else {
+      end = mid;
+      snap(L.SET_END, `nums[mid] <= nums[mid-1] → already fell, so a peak sits at or before mid → end = mid = ${end}.`);
+    }
+    mid = null;
+    cmpA = cmpB = isRising = null;
+  }
+
+  finalA = NUMS[start];
+  finalB = NUMS[end];
+  finalRising = finalA < finalB;
+  snap(L.FINAL_CMP, `Compare the two survivors: nums[start] = ${finalA} vs nums[end] = ${finalB}.`);
+
+  if (finalRising) {
+    finalAnswer = end;
+    snap(L.RET_END, `nums[start] < nums[end] → the higher one is the peak → return end = ${end}.`);
+  } else {
+    finalAnswer = start;
+    snap(L.RET_START, `nums[start] >= nums[end] → the higher one is the peak → return start = ${start}.`);
+  }
+
+  return steps;
+}
+
+let STEPS = buildSteps();
+let cur = -1;
+
+function formatArray(nums) {
+  return `[${nums.join(', ')}]`;
+}
+
+function buildArrayDOM() {
+  const row = document.getElementById('array-row');
+  row.innerHTML = '';
+  for (let idx = 0; idx < NUMS.length; idx++) {
+    const wrap = document.createElement('div');
+    wrap.className = 'cell-wrap';
+
+    const box = document.createElement('div');
+    box.className = 'cell-box';
+    box.id = `cell-${idx}`;
+    box.textContent = NUMS[idx];
+    wrap.appendChild(box);
+
+    const idxEl = document.createElement('div');
+    idxEl.className = 'cell-idx';
+    idxEl.textContent = idx;
+    wrap.appendChild(idxEl);
+
+    const ptr = document.createElement('div');
+    ptr.className = 'cell-ptr';
+    ptr.id = `ptr-${idx}`;
+    wrap.appendChild(ptr);
+
+    row.appendChild(wrap);
+  }
+}
+
+function renderArray(state) {
+  for (let idx = 0; idx < NUMS.length; idx++) {
+    const box = document.getElementById(`cell-${idx}`);
+    const ptr = document.getElementById(`ptr-${idx}`);
+    if (!box || !ptr) continue;
+
+    const isMid = state.mid === idx;
+    const isPrev = state.mid != null && idx === state.mid - 1;
+    const inRange = state.start != null && state.end != null && idx >= state.start && idx <= state.end;
+    const isEliminated = state.start != null && !inRange;
+    const isPeak = state.finalAnswer != null && state.finalAnswer >= 0 && idx === state.finalAnswer;
+
+    let cls = 'cell-box';
+    if (isPeak) cls += ' peak';
+    else if (isMid) cls += ' cmp-mid';
+    else if (isPrev) cls += ' cmp-prev';
+    else if (inRange) cls += ' in-range';
+    else if (isEliminated) cls += ' eliminated';
+    box.className = cls;
+
+    const roles = [];
+    if (state.start === idx) roles.push('<span class="lbl-s">start=' + idx + '</span>');
+    if (state.mid === idx) roles.push('<span class="lbl-m">mid=' + idx + '</span>');
+    if (state.end === idx) roles.push('<span class="lbl-e">end=' + idx + '</span>');
+    ptr.innerHTML = roles.length
+      ? '<span class="ptr-arrow">↑</span>' + roles.join('')
+      : '';
+  }
+}
+
+// Draws an upward-pointing curly brace under the cells of the current
+// search range, sized from the cells' real offsets so it survives zoom
+// and the narrow-screen media query.
+function renderBrace(state) {
+  const svg = document.getElementById('brace-svg');
+  const label = document.getElementById('brace-label');
+  if (!state || state.start == null || state.end == null) {
+    svg.style.visibility = 'hidden';
+    label.style.visibility = 'hidden';
+    return;
+  }
+  const a = document.getElementById(`cell-${state.start}`).parentElement;
+  const b = document.getElementById(`cell-${state.end}`).parentElement;
+  const left = a.offsetLeft;
+  const w = b.offsetLeft + b.offsetWidth - left;
+  const H = 12, M = 7, c = w / 2;
+  const r = Math.min(10, c / 2);
+  const d = `M1,${H} Q1,${M} ${1 + r},${M} L${c - r},${M} Q${c},${M} ${c},1 Q${c},${M} ${c + r},${M} L${w - 1 - r},${M} Q${w - 1},${M} ${w - 1},${H}`;
+  svg.setAttribute('width', w);
+  svg.setAttribute('height', H + 2);
+  svg.setAttribute('viewBox', `0 0 ${w} ${H + 2}`);
+  document.getElementById('brace-path').setAttribute('d', d);
+  svg.style.left = left + 'px';
+  svg.style.visibility = 'visible';
+  label.textContent = `search range = nums[${state.start}..${state.end}]`;
+  label.style.left = (left + c) + 'px';
+  label.style.visibility = 'visible';
+}
+
+function renderAnswer(state) {
+  const answer = document.getElementById('answer');
+  if (!state || state.finalAnswer == null) {
+    answer.className = 'answer-line empty';
+    answer.textContent = 'no peak found yet';
+    return;
+  }
+  answer.className = 'answer-line';
+  answer.textContent = state.finalAnswer === -1
+    ? 'nums is empty → return -1'
+    : `peak index = ${state.finalAnswer}, nums[${state.finalAnswer}] = ${NUMS[state.finalAnswer]}`;
+}
+
+function render() {
+  if (cur < 0) {
+    highlightLine(null);
+    renderCtrl(-1, STEPS.length, '');
+    renderArray({});
+    renderBrace(null);
+    renderAnswer(null);
+    return;
+  }
+
+  const state = STEPS[cur];
+  highlightLine(state.line);
+  renderCtrl(cur, STEPS.length, state.info);
+  renderArray(state);
+  renderBrace(state);
+  renderAnswer(state);
+}
+
+function loadExample(id) {
+  const ex = EXAMPLES[id];
+  if (!ex) return;
+  stopAuto();
+  NUMS = ex.nums.slice();
+  document.getElementById('input-title').textContent = `Input  nums = ${formatArray(NUMS)}`;
+  buildArrayDOM();
+  STEPS = buildSteps();
+  cur = -1;
+  render();
+  lockStableSizes();
+  Object.keys(EXAMPLES).forEach(key => {
+    const btn = document.getElementById('ex-' + key);
+    if (btn) btn.classList.toggle('auto-active', key === id);
+  });
+}
+
+loadExample('ex1');
+window.addEventListener('resize', () => render());
+</script>
+</body>
+</html>

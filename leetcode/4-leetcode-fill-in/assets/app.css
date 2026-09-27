@@ -1,0 +1,5 @@
+/* index.html：按层导入，避免单文件堆叠 */
+@import url('globals.css');
+@import url('layout-app-shell.css');
+@import url('courseware-embed.css');
+@import url('fill-exercise.css');

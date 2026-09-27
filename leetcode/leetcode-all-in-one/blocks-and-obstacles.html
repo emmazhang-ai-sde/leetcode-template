@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blocks and Obstacles on an Infinite Number Line</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  /* 图例挪到代码框下面后改纵向单列（ANIMATION_GUIDE 硬性规则） */
+  .legend-below { flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 0; max-width: none; }
+
+  /* 数轴 */
+  .nl-row { display: flex; align-items: flex-end; gap: 6px; flex-wrap: wrap; }
+  .nl-cell { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .nl-box { width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; font-family: var(--ink-mono); background: #f5f5f5; border: 1px solid #c9c9c9; color: var(--ink); transition: background 0.2s, outline 0.15s; }
+  .nl-box.reg   { border: 2px dashed #9a9a9a; }
+  .nl-box.obs   { background: rgba(229,83,75,0.45); border-color: transparent; }
+  .nl-box.range { outline: 3px solid rgba(120,160,225,0.75); outline-offset: -3px; }
+  .nl-ptr { font-size: 10.5px; font-weight: 700; font-family: var(--ink-mono); color: #B07800; height: 14px; line-height: 14px; }
+
+  /* positions / Fenwick tree */
+  .fw-label { font-family: var(--ink-mono); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-muted); margin: 8px 0 4px; }
+  .fw-label:first-child { margin-top: 0; }
+  .fw-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .fw-cell { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .fw-box { width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; font-family: var(--ink-mono); background: #f5f5f5; border: 1px solid #c9c9c9; color: var(--ink); transition: background 0.2s; }
+  .fw-box.inrange { background: rgba(120,160,225,0.3); border-color: transparent; }
+  .fw-box.hot     { background: rgba(249,203,66,0.55); border-color: transparent; }
+  .fw-box.unused  { color: #bbb; background: #fafafa; }
+  .fw-idx { font-size: 11px; color: #aaa; font-family: var(--ink-mono); }
+  .fw-fn { margin-top: 8px; font-family: var(--ink-mono); font-size: 12px; color: #555; min-height: 18px; }
+
+  /* operations */
+  .op-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .op-chip { font-family: var(--ink-mono); font-size: 12.5px; font-weight: 700; padding: 6px 10px; border-radius: 8px; background: #f5f5f5; border: 1px solid #c9c9c9; color: var(--ink); transition: background 0.2s; }
+  .op-chip.doing { background: rgba(249,203,66,0.55); border-color: transparent; }
+  .op-chip.done  { background: rgba(93,202,165,0.4); border-color: transparent; }
+
+  /* result */
+  .res-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-height: 34px; font-family: var(--ink-mono); }
+  .res-chip { width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; }
+  .res-chip.ok { background: rgba(93,202,165,0.4); }
+  .res-chip.no { background: rgba(247,140,108,0.35); }
+  .res-final { font-size: 13px; font-weight: 700; color: var(--ink); }
+  .res-empty { font-size: 12px; color: #aaa; }
+
+  /* OA 题面（notes.js 会挪进 Notes 区；后端不在时显示在动画下面） */
+  .oa-layout { max-width: 760px; margin: 24px auto 0; display: flex; flex-direction: column; gap: 16px; }
+  .oa-layout .card { width: 100%; min-width: 0; line-height: 1.7; }
+  .oa-layout .card p { margin: 0 0 10px; }
+  .oa-layout .card p:last-child { margin-bottom: 0; }
+  .oa-layout .card ul, .oa-layout .card ol { margin: 0 0 10px 20px; }
+  .oa-layout .card li { margin-bottom: 8px; }
+  .oa-layout .card code { background: var(--ink-chip); border-radius: 4px; padding: 1px 5px; font-family: var(--ink-mono); font-size: 12.5px; }
+  .oa-layout .card table { border-collapse: collapse; margin: 0 0 10px; font-size: 13px; }
+  .oa-layout .card th, .oa-layout .card td { border: 1px solid #ddd; padding: 4px 10px; text-align: left; }
+  .oa-layout .card th { background: var(--ink-panel); }
+  .oa-tag { display: inline-block; font-family: var(--ink-mono); font-size: 11px; letter-spacing: .03em; background: var(--ink-chip); border: var(--ink-border); border-radius: 6px; padding: 2px 8px; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: 'Blocks and Obstacles on an Infinite Number Line',
+  legend: [
+    { color: 'rgba(249,203,66,0.55)', label: '当前 — 正在处理的操作 / 正在读写的 tree 节点' },
+    { color: 'rgba(120,160,225,0.3)', label: '查询区间 [left, right]（数轴蓝框）/ 区间内的登记坐标' },
+    { color: 'rgba(229,83,75,0.45)', label: '已激活的障碍' },
+    { color: '#f5f5f5', extra: 'border:2px dashed #9a9a9a;', label: '已登记（第一遍收集）、还没激活的坐标' },
+    { color: 'rgba(93,202,165,0.4)', label: '已处理完的操作 / 查询结果 "1"（放得下）' },
+    { color: 'rgba(247,140,108,0.35)', label: '查询结果 "0"（放不下）' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+  <script>
+  renderCodeBox({
+    code: `
+from bisect import bisect_left, bisect_right
+
+
+def solution(operations):
+    # Collect every coordinate that may later contain an obstacle.
+    positions = []
+
+    for operation in operations:
+        if operation[0] == 1:
+            positions.append(operation[1])
+
+    positions.sort()
+
+    # Fenwick tree: records which obstacle positions have been activated.
+    tree = [0] * (len(positions) + 1)
+
+    def add(index):
+        while index < len(tree):
+            tree[index] += 1
+            index += index & -index
+
+    def get_sum(index):
+        total = 0
+
+        while index > 0:
+            total += tree[index]
+            index -= index & -index
+
+        return total
+
+    result = []
+
+    for operation in operations:
+        if operation[0] == 1:
+            x = operation[1]
+
+            # Fenwick-tree indexes start at 1.
+            index = bisect_left(positions, x) + 1
+            add(index)
+
+        else:
+            x = operation[1]
+            size = operation[2]
+
+            left = x - size
+            right = x - 1
+
+            left_index = bisect_left(positions, left)
+            right_index = bisect_right(positions, right)
+
+            obstacle_count = (
+                get_sum(right_index) - get_sum(left_index)
+            )
+
+            if obstacle_count == 0:
+                result.append("1")
+            else:
+                result.append("0")
+
+    return "".join(result)`,
+  });
+  </script>
+  <script>
+  (function () {
+    const stack = document.querySelector('.code-stack');
+    stack.appendChild(document.getElementById('info'));
+    const legend = document.querySelector('.legend');
+    const legendRow = legend.parentElement;
+    legend.classList.add('legend-below');
+    stack.appendChild(legend);
+    legendRow.remove();
+  })();
+  </script>
+
+  <div class="viz-panel">
+    <div class="var-bar" id="var-bar"></div>
+
+    <div class="card">
+      <h3>数轴（0 … 7 段截取）</h3>
+      <div class="nl-row" id="nl-row"></div>
+    </div>
+
+    <div class="card">
+      <h3>positions（离散化坐标）+ Fenwick 树 tree</h3>
+      <div class="fw-label">positions（下标 = bisect 结果）</div>
+      <div class="fw-row" id="pos-row"></div>
+      <div class="fw-label">tree（下标 1 起用；tree[0] 空置）</div>
+      <div class="fw-row" id="tree-row"></div>
+      <div class="fw-fn" id="fw-fn"></div>
+    </div>
+
+    <div class="card">
+      <h3>operations（两遍扫描：先收集坐标，再逐个执行）</h3>
+      <div class="op-row" id="op-row"></div>
+    </div>
+
+    <div class="card">
+      <h3>result（每个查询一位）</h3>
+      <div class="res-row" id="res-row"></div>
+    </div>
+  </div>
+</div><!-- /.main -->
+
+<!-- OA 题面：notes.js（problemToNotes）会把这块挪进 Notes 区当只读 Problem 卡 -->
+<div class="oa-layout">
+  <div class="card">
+    <span class="oa-tag">TikTok OA · 2026-08-16 · no official LeetCode number</span>
+    <h3>Problem</h3>
+    <p>An infinite integer number line supports two kinds of operations:</p>
+    <ul>
+      <li><code>[1, x]</code>: place an obstacle at coordinate <code>x</code>. It is guaranteed that no obstacle is already located there.</li>
+      <li><code>[2, x, size]</code>: determine whether a block of length <code>size</code> can occupy the integer coordinates immediately before <code>x</code> — the checked interval is <code>[x - size, x - 1]</code>.</li>
+    </ul>
+    <p>For each type-2 operation append <code>"1"</code> if the interval contains no obstacle, otherwise <code>"0"</code>. Queries only check availability and do not actually add a block. Return the results of all type-2 operations as one binary string.</p>
+    <p><strong>Example</strong></p>
+    <p><code>operations = [[1, 2], [1, 5], [2, 5, 2], [2, 6, 3], [2, 2, 1], [2, 3, 2]]</code></p>
+    <table>
+      <tr><th>Query</th><th>Checked interval</th><th>Result</th></tr>
+      <tr><td><code>[2,5,2]</code></td><td><code>[3,4]</code> contains no obstacle</td><td><code>1</code></td></tr>
+      <tr><td><code>[2,6,3]</code></td><td><code>[3,5]</code> contains obstacle <code>5</code></td><td><code>0</code></td></tr>
+      <tr><td><code>[2,2,1]</code></td><td><code>[1,1]</code> contains no obstacle</td><td><code>1</code></td></tr>
+      <tr><td><code>[2,3,2]</code></td><td><code>[1,2]</code> contains obstacle <code>2</code></td><td><code>0</code></td></tr>
+    </table>
+    <p>Output: <code>"1010"</code>.</p>
+  </div>
+</div>
+</div><!-- /.content-wrapper -->
+
+<script>
+// ── Data ───────────────────────────────────────────────────────────────────
+const OPS = [[1, 2], [1, 5], [2, 5, 2], [2, 6, 3], [2, 2, 1], [2, 3, 2]];
+const NL_MIN = 0, NL_MAX = 7;   // 数轴显示范围（例子里用到的坐标 1..6）
+
+// 行号表（renderCodeBox 从 1 起连续编号，空行/注释也占号）
+const L = {
+  IMPORT: 1, DEF: 4, POS_INIT: 6, FOR1: 8, IF1: 9, APPEND_POS: 10, SORT: 12,
+  TREE_INIT: 15, DEF_ADD: 17, ADD_WHILE: 18, ADD_UPD: 19, ADD_STEP: 20,
+  DEF_SUM: 22, SUM_INIT: 23, SUM_WHILE: 25, SUM_ACC: 26, SUM_STEP: 27, SUM_RET: 29,
+  RES_INIT: 31, FOR2: 33, IF2: 34, X1: 35, BISECT1: 38, CALL_ADD: 39,
+  ELSE: 41, X2: 42, SIZE: 43, LEFT: 45, RIGHT: 46, LI: 48, RI: 49,
+  OC_ASSIGN: 51, CALL_SUM: 52, IF_OC: 55, APP1: 56, ELSE_OC: 57, APP0: 58, RET: 60,
+};
+
+function bisectLeftJS(a, v) { let lo = 0, hi = a.length; while (lo < hi) { const m = (lo + hi) >> 1; if (a[m] < v) lo = m + 1; else hi = m; } return lo; }
+function bisectRightJS(a, v) { let lo = 0, hi = a.length; while (lo < hi) { const m = (lo + hi) >> 1; if (a[m] <= v) lo = m + 1; else hi = m; } return lo; }
+
+// ── Step builder：真实模拟算法本身 ─────────────────────────────────────────
+function buildSteps() {
+  const steps = [];
+  let pos = [], tree = [], obstacles = [], result = [];
+  let opIdx = null, loopNo = null, x = null, size = null, left = null, right = null;
+  let li = null, ri = null, oc = null;
+  let fn = null, fnIndex = null, fnTotal = null, treeHot = null, posHl = null;
+  let done = false;
+
+  function snap(line, info) {
+    steps.push({
+      line, info, pos: pos.slice(), tree: tree.slice(), obstacles: obstacles.slice(),
+      result: result.slice(), opIdx, loopNo, x, size, left, right, li, ri, oc,
+      fn, fnIndex, fnTotal, treeHot, posHl, done,
+    });
+  }
+
+  snap(null, '初始状态：operations = [[1,2], [1,5], [2,5,2], [2,6,3], [2,2,1], [2,3,2]] — 点击 Next 开始');
+  snap(L.IMPORT, 'Line 1: 导入 bisect_left / bisect_right — 之后在排好序的 positions 上做二分');
+  snap(L.DEF, 'Line 4: 进入 solution(operations) — 共 6 个操作');
+  snap(L.POS_INIT, 'Line 6: positions = [] — 先收集所有"以后可能出现障碍"的坐标（离散化）');
+
+  loopNo = 1;
+  OPS.forEach((op, i) => {
+    opIdx = i;
+    snap(L.FOR1, `Line 8: 第一遍扫描 — operation = [${op.join(', ')}]（第 ${i + 1}/${OPS.length} 个）`);
+    const isPlace = op[0] === 1;
+    snap(L.IF1, `Line 9: operation[0] == 1 → ${isPlace ? 'True，是放障碍操作，登记坐标' : 'False，查询操作不登记，下一个'}`);
+    if (isPlace) {
+      pos.push(op[1]);
+      snap(L.APPEND_POS, `Line 10: positions.append(${op[1]}) → [${pos.join(', ')}]`);
+    }
+  });
+  opIdx = null; loopNo = null;
+  snap(L.FOR1, `Line 8: 第一遍扫描结束 — 收集到坐标 [${pos.join(', ')}]`);
+
+  pos.sort((a, b) => a - b);
+  snap(L.SORT, `Line 12: positions.sort() → [${pos.join(', ')}] — 排好序才能二分`);
+  tree = new Array(pos.length + 1).fill(0);
+  snap(L.TREE_INIT, `Line 15: tree = [0] * ${pos.length + 1} — Fenwick 树，记录哪些登记坐标已被激活成障碍`);
+  snap(L.DEF_ADD, 'Line 17: 定义内部函数 add(index) — 把一个障碍记进 Fenwick 树');
+  snap(L.DEF_SUM, 'Line 22: 定义内部函数 get_sum(index) — 前缀和：前 index 个登记坐标里已激活的障碍数');
+  snap(L.RES_INIT, 'Line 31: result = [] — 收集每个查询的 "1"/"0"');
+
+  function runAdd(startIndex) {
+    snap(L.DEF_ADD, `Line 17: 进入 add(index=${startIndex})`);
+    fn = 'add'; fnIndex = startIndex;
+    while (true) {
+      const go = fnIndex < tree.length;
+      snap(L.ADD_WHILE, `Line 18: index (${fnIndex}) < len(tree) (${tree.length}) → ${go ? 'True，更新这个节点' : 'False，更新完毕，add 结束'}`);
+      if (!go) break;
+      treeHot = fnIndex;
+      tree[fnIndex] += 1;
+      snap(L.ADD_UPD, `Line 19: tree[${fnIndex}] += 1 → ${tree[fnIndex]}`);
+      treeHot = null;
+      const lb = fnIndex & -fnIndex;
+      fnIndex += lb;
+      snap(L.ADD_STEP, `Line 20: index += index & -index（+${lb}）→ ${fnIndex} — 跳到下一个覆盖它的节点`);
+    }
+    fn = null; fnIndex = null;
+  }
+
+  function runSum(startIndex, who) {
+    snap(L.DEF_SUM, `Line 22: 进入 get_sum(index=${startIndex})（算 ${who}）`);
+    fn = 'sum'; fnIndex = startIndex; fnTotal = 0;
+    snap(L.SUM_INIT, 'Line 23: total = 0');
+    while (true) {
+      const go = fnIndex > 0;
+      snap(L.SUM_WHILE, `Line 25: index (${fnIndex}) > 0 → ${go ? 'True，累加这个节点' : 'False，退出累加'}`);
+      if (!go) break;
+      treeHot = fnIndex;
+      fnTotal += tree[fnIndex];
+      snap(L.SUM_ACC, `Line 26: total += tree[${fnIndex}] (${tree[fnIndex]}) → ${fnTotal}`);
+      treeHot = null;
+      const lb = fnIndex & -fnIndex;
+      fnIndex -= lb;
+      snap(L.SUM_STEP, `Line 27: index -= index & -index（-${lb}）→ ${fnIndex}`);
+    }
+    const t = fnTotal;
+    snap(L.SUM_RET, `Line 29: return total = ${t}`);
+    fn = null; fnIndex = null; fnTotal = null;
+    return t;
+  }
+
+  loopNo = 2;
+  OPS.forEach((op, i) => {
+    opIdx = i; x = null; size = null; left = null; right = null; li = null; ri = null; oc = null; posHl = null;
+    snap(L.FOR2, `Line 33: 主循环 — operation = [${op.join(', ')}]（第 ${i + 1}/${OPS.length} 个）`);
+    const isPlace = op[0] === 1;
+    snap(L.IF2, `Line 34: operation[0] == 1 → ${isPlace ? 'True，激活这个障碍' : 'False，进查询分支'}`);
+    if (isPlace) {
+      x = op[1];
+      snap(L.X1, `Line 35: x = ${x}`);
+      const idx = bisectLeftJS(pos, x) + 1;
+      snap(L.BISECT1, `Line 38: index = bisect_left(positions, ${x}) + 1 = ${idx - 1} + 1 = ${idx} — 换算成 Fenwick 的 1 起下标`);
+      snap(L.CALL_ADD, `Line 39: 调用 add(${idx})`);
+      runAdd(idx);
+      obstacles.push(x);
+      snap(L.CALL_ADD, `Line 39: add 返回 — 坐标 ${x} 的障碍已激活`);
+    } else {
+      snap(L.ELSE, 'Line 41: else 分支 — 这是查询操作');
+      x = op[1];
+      snap(L.X2, `Line 42: x = ${x}`);
+      size = op[2];
+      snap(L.SIZE, `Line 43: size = ${size}`);
+      left = x - size;
+      snap(L.LEFT, `Line 45: left = x - size = ${left}`);
+      right = x - 1;
+      snap(L.RIGHT, `Line 46: right = x - 1 = ${right} — 要检查的区间是 [${left}, ${right}]`);
+      li = bisectLeftJS(pos, left);
+      snap(L.LI, `Line 48: left_index = bisect_left(positions, ${left}) = ${li}`);
+      ri = bisectRightJS(pos, right);
+      posHl = [li, ri];
+      snap(L.RI, `Line 49: right_index = bisect_right(positions, ${right}) = ${ri} — 区间内的登记坐标是 positions[${li}:${ri}]`);
+      snap(L.CALL_SUM, `Line 52: 先调用 get_sum(right_index=${ri})`);
+      const a = runSum(ri, 'right_index 前缀');
+      snap(L.CALL_SUM, `Line 52: get_sum(${ri}) 返回 ${a} — 再调用 get_sum(left_index=${li})`);
+      const b = runSum(li, 'left_index 前缀');
+      oc = a - b;
+      snap(L.OC_ASSIGN, `Line 51: obstacle_count = ${a} - ${b} = ${oc} — 区间 [${left}, ${right}] 里已激活的障碍数`);
+      const ok = oc === 0;
+      snap(L.IF_OC, `Line 55: obstacle_count == 0 → ${ok ? 'True，区间干净' : 'False，区间里有障碍'}`);
+      if (ok) {
+        result.push('1');
+        snap(L.APP1, 'Line 56: result.append("1") — 方块放得下');
+      } else {
+        snap(L.ELSE_OC, 'Line 57: else 分支');
+        result.push('0');
+        snap(L.APP0, 'Line 58: result.append("0") — 方块放不下');
+      }
+    }
+  });
+  opIdx = null; loopNo = null; x = null; size = null; left = null; right = null;
+  li = null; ri = null; oc = null; posHl = null;
+  snap(L.FOR2, 'Line 33: 全部操作处理完毕，退出主循环');
+  done = true;
+  snap(L.RET, `✅ Line 60: return "".join(result) = "${result.join('')}" — 最终答案 = "${result.join('')}"`);
+
+  return steps;
+}
+
+const STEPS = buildSteps();
+var cur = -1;
+
+// ── DOM init ───────────────────────────────────────────────────────────────
+(function buildDOM() {
+  let nl = '';
+  for (let n = NL_MIN; n <= NL_MAX; n++) {
+    nl += `<div class="nl-cell"><div class="nl-box" id="nl-${n}">${n}</div><div class="nl-ptr" id="nlp-${n}"></div></div>`;
+  }
+  document.getElementById('nl-row').innerHTML = nl;
+  document.getElementById('op-row').innerHTML = OPS.map((op, i) =>
+    `<span class="op-chip" id="op-${i}">[${op.join(',')}]</span>`
+  ).join('');
+})();
+
+function renderVarBar(s) {
+  const v = t => (t === null || t === undefined) ? '-' : t;
+  const range = s && s.left !== null && s.right !== null ? `[${s.left}, ${s.right}]` : '-';
+  return `<span><span class="var-name">x</span> <span class="var-eq">=</span> <span class="var-val">${v(s && s.x)}</span></span>` +
+    `<span><span class="var-name">size</span> <span class="var-eq">=</span> <span class="var-val">${v(s && s.size)}</span></span>` +
+    `<span><span class="var-name">检查区间</span> <span class="var-eq">=</span> <span class="var-val">${range}</span></span>` +
+    `<span><span class="var-name">obstacle_count</span> <span class="var-eq">=</span> <span class="var-val">${v(s && s.oc)}</span></span>`;
+}
+
+// ── Render（只读快照，无副作用）────────────────────────────────────────────
+function render() {
+  const s = cur < 0 ? null : STEPS[cur];
+  highlightLine(s ? s.line : null);
+  renderCtrl(cur < 0 ? -1 : cur, STEPS.length, s ? s.info : '');
+  document.getElementById('var-bar').innerHTML = renderVarBar(s);
+
+  // 数轴
+  const obsSet = new Set(s ? s.obstacles : []);
+  const regSet = new Set(s ? s.pos : []);
+  for (let n = NL_MIN; n <= NL_MAX; n++) {
+    const box = document.getElementById(`nl-${n}`);
+    const ptr = document.getElementById(`nlp-${n}`);
+    const inRange = s && s.left !== null && s.right !== null && n >= s.left && n <= s.right;
+    box.className = 'nl-box' +
+      (obsSet.has(n) ? ' obs' : regSet.has(n) ? ' reg' : '') +
+      (inRange ? ' range' : '');
+    ptr.textContent = s && s.x === n ? '▲ x' : '';
+  }
+
+  // positions + tree
+  const posRow = document.getElementById('pos-row');
+  const treeRow = document.getElementById('tree-row');
+  if (s && s.pos.length) {
+    posRow.innerHTML = s.pos.map((p, i) => {
+      const inHl = s.posHl && i >= s.posHl[0] && i < s.posHl[1];
+      return `<div class="fw-cell"><div class="fw-box${inHl ? ' inrange' : ''}">${p}</div><div class="fw-idx">${i}</div></div>`;
+    }).join('');
+  } else {
+    posRow.innerHTML = '<span class="res-empty">（还没收集）</span>';
+  }
+  if (s && s.tree.length) {
+    treeRow.innerHTML = s.tree.map((t, i) =>
+      `<div class="fw-cell"><div class="fw-box${i === 0 ? ' unused' : ''}${s.treeHot === i ? ' hot' : ''}">${t}</div><div class="fw-idx">${i}</div></div>`
+    ).join('');
+  } else {
+    treeRow.innerHTML = '<span class="res-empty">（还没建树）</span>';
+  }
+  const fwFn = document.getElementById('fw-fn');
+  if (s && s.fn === 'add') fwFn.textContent = `add 运行中：index = ${s.fnIndex}`;
+  else if (s && s.fn === 'sum') fwFn.textContent = `get_sum 运行中：index = ${s.fnIndex}，total = ${s.fnTotal}`;
+  else fwFn.textContent = '';
+
+  // operations
+  OPS.forEach((op, i) => {
+    const chip = document.getElementById(`op-${i}`);
+    const doing = s && s.opIdx === i;
+    const done = s && (s.done || (s.opIdx !== null && i < s.opIdx));
+    chip.className = 'op-chip' + (doing ? ' doing' : done ? ' done' : '');
+  });
+
+  // result
+  const rr = document.getElementById('res-row');
+  if (s && s.result.length) {
+    let html = s.result.map(r => `<span class="res-chip ${r === '1' ? 'ok' : 'no'}">${r}</span>`).join('');
+    if (s.done) html += `<span class="res-final">→ "".join(result) = "${s.result.join('')}"</span>`;
+    rr.innerHTML = html;
+  } else {
+    rr.innerHTML = '<span class="res-empty">（还没有查询结果）</span>';
+  }
+}
+
+doReset();
+</script>
+</body>
+</html>

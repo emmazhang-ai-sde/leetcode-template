@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>208. Implement Trie (Prefix Tree)</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  /* 这题跟其它 CH4 页不一样：insert/search/startsWith 都是 for 循环，
+     不是递归——没有调用栈，不需要"调用链"卡片。真正的看点是：
+     ① 一棵字典树是好几次调用累积长出来的（insert("apple") 之后再
+        insert("app")，第二次不会重造任何节点，只是多标记一个 word）；
+     ② search 结尾多判一次 root.word==word，startsWith 不判——
+        这就是 search("app") 明明有路径却先返回 False 的原因。 */
+
+  /* ── 调用序列：Trie() / insert / search / startsWith 依次执行 ────────── */
+  .op-row { display: flex; flex-direction: column; gap: 6px; }
+  .op-chip {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 6px 12px; border-radius: 8px; font-family: var(--ink-mono); font-size: 12.5px;
+    background: #f5f5f5; color: #aaa; border: 1.5px solid transparent; transition: all 0.2s;
+  }
+  .op-chip .op-call { font-weight: 700; }
+  .op-chip .op-ret { font-weight: 700; }
+  .op-chip.active { background: rgba(249,203,66,0.30); border-color: #d4a800; color: #1a1a1a; }
+  .op-chip.done { background: #fff; border-color: #e2e2e2; color: #1a1a1a; }
+  .op-chip.done .op-ret.yes { color: #1D9E75; }
+  .op-chip.done .op-ret.no  { color: #C4501E; }
+
+  /* ── word/prefix 进度条：跟 79 的 word-row 是同一件事 ─────────────────── */
+  .tn-word-row { display: flex; gap: 6px; }
+  .tn-word-cell {
+    width: 34px; height: 40px; border-radius: 7px; display: flex; align-items: center; justify-content: center;
+    font-family: var(--ink-mono); font-size: 17px; font-weight: 700;
+    background: #f5f5f5; border: 1px solid #c9c9c9; color: #bbb;
+    transition: background 0.2s, border-color 0.2s, color 0.2s, transform 0.15s;
+  }
+  .tn-word-cell.walked  { background: rgba(120,160,225,0.28); border-color: #3A6FD4; color: #1a1a1a; }
+  .tn-word-cell.trying  { background: rgba(249,203,66,0.55); border-color: #d4a800; color: #1a1a1a; transform: translateY(-2px); }
+
+  /* ── 字典树：节点按创建顺序摆成一条链（这个例子从头到尾没有分叉） ────── */
+  #trie-svg { display: block; width: 100%; max-height: 200px; }
+  .tn-edge { stroke: #c8c6be; stroke-width: 2; }
+  .tn-circle { fill: #ffffff; stroke: #c9c9c9; stroke-width: 1.5; transition: fill 0.2s, stroke 0.2s; }
+  .tn-circle.word-end { fill: rgba(93,202,165,0.4); }
+  .tn-circle.building { stroke: #1a1a1a; stroke-width: 2.5; }
+  .tn-circle.current   { stroke: #3A6FD4; stroke-width: 2.5; }
+  .tn-text { font-family: var(--ink-mono); font-size: 14px; font-weight: 700; fill: #1a1a1a; }
+  .tn-badge { font-family: var(--ink-mono); font-size: 9px; font-weight: 700; fill: #1D9E75; }
+
+  .op-trie-row { display: flex; gap: 16px; align-items: flex-start; }
+  .fn-note { margin-left: 8px; font-family: -apple-system, sans-serif; font-size: 11px; color: #aaa; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '208. Implement Trie (Prefix Tree)',
+  link: 'https://leetcode.com/problems/implement-trie-prefix-tree/',
+  legend: [
+    { color: '#ffffff', extra: 'border:1.5px solid #c9c9c9;', label: '已经造出来的节点，还不是任何单词的结尾' },
+    { color: 'rgba(93,202,165,0.4)', label: '这个节点是某个完整单词的结尾（root.word 非空）' },
+    { color: '#ffffff', extra: 'box-shadow:0 0 0 2.5px #1a1a1a;', label: '黑框 = Node.__init__ 正在造这个节点' },
+    { color: '#ffffff', extra: 'box-shadow:0 0 0 2.5px #3A6FD4;', label: '蓝框 = 局部变量 root 现在指着这个节点' },
+    { color: 'rgba(249,203,66,0.30)', extra: 'border:1.5px solid #d4a800;', label: '正在执行的调用（下方序列）' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+  <script>
+  renderCodeBox({
+    code: `
+import collections
+class Node:
+    def __init__(self, c):
+        self.c = c
+        self.word = ""
+        self.child = collections.defaultdict(Node)
+
+
+class Trie(object):
+
+    def __init__(self):
+        """
+        Initialize your data structure here.
+        """
+        self.root = Node(None)
+
+
+    def insert(self, word):
+        """
+        Inserts a word into the trie.
+        :type word: str
+        :rtype: void
+        """
+        root = self.root
+        child = root.child
+
+        for letter in word:
+            if letter in child:
+                root = child[letter]
+            else:
+                newNode = Node(letter)
+                child[letter] = newNode
+                root = newNode
+            child = root.child
+
+        root.word = word
+
+
+    def search(self, word):
+        """
+        Returns if the word is in the trie.
+        :type word: str
+        :rtype: bool
+        """
+        root = self.root
+        child = root.child
+
+        for letter in word:
+            if letter in child:
+                root = child[letter]
+            else:
+                return False
+            child = root.child
+
+        if root.word == word:
+            return True
+
+        return False
+
+
+    def startsWith(self, prefix):
+        """
+        Returns if there is any word in the trie that starts with the given prefix.
+        :type prefix: str
+        :rtype: bool
+        """
+        root = self.root
+        child = root.child
+
+        for letter in prefix:
+            if letter in child:
+                root = child[letter]
+            else:
+                return False
+            child = root.child
+
+        return True`,
+  });
+  </script>
+
+  <div class="var-bar" id="var-bar"></div>
+
+  <div class="viz-panel">
+    <div class="op-trie-row">
+      <div class="card">
+        <h3>调用序列 — LeetCode 官方样例</h3>
+        <div class="op-row" id="op-row"></div>
+      </div>
+
+      <div class="card">
+        <h3>当前这次调用 — 走到第几个字符</h3>
+        <div class="tn-word-row" id="tn-word-row"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>trie — 一棵字典树是好几次调用一起长出来的</h3>
+      <svg id="trie-svg" viewBox="0 0 460 150"></svg>
+    </div>
+  </div>
+</div><!-- /.main -->
+</div><!-- /.content-wrapper -->
+
+<script>
+document.querySelector('.code-stack').appendChild(document.getElementById('var-bar'));
+
+// ── 例子：LeetCode 208 官方样例 ────────────────────────────────────────
+//   ["Trie","insert","search","search","startsWith","insert","search"]
+//   [[],["apple"],["apple"],["app"],["app"],["app"],["app"]]
+//   → [null,null,true,false,true,null,true]
+const OPS = [
+  { method: 'Trie',       args: [] },
+  { method: 'insert',     args: ['apple'] },
+  { method: 'search',     args: ['apple'] },
+  { method: 'search',     args: ['app'] },
+  { method: 'startsWith', args: ['app'] },
+  { method: 'insert',     args: ['app'] },
+  { method: 'search',     args: ['app'] },
+];
+
+/* 行号表：正文从 1 开始，空行也占号；三引号 docstring（12-14/20-22/…）
+   跟 # 注释一样不执行，不停。按 ANIMATION_GUIDE：if / for 头 True/False、
+   每轮都停；构造函数调用（Node(...)）当函数调用处理，走两遍。 */
+const L = {
+  NODE_INIT:  3,  // def __init__(self, c):        （Node 的构造函数）
+  NODE_C:     4,  // self.c = c
+  NODE_WORD:  5,  // self.word = ""
+  NODE_CHILD: 6,  // self.child = collections.defaultdict(Node)
+  TRIE_INIT: 11,  // def __init__(self):            （Trie 的构造函数）
+  TRIE_ROOT: 15,  // self.root = Node(None)          调用 + 返回各一次
+  INSERT:    18,  // def insert(self, word):
+  INS_ROOT:  24,  // root = self.root
+  INS_CHILD: 25,  // child = root.child
+  INS_FOR:   27,  // for letter in word:             每轮 + 取空各一次
+  INS_IF:    28,  // if letter in child:             True/False 各一次
+  INS_GET:   29,  // root = child[letter]
+  INS_NEW:   31,  // newNode = Node(letter)          调用 + 返回各一次
+  INS_SET:   32,  // child[letter] = newNode
+  INS_ROOTNEW:33, // root = newNode
+  INS_CHILD2:34,  // child = root.child              每轮都执行（跟 if/else 无关）
+  INS_WORD:  36,  // root.word = word
+  SEARCH:    39,  // def search(self, word):
+  SCH_ROOT:  45,  // root = self.root
+  SCH_CHILD: 46,  // child = root.child
+  SCH_FOR:   48,  // for letter in word:             每轮 + 取空各一次
+  SCH_IF:    49,  // if letter in child:             True/False 各一次
+  SCH_GET:   50,  // root = child[letter]
+  SCH_RETF:  52,  // return False                    只在 False 分支
+  SCH_CHILD2:53,  // child = root.child              只在 True 分支
+  SCH_CHECK: 55,  // if root.word == word:           True/False 各一次
+  SCH_RETT:  56,  // return True
+  SCH_RETF2: 58,  // return False
+  STARTS:    61,  // def startsWith(self, prefix):
+  SW_ROOT:   67,  // root = self.root
+  SW_CHILD:  68,  // child = root.child
+  SW_FOR:    70,  // for letter in prefix:           每轮 + 取空各一次
+  SW_IF:     71,  // if letter in child:             True/False 各一次
+  SW_GET:    72,  // root = child[letter]
+  SW_RETF:   74,  // return False                    只在 False 分支
+  SW_CHILD2: 75,  // child = root.child              只在 True 分支
+  SW_RETT:   77,  // return True
+};
+
+// ── 真跑一遍 Lyon 的解法（insert/search/startsWith 全是 for 循环，不是
+//    递归——三个方法自己都不互相调用，唯一的"函数调用"是 Node(...)）───────
+function buildSteps() {
+  const steps = [];
+  const NODES = [];   // { id, c, word, children:{letter->id}, parentId }
+  let nodeSeq = 0;
+  let rootId = null;      // Trie.root
+  let fn = null;
+  let curNode = null;     // Node.__init__ 正在造的那个节点
+  let rootPtr = null;     // insert/search/startsWith 里的局部变量 root
+  let word = null, letterIdx = null;
+  let opResults = [];
+  let curOp = -1;
+
+  function snap(line, info) {
+    steps.push({
+      line, info, fn, curOp,
+      nodes: NODES.map(n => ({ id: n.id, c: n.c, word: n.word, parentId: n.parentId })),
+      rootId, curNode, rootPtr, word, letterIdx,
+      opResults: opResults.map(o => ({ ...o })),
+    });
+  }
+
+  function newNode(c, parentId) {
+    const id = nodeSeq++;
+    NODES.push({ id, c: null, word: '', children: {}, parentId });
+    curNode = id;
+    snap(L.NODE_INIT, `Line 3: 进入 Node.__init__(c=${c == null ? 'None' : '"' + c + '"'}) — 造一个新节点${c == null ? '（根节点）' : ''}。`);
+    NODES[id].c = c;
+    snap(L.NODE_C, `Line 4: self.c = ${c == null ? 'None' : '"' + c + '"'} — 这个节点自己对应的字符。`);
+    NODES[id].word = '';
+    snap(L.NODE_WORD, 'Line 5: self.word = "" — 先当它不是任何单词的结尾，插入完整单词时才会改。');
+    snap(L.NODE_CHILD, 'Line 6: self.child = collections.defaultdict(Node) — 空的孩子表，key 是字符、value 是子节点。');
+    curNode = null;
+    return id;
+  }
+
+  function insert(w) {
+    fn = 'insert'; word = w; letterIdx = null;
+    snap(L.INSERT, `Line 18: 进入 insert(word="${w}")。`);
+    rootPtr = rootId;
+    snap(L.INS_ROOT, 'Line 24: root = self.root — 从根节点开始。');
+    snap(L.INS_CHILD, 'Line 25: child = root.child — 取根节点的孩子表。');
+
+    for (let k = 0; k < w.length; k++) {
+      letterIdx = k;
+      const letter = w[k];
+      snap(L.INS_FOR, `Line 27: for letter in word → letter = "${letter}"（第 ${k + 1}/${w.length} 个字符）。`);
+
+      const child = NODES.find(n => n.id === rootPtr).children;
+      const has = letter in child;
+      snap(L.INS_IF, `Line 28: "${letter}" in child → ${has ? 'True（这条边已经存在）' : 'False（还没有这条边）'}。`);
+      if (has) {
+        rootPtr = child[letter];
+        snap(L.INS_GET, `Line 29: root = child["${letter}"] — 顺着已有的边走，到节点 ${rootPtr}。`);
+      } else {
+        snap(L.INS_NEW, `Line 31: newNode = Node("${letter}") — 造一个新节点。`);
+        const newId = newNode(letter, rootPtr);
+        fn = 'insert';
+        snap(L.INS_SET, `Line 32: child["${letter}"] = newNode — 挂到当前节点（root）的孩子表上。`);
+        NODES.find(n => n.id === rootPtr).children[letter] = newId;
+        rootPtr = newId;
+        snap(L.INS_ROOTNEW, 'Line 33: root = newNode — 挪到刚造的这个新节点。');
+      }
+      snap(L.INS_CHILD2, 'Line 34: child = root.child — 换成新 root 自己的孩子表，不管走的是哪条分支，这一行都会执行。');
+    }
+    letterIdx = null;
+    snap(L.INS_FOR, `Line 27: word 的 ${w.length} 个字符都走完了 — 循环结束。`);
+
+    NODES.find(n => n.id === rootPtr).word = w;
+    snap(L.INS_WORD, `Line 36: root.word = "${w}" — 把最后停留的这个节点标记成 "${w}" 这个完整单词的结尾（就算这个节点是插别的单词时造的，也照样能被后来的 insert 补上标记）。`);
+    fn = null; rootPtr = null; word = null;
+    return null;
+  }
+
+  function search(w) {
+    fn = 'search'; word = w; letterIdx = null;
+    snap(L.SEARCH, `Line 39: 进入 search(word="${w}")。`);
+    rootPtr = rootId;
+    snap(L.SCH_ROOT, 'Line 45: root = self.root。');
+    snap(L.SCH_CHILD, 'Line 46: child = root.child。');
+
+    for (let k = 0; k < w.length; k++) {
+      letterIdx = k;
+      const letter = w[k];
+      snap(L.SCH_FOR, `Line 48: for letter in word → letter = "${letter}"（第 ${k + 1}/${w.length} 个字符）。`);
+      const child = NODES.find(n => n.id === rootPtr).children;
+      const has = letter in child;
+      snap(L.SCH_IF, `Line 49: "${letter}" in child → ${has ? 'True' : 'False（这条边压根不存在）'}。`);
+      if (has) {
+        rootPtr = child[letter];
+        snap(L.SCH_GET, `Line 50: root = child["${letter}"] — 走到节点 ${rootPtr}。`);
+        snap(L.SCH_CHILD2, 'Line 53: child = root.child。');
+      } else {
+        snap(L.SCH_RETF, `Line 52: return False — 字典树里没有这条路径，"${w}" 肯定不存在。`);
+        fn = null; letterIdx = null; word = null; rootPtr = null;
+        return false;
+      }
+    }
+    letterIdx = null;
+    snap(L.SCH_FOR, `Line 48: word 的 ${w.length} 个字符都走完了 — 一路都有对应的节点，但还不能就此说"存在"。`);
+
+    const node = NODES.find(n => n.id === rootPtr);
+    const match = node.word === w;
+    snap(L.SCH_CHECK, `Line 55: root.word == word → ${match
+      ? `True（这个节点的 word 正好是 "${node.word}"）`
+      : `False（这个节点当前 word=${node.word ? '"' + node.word + '"' : '""'}，不等于 "${w}"——路径存在，但从没有哪次 insert 把这里标记成 "${w}" 的结尾）`}。`);
+    let ret;
+    if (match) { snap(L.SCH_RETT, 'Line 56: return True。'); ret = true; }
+    else { snap(L.SCH_RETF2, 'Line 58: return False。'); ret = false; }
+    fn = null; rootPtr = null; word = null;
+    return ret;
+  }
+
+  function startsWith(w) {
+    fn = 'startsWith'; word = w; letterIdx = null;
+    snap(L.STARTS, `Line 61: 进入 startsWith(prefix="${w}")。`);
+    rootPtr = rootId;
+    snap(L.SW_ROOT, 'Line 67: root = self.root。');
+    snap(L.SW_CHILD, 'Line 68: child = root.child。');
+
+    for (let k = 0; k < w.length; k++) {
+      letterIdx = k;
+      const letter = w[k];
+      snap(L.SW_FOR, `Line 70: for letter in prefix → letter = "${letter}"（第 ${k + 1}/${w.length} 个字符）。`);
+      const child = NODES.find(n => n.id === rootPtr).children;
+      const has = letter in child;
+      snap(L.SW_IF, `Line 71: "${letter}" in child → ${has ? 'True' : 'False（这条边压根不存在）'}。`);
+      if (has) {
+        rootPtr = child[letter];
+        snap(L.SW_GET, `Line 72: root = child["${letter}"] — 走到节点 ${rootPtr}。`);
+        snap(L.SW_CHILD2, 'Line 75: child = root.child。');
+      } else {
+        snap(L.SW_RETF, `Line 74: return False — 不存在以 "${w}" 开头的单词。`);
+        fn = null; letterIdx = null; word = null; rootPtr = null;
+        return false;
+      }
+    }
+    letterIdx = null;
+    snap(L.SW_FOR, `Line 70: prefix 的 ${w.length} 个字符都走完了 — 一路都有对应的节点。`);
+    snap(L.SW_RETT, 'Line 77: return True — 不用管这个节点是不是某个单词的结尾，只要路径存在，就说明有单词以它为前缀。');
+    fn = null; rootPtr = null; word = null;
+    return true;
+  }
+
+  snap(null, '模拟力扣官方样例的调用序列：先 Trie() 建一棵空树，再依次 insert / search / startsWith。' +
+    'search 和 startsWith 走的是同一条路径检查逻辑，唯一的差别在最后一步要不要多判 "root.word == word"。');
+
+  OPS.forEach((op, i) => {
+    curOp = i;
+    if (op.method === 'Trie') {
+      fn = 'Trie.__init__';
+      snap(L.TRIE_INIT, 'Line 11: 进入 Trie.__init__() — 建一棵空字典树。');
+      const id = newNode(null, null);
+      fn = 'Trie.__init__';
+      rootId = id;
+      snap(L.TRIE_ROOT, 'Line 15: self.root = Node(None) — 根节点不代表任何字符，只是个起点，它自己的 child 表就是"第一层"。');
+      opResults.push({ method: 'Trie', args: [], ret: null });
+      fn = null;
+    } else if (op.method === 'insert') {
+      insert(op.args[0]);
+      opResults.push({ method: 'insert', args: op.args, ret: null });
+    } else if (op.method === 'search') {
+      const ret = search(op.args[0]);
+      opResults.push({ method: 'search', args: op.args, ret });
+    } else if (op.method === 'startsWith') {
+      const ret = startsWith(op.args[0]);
+      opResults.push({ method: 'startsWith', args: op.args, ret });
+    }
+  });
+
+  curOp = -1; fn = null;
+  snap(null, `✅ 全部 ${OPS.length} 次调用执行完毕，返回值依次是 [` +
+    opResults.map(o => o.ret === null ? 'null' : o.ret).join(', ') +
+    `]。整棵树只造了 ${NODES.length} 个节点（含根）——第二次 insert("app") 没有新造任何节点，只是把已经存在的那个节点补标记成一个单词的结尾。`);
+
+  return steps;
+}
+
+const STEPS = buildSteps();
+let cur = -1;
+
+// ── 渲染（只读快照，无副作用） ─────────────────────────────────────────
+const OP_LABEL = (op) => op.method === 'Trie' ? 'Trie()' : `${op.method}("${op.args[0]}")`;
+
+function renderOps(s) {
+  document.getElementById('op-row').innerHTML = OPS.map((op, i) => {
+    const cls = ['op-chip'];
+    let retHtml = '';
+    if (i === s.curOp) cls.push('active');
+    else if (i < s.opResults.length) {
+      cls.push('done');
+      const r = s.opResults[i];
+      if (r.ret !== null) retHtml = `<span class="op-ret ${r.ret ? 'yes' : 'no'}">→ ${r.ret}</span>`;
+    }
+    return `<div class="${cls.join(' ')}"><span class="op-call">${OP_LABEL(op)}</span>${retHtml}</div>`;
+  }).join('');
+}
+
+function renderWord(s) {
+  const host = document.getElementById('tn-word-row');
+  if (s.word == null) { host.innerHTML = '<span class="chain-empty" style="font-family:var(--ink-mono);font-size:12px;color:#bbb;">当前没有调用在跑</span>'; return; }
+  host.innerHTML = s.word.split('').map((ch, k) => {
+    let cls = 'tn-word-cell';
+    if (s.letterIdx != null && k < s.letterIdx) cls += ' walked';
+    else if (s.letterIdx != null && k === s.letterIdx) cls += ' trying';
+    return `<div class="${cls}">${ch}</div>`;
+  }).join('');
+}
+
+function renderTrie(s) {
+  const svg = document.getElementById('trie-svg');
+  const depthOf = (n) => {
+    let d = 0, cur = n;
+    while (cur.parentId != null) { d += 1; cur = s.nodes.find(x => x.id === cur.parentId); }
+    return d;
+  };
+  const X0 = 40, SLOT = 68, Y = 75, R = 22;
+  const pos = {};
+  s.nodes.forEach(n => { pos[n.id] = { x: X0 + depthOf(n) * SLOT, y: Y }; });
+
+  const parts = [];
+  s.nodes.forEach(n => {
+    if (n.parentId == null) return;
+    const p = pos[n.parentId], c = pos[n.id];
+    parts.push(`<line class="tn-edge" x1="${p.x + R}" y1="${p.y}" x2="${c.x - R}" y2="${c.y}"/>`);
+  });
+  s.nodes.forEach(n => {
+    const p = pos[n.id];
+    const cls = ['tn-circle'];
+    if (n.word) cls.push('word-end');
+    if (s.curNode === n.id) cls.push('building');
+    else if (s.rootPtr === n.id) cls.push('current');
+    const label = n.c == null ? '•' : n.c;
+    parts.push(`<g><circle class="${cls.join(' ')}" cx="${p.x}" cy="${p.y}" r="${R}"/>` +
+      `<text class="tn-text" x="${p.x}" y="${p.y + 5}" text-anchor="middle">${label}</text>` +
+      (n.word ? `<text class="tn-badge" x="${p.x}" y="${p.y + 38}" text-anchor="middle">"${n.word}"</text>` : '') +
+      `</g>`);
+  });
+  svg.innerHTML = parts.join('');
+}
+
+function renderVars(s) {
+  const row = (name, val) => `<span class="var-row"><span class="var-name">${name}</span><span class="var-eq"> = </span><span class="var-val">${val}</span></span>`;
+  document.getElementById('var-bar').innerHTML =
+    `<span class="var-row"><span class="fn-tag">${s.fn ? s.fn + '()' : '—'}</span><span class="fn-note">当前所在函数</span></span>` +
+    row('root（指针）', s.rootPtr == null ? '-' : `节点 ${s.rootPtr}`) +
+    row('word / prefix', s.word == null ? '-' : '"' + s.word + '"') +
+    row('letter', s.letterIdx == null || s.word == null ? '-' : '"' + s.word[s.letterIdx] + '"');
+}
+
+const EMPTY = { line: null, fn: null, curOp: -1, nodes: [], rootId: null, curNode: null, rootPtr: null, word: null, letterIdx: null, opResults: [] };
+
+function renderAll() {
+  const step = cur >= 0 ? STEPS[cur] : null;
+  const s = step || EMPTY;
+
+  renderOps(s);
+  renderWord(s);
+  renderTrie(s);
+  renderVars(s);
+  highlightLine(s.line);
+  renderCtrl(cur, STEPS.length, step ? step.info :
+    '点 Next 开始：按官方样例依次调用 Trie() → insert("apple") → search("apple") → search("app") → startsWith("app") → insert("app") → search("app")。');
+}
+
+var render = renderAll;
+doReset();
+</script>
+</body>
+</html>

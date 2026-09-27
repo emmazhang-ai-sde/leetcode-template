@@ -1,0 +1,17 @@
+<p>Given two strings <code>s</code> and <code>t</code> of lengths <code>m</code> and <code>n</code> respectively, return <em>the <strong>minimum window substring</strong> of <code>s</code> such that every character in <code>t</code> (<strong>including duplicates</strong>) is included in the window</em>. If there is no such substring, return <em>the empty string <code>""</code></em>.</p>
+<p>The testcases will be generated such that the answer is <strong>unique</strong>.</p>
+<h3>Example 1</h3>
+<p><strong>Input:</strong> <code>s = "ADOBECODEBANC", t = "ABC"</code><br><strong>Output:</strong> <code>"BANC"</code><br><strong>Explanation:</strong> The minimum window substring <code>"BANC"</code> includes <code>'A'</code>, <code>'B'</code>, and <code>'C'</code> from string <code>t</code>.</p>
+<h3>Example 2</h3>
+<p><strong>Input:</strong> <code>s = "a", t = "a"</code><br><strong>Output:</strong> <code>"a"</code><br><strong>Explanation:</strong> The entire string <code>s</code> is the minimum window.</p>
+<h3>Example 3</h3>
+<p><strong>Input:</strong> <code>s = "a", t = "aa"</code><br><strong>Output:</strong> <code>""</code><br><strong>Explanation:</strong> Both <code>'a'</code>s from <code>t</code> must be included in the window. Since the largest window of <code>s</code> only has one <code>'a'</code>, return empty string.</p>
+<h3>Constraints</h3>
+<ul>
+  <li><code>m == s.length</code></li>
+  <li><code>n == t.length</code></li>
+  <li><code>1 &lt;= m, n &lt;= 10<sup>5</sup></code></li>
+  <li><code>s</code> and <code>t</code> consist of uppercase and lowercase English letters.</li>
+</ul>
+<h3>Follow up</h3>
+<p>Could you find an algorithm that runs in <code>O(m + n)</code> time?</p>

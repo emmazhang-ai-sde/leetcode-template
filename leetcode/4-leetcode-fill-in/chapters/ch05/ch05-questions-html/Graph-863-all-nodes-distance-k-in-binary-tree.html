@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>863. All Nodes Distance K in Binary Tree · 填空</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/fill-theme.css">
+<script src="../../assets/repo-corner.js" defer></script>
+</head>
+<body class="problem-page">
+<main class="problem-main">
+  <h1 class="prob-title">
+    <a id="probLink" href="https://leetcode.com/problems/all-nodes-distance-k-in-binary-tree/description/" target="_blank" rel="noopener noreferrer">
+      <span class="prob-title__num" id="probNum">863.</span><span id="probName">All Nodes Distance K in Binary Tree</span>
+    </a>
+  </h1>
+
+  <div class="code-with-actions">
+    <div class="code-widget">
+      <div class="code-area">
+        <table class="code-table" id="ct" aria-label="代码填空">
+<tr><td class="ln">1</td><td class="lc"><span class="cm"># Definition for a binary tree node.</span></td></tr>
+<tr><td class="ln">2</td><td class="lc"><span class="cm"># class TreeNode:</span></td></tr>
+<tr><td class="ln">3</td><td class="lc"><span class="cm">#     def __init__(self, x):</span></td></tr>
+<tr><td class="ln">4</td><td class="lc"><span class="cm">#         self.val = x</span></td></tr>
+<tr><td class="ln">5</td><td class="lc"><span class="cm">#         self.left = None</span></td></tr>
+<tr><td class="ln">6</td><td class="lc"><span class="cm">#         self.right = None</span></td></tr>
+<tr><td class="ln">7</td><td class="lc"><span class="seg"></span></td></tr>
+<tr><td class="ln">8</td><td class="lc"><span class="seg">class Solution:</span></td></tr>
+<tr><td class="ln">9</td><td class="lc"><span class="seg">    def distanceK(self, root: TreeNode, target: TreeNode, k: int) -&gt; List[int]:</span></td></tr>
+<tr><td class="ln">10</td><td class="lc"><span class="seg">        graph = collections.</span><span class="blank-group"><input type="text" class="blank" data-answer="defaultdict(list)" data-answers='["defaultdict(list)"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">defaultdict(list)</span></span></td></tr>
+<tr><td class="ln">11</td><td class="lc"><span class="seg">        self.dfs(root, graph, </span><span class="blank-group"><input type="text" class="blank" data-answer="None" data-answers='["None"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">None</span></span><span class="seg">)</span></td></tr>
+<tr><td class="ln">12</td><td class="lc"><span class="seg"></span></td></tr>
+<tr><td class="ln">13</td><td class="lc"><span class="seg">        queue = collections.deque(</span><span class="blank-group"><input type="text" class="blank" data-answer="[target]" data-answers='["[target]"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">[target]</span></span><span class="seg">)</span></td></tr>
+<tr><td class="ln">14</td><td class="lc"><span class="seg">        visited = set()</span></td></tr>
+<tr><td class="ln">15</td><td class="lc"><span class="seg">        visited.add(</span><span class="blank-group"><input type="text" class="blank" data-answer="target" data-answers='["target"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">target</span></span><span class="seg">)</span></td></tr>
+<tr><td class="ln">16</td><td class="lc"><span class="seg"></span></td></tr>
+<tr><td class="ln">17</td><td class="lc"><span class="seg">        while len(queue) &gt; 0 and </span><span class="blank-group"><input type="text" class="blank" data-answer="k >= 0" data-answers='["k >= 0","k>=0","k >=0","k >= 0"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">k &gt;= 0</span></span><span class="seg">:</span></td></tr>
+<tr><td class="ln">18</td><td class="lc"><span class="seg">            size = len(queue)</span></td></tr>
+<tr><td class="ln">19</td><td class="lc"><span class="seg">            res = []</span></td></tr>
+<tr><td class="ln">20</td><td class="lc"><span class="seg">            for _ in range(size):</span></td></tr>
+<tr><td class="ln">21</td><td class="lc"><span class="seg">                curr = queue.popleft()</span></td></tr>
+<tr><td class="ln">22</td><td class="lc"><span class="seg">                res.append(</span><span class="blank-group"><input type="text" class="blank" data-answer="curr.val" data-answers='["curr.val"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">curr.val</span></span><span class="seg">)</span></td></tr>
+<tr><td class="ln">23</td><td class="lc"><span class="seg">                for neighbour in </span><span class="blank-group"><input type="text" class="blank" data-answer="graph[curr]" data-answers='["graph[curr]"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">graph[curr]</span></span><span class="seg">:</span></td></tr>
+<tr><td class="ln">24</td><td class="lc"><span class="seg">                    if </span><span class="blank-group"><input type="text" class="blank" data-answer="neighbour not in visited" data-answers='["neighbour not in visited"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">neighbour not in visited</span></span><span class="seg">:</span></td></tr>
+<tr><td class="ln">25</td><td class="lc"><span class="seg">                        visited.add(neighbour)</span></td></tr>
+<tr><td class="ln">26</td><td class="lc"><span class="seg">                        queue.append(neighbour)</span></td></tr>
+<tr><td class="ln">27</td><td class="lc"><span class="seg">            </span><span class="blank-group"><input type="text" class="blank" data-answer="k -= 1" data-answers='["k -= 1","k-=1","k-= 1","k -= 1"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">k -= 1</span></span></td></tr>
+<tr><td class="ln">28</td><td class="lc"><span class="seg"></span></td></tr>
+<tr><td class="ln">29</td><td class="lc"><span class="seg">        if k == </span><span class="blank-group"><input type="text" class="blank" data-answer="-1" data-answers='["-1"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">-1</span></span><span class="seg">:</span></td></tr>
+<tr><td class="ln">30</td><td class="lc"><span class="seg">            return res</span></td></tr>
+<tr><td class="ln">31</td><td class="lc"><span class="seg">        else:</span></td></tr>
+<tr><td class="ln">32</td><td class="lc"><span class="seg">            return []</span></td></tr>
+<tr><td class="ln">33</td><td class="lc"><span class="seg"></span></td></tr>
+<tr><td class="ln">34</td><td class="lc"><span class="seg">    def dfs(self, node, graph, parent):</span></td></tr>
+<tr><td class="ln">35</td><td class="lc"><span class="seg">        if </span><span class="blank-group"><input type="text" class="blank" data-answer="parent" data-answers='["parent"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">parent</span></span><span class="seg">:</span></td></tr>
+<tr><td class="ln">36</td><td class="lc"><span class="seg">            graph[node].append(</span><span class="blank-group"><input type="text" class="blank" data-answer="parent" data-answers='["parent"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">parent</span></span><span class="seg">)</span></td></tr>
+<tr><td class="ln">37</td><td class="lc"><span class="seg">        if node.left:</span></td></tr>
+<tr><td class="ln">38</td><td class="lc"><span class="seg">            graph[node].append(</span><span class="blank-group"><input type="text" class="blank" data-answer="node.left" data-answers='["node.left"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">node.left</span></span><span class="seg">)</span></td></tr>
+<tr><td class="ln">39</td><td class="lc"><span class="seg">            self.dfs(node.left, graph, </span><span class="blank-group"><input type="text" class="blank" data-answer="node" data-answers='["node"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">node</span></span><span class="seg">)</span></td></tr>
+<tr><td class="ln">40</td><td class="lc"><span class="seg">        if node.right:</span></td></tr>
+<tr><td class="ln">41</td><td class="lc"><span class="seg">            graph[node].append(</span><span class="blank-group"><input type="text" class="blank" data-answer="node.right" data-answers='["node.right"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">node.right</span></span><span class="seg">)</span></td></tr>
+<tr><td class="ln">42</td><td class="lc"><span class="seg">            self.dfs(node.right, graph, </span><span class="blank-group"><input type="text" class="blank" data-answer="node" data-answers='["node"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">node</span></span><span class="seg">)</span></td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="controls">
+      <button type="button" class="btn-primary" id="btnCheck">Check all</button>
+      <button type="button" id="btnReset">Reset</button>
+      <button type="button" id="btnReveal">Reveal</button>
+      <button type="button" id="btnCopy">Copy</button>
+      <button type="button" id="btnToggleAnswers" aria-pressed="false">显示参考答案</button>
+      <span class="score" id="score"></span>
+      <span class="copy-toast" id="copyToast" aria-live="polite"></span>
+    </div>
+  </div>
+</main>
+<script src="../../assets/fill-blanks.js"></script>
+<script src="../../assets/fill-core.js"></script>
+</body>
+</html>

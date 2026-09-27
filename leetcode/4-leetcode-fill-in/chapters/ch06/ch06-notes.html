@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chapter 6: Two Pointer &amp; Linked List · 课件</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/ch01-notes.css">
+<link rel="stylesheet" href="../../assets/notes-shared.css">
+<script src="../../assets/repo-corner.js" defer></script>
+</head>
+<body>
+<div class="notes-standalone-wrap notes-courseware-page">
+  <div class="chapter-notes-panel" id="chapter6NotesPanel">
+    <h2 class="prob-title notes-main-title" id="notesMainTitleCh6">Chapter 6 - 课件</h2>
+    <div class="notes-main-scroll">
+
+      <!-- ── 适用范围 ── -->
+      <div class="notes-section">
+        <div class="notes-section-title">Two Pointer 的适用范围</div>
+        <div class="notes-concept-block">
+          <p>字符串操作 (in place)</p>
+          <p>线性操作 LinkedList, ArrayList, Substring 问题</p>
+        </div>
+      </div>
+
+      <!-- ── 几个问题 ── -->
+      <div class="notes-section">
+        <div class="notes-section-title">明确 Two Pointer 的几个问题</div>
+        <div class="notes-concept-block">
+          <p>Fixed Pointer and Float Pointer 定义是什么</p>
+          <p>谁是 fixed pointer</p>
+          <p>谁是 float pointer，float pointer 如何移动</p>
+        </div>
+      </div>
+
+      <!-- ── 建议做题顺序 ── -->
+      <div class="notes-section">
+        <div class="notes-section-title">建议做题顺序</div>
+
+        <div class="notes-group-label">Two Pointer</div>
+        <table class="order-table">
+          <thead>
+            <tr><th>#</th><th>题目</th><th>要点</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>1</td>
+              <td><a href="https://leetcode.com/problems/move-zeroes/" target="_blank" rel="noopener noreferrer">283. Move Zeroes</a></td>
+              <td>最简单的同向双指针，先建立 fix/k 的感觉</td>
+            </tr>
+            <tr>
+              <td>2</td>
+              <td><a href="https://leetcode.com/problems/remove-duplicates-from-sorted-array/" target="_blank" rel="noopener noreferrer">26. Remove Duplicates from Sorted Array</a></td>
+              <td>同一个模板，换个条件</td>
+            </tr>
+            <tr>
+              <td>3</td>
+              <td><a href="https://leetcode.com/problems/sort-colors/" target="_blank" rel="noopener noreferrer">75. Sort Colors</a></td>
+              <td>fix 变成两个，模板扩展</td>
+            </tr>
+            <tr>
+              <td>4</td>
+              <td><a href="https://leetcode.com/problems/merge-intervals/" target="_blank" rel="noopener noreferrer">56. Merge Intervals</a></td>
+              <td>换了场景，但还是线性扫描的思路</td>
+            </tr>
+            <tr>
+              <td>5</td>
+              <td><a href="https://leetcode.com/problems/two-sum/" target="_blank" rel="noopener noreferrer">1. Two Sum</a></td>
+              <td>引入对撞</td>
+            </tr>
+            <tr>
+              <td>6</td>
+              <td><a href="https://leetcode.com/problems/valid-triangle-number/" target="_blank" rel="noopener noreferrer">611. Valid Triangle Number</a></td>
+              <td>对撞的进阶应用</td>
+            </tr>
+            <tr>
+              <td>7</td>
+              <td><a href="https://leetcode.com/problems/two-sum-iii-data-structure-design/" target="_blank" rel="noopener noreferrer">170. Two Sum III - Data structure design</a></td>
+              <td>设计题，放最后</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="notes-group-label">Linked List</div>
+        <table class="order-table">
+          <thead>
+            <tr><th>#</th><th>题目</th><th>要点</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>1</td>
+              <td><a href="https://leetcode.com/problems/middle-of-the-linked-list/" target="_blank" rel="noopener noreferrer">876. Middle of the Linked List</a></td>
+              <td>最简单的快慢指针</td>
+            </tr>
+            <tr>
+              <td>2</td>
+              <td><a href="https://leetcode.com/problems/linked-list-cycle/" target="_blank" rel="noopener noreferrer">141. Linked List Cycle</a></td>
+              <td>同一个模板</td>
+            </tr>
+            <tr>
+              <td>3</td>
+              <td><a href="https://leetcode.com/problems/linked-list-cycle-ii/" target="_blank" rel="noopener noreferrer">142. Linked List Cycle II</a></td>
+              <td>141 的进阶</td>
+            </tr>
+            <tr>
+              <td>4</td>
+              <td><a href="https://leetcode.com/problems/reverse-linked-list/" target="_blank" rel="noopener noreferrer">206. Reverse Linked List</a></td>
+              <td>操作题，单独一类</td>
+            </tr>
+            <tr>
+              <td>5</td>
+              <td><a href="https://leetcode.com/problems/palindrome-linked-list/" target="_blank" rel="noopener noreferrer">234. Palindrome Linked List</a></td>
+              <td>综合题（快慢 + 反转）</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ── 题目：Two Pointer ── -->
+      <div class="notes-section">
+        <div class="notes-section-title">Two Pointer</div>
+
+        <div class="notes-sub-title">① 同向双指针 — 覆写/压缩</div>
+        <div class="notes-sub-hint">用 fix 记"下一个写入位"，用 k 扫描</div>
+        <div class="notes-prob-list" style="margin-bottom: 20px;">
+          <a class="notes-prob-item" href="https://leetcode.com/problems/move-zeroes/" target="_blank" rel="noopener noreferrer">283. Move Zeroes<span class="notes-prob-arrow" aria-hidden="true">→</span></a>
+          <a class="notes-prob-item" href="https://leetcode.com/problems/remove-duplicates-from-sorted-array/" target="_blank" rel="noopener noreferrer">26. Remove Duplicates from Sorted Array<span class="notes-prob-arrow" aria-hidden="true">→</span></a>
+        </div>
+
+        <div class="notes-sub-title">② 同向双指针 — 三色分区</div>
+        <div class="notes-sub-hint">fix 扩展到两个边界指针</div>
+        <div class="notes-prob-list" style="margin-bottom: 20px;">
+          <a class="notes-prob-item" href="https://leetcode.com/problems/sort-colors/" target="_blank" rel="noopener noreferrer">75. Sort Colors<span class="notes-prob-arrow" aria-hidden="true">→</span></a>
+        </div>
+
+        <div class="notes-sub-title">③ 对撞双指针 — 两端夹逼</div>
+        <div class="notes-sub-hint">排序后左右指针向中间收</div>
+        <div class="notes-prob-list" style="margin-bottom: 20px;">
+          <a class="notes-prob-item" href="https://leetcode.com/problems/two-sum/" target="_blank" rel="noopener noreferrer">1. Two Sum（排序版）<span class="notes-prob-arrow" aria-hidden="true">→</span></a>
+          <a class="notes-prob-item" href="https://leetcode.com/problems/valid-triangle-number/" target="_blank" rel="noopener noreferrer">611. Valid Triangle Number<span class="notes-prob-arrow" aria-hidden="true">→</span></a>
+        </div>
+
+        <div class="notes-sub-title">④ 设计题 / HashMap</div>
+        <div class="notes-sub-hint">本质不是指针，是数据结构设计</div>
+        <div class="notes-prob-list" style="margin-bottom: 20px;">
+          <a class="notes-prob-item" href="https://leetcode.com/problems/two-sum-iii-data-structure-design/" target="_blank" rel="noopener noreferrer">170. Two Sum III - Data structure design<span class="notes-prob-arrow" aria-hidden="true">→</span></a>
+          <a class="notes-prob-item" href="https://leetcode.com/problems/two-sum/" target="_blank" rel="noopener noreferrer">1. Two Sum（unsorted 版）<span class="notes-prob-arrow" aria-hidden="true">→</span></a>
+        </div>
+
+        <div class="notes-sub-title">⑤ 区间合并</div>
+        <div class="notes-sub-hint">排序 + 贪心，双指针思维</div>
+        <div class="notes-prob-list">
+          <a class="notes-prob-item" href="https://leetcode.com/problems/merge-intervals/" target="_blank" rel="noopener noreferrer">56. Merge Intervals<span class="notes-prob-arrow" aria-hidden="true">→</span></a>
+        </div>
+      </div>
+
+      <!-- ── 题目：Linked List ── -->
+      <div class="notes-section">
+        <div class="notes-section-title">Linked List</div>
+
+        <div class="notes-sub-title">⑥ 快慢指针</div>
+        <div class="notes-sub-hint">slow 走 1 步，fast 走 2 步</div>
+        <div class="notes-prob-list" style="margin-bottom: 20px;">
+          <a class="notes-prob-item" href="https://leetcode.com/problems/middle-of-the-linked-list/" target="_blank" rel="noopener noreferrer">876. Middle of the Linked List<span class="notes-prob-arrow" aria-hidden="true">→</span></a>
+          <a class="notes-prob-item" href="https://leetcode.com/problems/linked-list-cycle/" target="_blank" rel="noopener noreferrer">141. Linked List Cycle<span class="notes-prob-arrow" aria-hidden="true">→</span></a>
+          <a class="notes-prob-item" href="https://leetcode.com/problems/linked-list-cycle-ii/" target="_blank" rel="noopener noreferrer">142. Linked List Cycle II<span class="notes-prob-arrow" aria-hidden="true">→</span></a>
+        </div>
+
+        <div class="notes-sub-title">⑦ 链表操作</div>
+        <div class="notes-sub-hint">纯反转 / 重组</div>
+        <div class="notes-prob-list">
+          <a class="notes-prob-item" href="https://leetcode.com/problems/reverse-linked-list/" target="_blank" rel="noopener noreferrer">206. Reverse Linked List<span class="notes-prob-arrow" aria-hidden="true">→</span></a>
+          <a class="notes-prob-item" href="https://leetcode.com/problems/palindrome-linked-list/" target="_blank" rel="noopener noreferrer">234. Palindrome Linked List（反转后半段）<span class="notes-prob-arrow" aria-hidden="true">→</span></a>
+        </div>
+      </div>
+
+      <!-- ── 额外题目 ── -->
+      <div class="notes-section">
+        <div class="notes-section-title">额外题目</div>
+        <div class="notes-prob-list">
+          <a class="notes-prob-item" href="https://leetcode.com/problems/sort-an-array/" target="_blank" rel="noopener noreferrer">912. Sort an Array<span class="notes-prob-arrow" aria-hidden="true">→</span></a>
+        </div>
+        <p style="font-size:12.5px;color:#64748b;margin-top:8px;padding-left:2px;">归并/快排实现，算法基础</p>
+      </div>
+
+    </div>
+  </div>
+</div>
+</body>
+</html>

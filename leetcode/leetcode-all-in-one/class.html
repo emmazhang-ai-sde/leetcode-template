@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LeetCode Class</title>
+<link rel="stylesheet" href="shared.css">
+<!-- 复用 LC Notes 的 Ink & Border 组件类（lcn-card / lcn-btn / lcn-input / lcn-tl 时间轴…），
+     本页自己的布局样式用 lcz- 前缀，不碰动画页样式 -->
+<link rel="stylesheet" href="notes.css">
+<style>
+  /* =====================================================================
+     class.html — 每节课的录屏回看链接存档（2026-08-05 首版；2026-08-06
+     四版迭代：日历+列表合并一张卡 → 左右并排 → 砍日历改成 Timeline 单列
+     → 从 mockups/class/ 的选型里定了"标准月历（可翻页）+ Timeline 列表"
+     左右并排。日历是从 class-calendar-only-mockup.html 的 Variant A
+     （单月网格，跨月留白日照常显示事件）实现，翻页/Today 是真的可以点。
+     日格内容直接写标题+章节，不再套一层圆角小卡片边框——整个格子按状态
+     （今天/已录）浅色打底，标题/章节就是格子里的普通文字（用户明确要求
+     "不要再套一个边框"）。点日历里的课程格子会滚到右边 Timeline 对应
+     那一条并短暂高亮，跟点了课直接找到笔记一个逻辑。Timeline 那栏本身
+     （.lcn-tl 系列、done/today 节点着色、去掉"✓ Recorded"/"Today"文字
+     标签）完全没动，见下面 render()/rowHtml()。数据走 Life OS 后端
+     （/api/leetcode/class-links → lc_class_links 表），后端不在时整页
+     降级成一张提示卡。课程表（日期/章节标题）是从 frontend/js/views/
+     lccheckin.js 的 LCC_SCHEDULE 原样复制的静态常量——那边课表变了这边
+     要跟着改。存的是老师课后发的录屏链接，不是开会用的入会链接。
+     ===================================================================== */
+  .lcz-wrap { max-width: 1320px; margin: 0 auto; padding: 8px 0 80px; }
+  .lcz-head { text-align: center; margin: 22px auto; }
+  .lcz-title { font-size: 30px; font-weight: 800; letter-spacing: -0.015em; margin: 0; }
+  .lcz-sub { font-size: 13px; color: var(--ink-muted); margin-top: 6px; }
+
+  .lcz-offline { max-width: 560px; margin: 40px auto; text-align: center; padding: 28px 26px; }
+  .lcz-offline h3 { justify-content: center; }
+  .lcz-offline p { font-size: 13px; color: #666; line-height: 1.7; }
+  .lcz-offline code { color: var(--ink); }
+
+  /* 左右并排：日历 | 录屏 Timeline——两张卡拉伸到同一高度，右边内容多了
+     自己滚，页面本身不用为了看全链接列表再多滚一截。 */
+  .lcz-cols { display: flex; align-items: stretch; gap: 18px; }
+  .lcz-col-cal { flex: 1 1 460px; min-width: 360px; }
+  .lcz-col-list {
+    flex: 1.3 1 560px; min-width: 480px;
+    display: flex; flex-direction: column;
+  }
+  /* 右边这张卡自己不要外框——盖住的是一整屏可滚动的 Recording Links 列表，
+     黑框套黑框（每张录屏小卡自己也有阴影）看着太挤，只留 .lcn-card 的
+     圆角+底色，边框/阴影关掉。左边日历卡 .lcz-col-cal 不受影响，照常有框。
+     选择器叠两个 class（.lcn-card.lcz-col-list）而不是只写 .lcz-col-list——
+     notes.js 会在页面已解析完之后才注入 notes.css，它的 .lcn-card 边框规则
+     在层叠顺序里排到后面，跟单 class 选择器同优先级时会反而赢回来盖掉这条；
+     叠两个 class 把优先级提到 (0,0,2,0)，不管加载先后都稳赢。 */
+  .lcn-card.lcz-col-list { border: none; box-shadow: none; }
+  .lcz-list-scroll { flex: 1; min-height: 0; overflow-y: auto; padding-right: 2px; margin-top: 2px; }
+
+  /* ---- 日历：标准月历，可翻页（class-calendar-only-mockup.html Variant A） ---- */
+  .lcz-cal-nav { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .lcz-nav-btn {
+    width: 26px; height: 26px; border: var(--ink-border); border-radius: 7px; background: #fff;
+    display: inline-flex; align-items: center; justify-content: center; cursor: pointer; font-size: 13px;
+  }
+  .lcz-nav-btn:hover { background: var(--ink); color: var(--ink-hl); }
+  .lcz-nav-label { font-size: 13.5px; font-weight: 800; min-width: 110px; text-align: center; }
+  .lcz-today-btn {
+    margin-left: auto; font: 600 10.5px var(--ink-mono); text-transform: uppercase; letter-spacing: 0.05em;
+    padding: 4px 9px; border: var(--ink-border); border-radius: 7px; background: #fff; cursor: pointer;
+  }
+  .lcz-today-btn:hover { background: var(--ink); color: var(--ink-hl); }
+  /* 上课日（周四/周六）跟其它没课的日子不一样宽——没课的挤一点，Thu/Sat
+     两列放大，格子里的标题才有地方把字显示全，不用一直省略号截断。列顺序
+     固定 Mon..Sun（周一开头的网格），跟 SCHEDULE_DOW=[4,6] 对应第 4/6 列。
+     头行（星期几标签）跟日期行必须用同一份列宽，不然对不齐。 */
+  .lcz-mgrid-head, .lcz-mgrid-row { grid-template-columns: 0.55fr 0.55fr 0.55fr 1.9fr 0.55fr 1.9fr 0.55fr; }
+  .lcz-mgrid-head {
+    display: grid;
+    font-size: 10px; color: var(--ink-muted); text-align: center; padding-bottom: 6px; letter-spacing: 0.04em;
+  }
+  .lcz-mgrid-body { border-top: 1px solid rgba(17,17,17,0.1); }
+  .lcz-mgrid-row { display: grid; border-bottom: 1px solid rgba(17,17,17,0.1); }
+  /* 格子本身按状态打底——不再嵌一个圆角小卡片，标题/章节就是格子里的普通文字 */
+  .lcz-mgrid-cell {
+    min-height: 78px; border-left: 1px solid rgba(17,17,17,0.1); padding: 6px;
+    display: flex; flex-direction: column; gap: 3px;
+  }
+  .lcz-mgrid-cell.outside .lcz-daynum { color: var(--ink-ghost); }
+  .lcz-mgrid-cell.lcz-tint-today { background: rgba(255,216,77,0.35); }
+  .lcz-mgrid-cell.lcz-tint-done { background: rgba(78,122,58,0.10); }
+  .lcz-mgrid-cell.lcz-has:hover { background: rgba(17,17,17,0.045); cursor: pointer; }
+  .lcz-mgrid-cell.lcz-tint-today.lcz-has:hover,
+  .lcz-mgrid-cell.lcz-tint-done.lcz-has:hover { filter: brightness(0.97); }
+  .lcz-daynum { font-size: 10px; color: var(--ink-muted); }
+  /* "今天" 徽章跟格子打底是两回事——不管当天有没有课，日期数字永远用这个
+     小圆圈标出来，跟站内其它日历（notes.js 打卡历史等）同一个视觉语言 */
+  .lcz-daynum.lcz-today-badge {
+    background: var(--ink-hl); color: #111; border-radius: 50%;
+    width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; font-size: 9.5px;
+  }
+  .lcz-cell-title { font-size: 11px; font-weight: 700; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .lcz-cell-ch { font-size: 9.5px; color: #666; }
+
+  /* Recording Links：2026-08-06 从纵向单列时间轴改成自动换行的两栏卡片网格
+     ——用户要一行能放两个日期，方便并排粘贴两条链接，宽度不够时自动折行
+     （auto-fit + minmax，不是写死 2 列，窄屏/侧栏收起前都不会被撑爆）。
+     时间轴的连接竖线（.lcn-tl::before）在两栏网格里没意义，本页关掉；
+     每张卡改用独立的黑框硬阴影小卡承接，日期节点样式还是共用 .lcn-tl-node。 */
+  #czList.lcn-tl { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px 16px; }
+  #czList.lcn-tl::before { display: none; }
+  #czList .lcn-tl-item {
+    padding: 10px 11px; margin: 0; border-radius: 9px;
+    background: #fff; align-items: flex-start;
+  }
+  .lcn-tl-item.lcz-flash { animation: lcz-flash 1.1s ease; }
+  @keyframes lcz-flash { 0% { background: #FFF7DC; } 100% { background: transparent; } }
+
+  .lcz-tl-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  /* 卡片变窄了，标题不再单行硬截断——允许折两行，长标题（如 "Heap + Top K +
+     Monotonic Stack"）也能看全，不用悬停才知道写的什么 */
+  .lcz-tl-title { font-size: 13px; font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .lcz-ch {
+    display: inline-flex; align-items: center; justify-content: center;
+    flex: none; padding: 1px 6px; border-radius: 5px; background: var(--ink); color: #fff;
+    font-size: 10px; font-weight: 800;
+  }
+  .lcz-link-cell { display: flex; align-items: center; gap: 6px; }
+  .lcz-input { flex: 1; min-width: 0; width: auto; }
+  /* 从 <input> 换成 <textarea>（2026-08-11）：链接框里实际写的是"标注 + 链接"
+     这种可能超一行的自由文本（Ch1 的 "第一课: BinarySearch： https://…" 就是
+     例子），单行 input 再高也只会加内边距、文字照样被裁一行——要真正换行
+     必须是 textarea。比 .lcn-input 默认的 6px 10px 更高一截，装得下两行。
+     resize:vertical 只许竖着拖，横向还是交给 flex:1 撑满，不然拖宽会把
+     两栏网格顶歪。overflow-wrap:anywhere——链接本身没有空格，不强制断词
+     换行不会发生，长链接会把框撑出去横向溢出。
+     叠两个 class（.lcn-input.lcz-input）而不是只写 .lcz-input——notes.css
+     后加载，跟单 class 选择器同优先级时会赢回默认 padding，叠 class 把
+     优先级提到 (0,0,2,0) 稳赢，跟 .lcn-card.lcz-col-list 那条是同一个道理。 */
+  .lcn-input.lcz-input {
+    padding: 8px 10px; min-height: 112px; line-height: 1.5;
+    resize: vertical; overflow-wrap: anywhere; font-family: inherit;
+  }
+  /* Password 是链接框下面单独一个 block（2026-08-11 加）——跟链接框一样
+     靠 .lcn-input 自带的黑框圆角撑出边框，两个框上下堆叠、留 8px 间距，
+     不用额外画边框。明文显示（type="text"），不遮罩。 */
+  .lcz-pass-cell { margin-top: 8px; }
+  .lcz-pass { width: 100%; }
+  .lcn-input.lcz-pass { padding: 10px 12px; }
+  .lcz-status { font-size: 10px; color: var(--ink-muted); margin-top: 4px; min-height: 13px; text-align: right; }
+
+  @media (max-width: 860px) {
+    .lcz-cols { flex-direction: column; }
+    .lcz-list-scroll { max-height: none; overflow-y: visible; }
+  }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+
+<div class="content-wrapper">
+  <div class="lcz-wrap">
+
+    <div class="lcz-head">
+      <h1 class="lcz-title">LeetCode · Class</h1>
+    </div>
+
+    <div class="lcn-card lcz-offline" id="czOffline" hidden>
+      <h3>Backend not running</h3>
+      <p>Class link data lives in the Life OS backend (<code>life.db</code>).<br>
+         Start it with <code>./run.sh</code>, then reload this page.</p>
+    </div>
+
+    <div class="lcz-cols" id="czCols">
+      <div class="lcn-card lcz-col-cal">
+        <h3>Class Schedule</h3>
+        <div class="lcz-cal-nav">
+          <button class="lcz-nav-btn" id="czCalPrev" type="button">‹</button>
+          <span class="lcz-nav-label" id="czCalLabel"></span>
+          <button class="lcz-nav-btn" id="czCalNext" type="button">›</button>
+          <button class="lcz-today-btn" id="czCalToday" type="button">Today</button>
+        </div>
+        <div class="lcz-mgrid-head" id="czCalHead"></div>
+        <div class="lcz-mgrid-body" id="czCalBody"></div>
+      </div>
+
+      <div class="lcn-card lcz-col-list">
+        <h3>Recording Links</h3>
+        <div class="lcz-list-scroll">
+          <div class="lcn-tl" id="czList"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  const $ = id => document.getElementById(id);
+
+  /* 课程表：跟 frontend/js/views/lccheckin.js 的 LCC_SCHEDULE 保持一致
+     （周四/周六上课，11 节固定课）——改课表要两边一起改。 */
+  const SCHEDULE_START = "2026-07-30";
+  const SCHEDULE_DOW = [4, 6]; // Date.getDay()：周四=4，周六=6
+  const SCHEDULE_TITLES = [
+    "Binary Search",
+    "Tree + Divide and Conquer",
+    "BFS + Topological Sorting",
+    "DFS",
+    "Graph + Trie",
+    "Two Pointers & Linked List",
+    "Heap + TOP k + Monotonic Stack",
+    "Sliding Window + Sweep Line",
+    "Prefix Sum + Stack + DP",
+    "Vibe Coding with User Management",
+    "OOD 面试解析"
+  ];
+  function isoDate(d) {
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") +
+      "-" + String(d.getDate()).padStart(2, "0");
+  }
+  function parseISODate(s) { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); }
+  function addDaysISO(iso, n) { const d = parseISODate(iso); d.setDate(d.getDate() + n); return isoDate(d); }
+  function mondayOfISO(iso) { const d = parseISODate(iso); return addDaysISO(iso, -((d.getDay() + 6) % 7)); }
+  const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  function todayStr() { return isoDate(new Date()); }
+  function buildSchedule() {
+    const out = [];
+    let d = SCHEDULE_START;
+    while (out.length < SCHEDULE_TITLES.length) {
+      if (SCHEDULE_DOW.includes(parseISODate(d).getDay())) {
+        out.push({ date: d, chapter: out.length + 1, title: SCHEDULE_TITLES[out.length] });
+      }
+      d = addDaysISO(d, 1);
+    }
+    return out;
+  }
+  const SCHEDULE = buildSchedule();
+  const SCHEDULE_BY_DATE = Object.fromEntries(SCHEDULE.map(s => [s.date, s]));
+
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+  function api(method, path, body) {
+    return fetch(path, {
+      method,
+      headers: body ? { "Content-Type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined
+    }).then(r => {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.status === 204 ? null : r.json();
+    });
+  }
+
+  let linkByDate = {};
+  let passwordByDate = {};
+
+  function rowHtml(sess) {
+    const link = linkByDate[sess.date] || "";
+    const pw = passwordByDate[sess.date] || "";
+    return `
+      <div class="lcn-tl-item" data-date="${sess.date}">
+        <div class="lcn-tl-body">
+          <div class="lcz-tl-head">
+            <span class="lcz-ch">Ch ${sess.chapter}</span>
+            <span class="lcz-tl-title">${esc(sess.title)}</span>
+          </div>
+          <div class="lcz-link-cell">
+            <textarea class="lcn-input lcz-input" inputmode="url" autocomplete="off" rows="2"
+                   placeholder="Recording link the teacher sent…">${esc(link)}</textarea>
+          </div>
+          <div class="lcz-pass-cell">
+            <input class="lcn-input lcz-pass" type="text" autocomplete="off"
+                   placeholder="Password" value="${esc(pw)}">
+          </div>
+          <div class="lcz-status"></div>
+        </div>
+      </div>`;
+  }
+
+  function render() {
+    $("czList").innerHTML = SCHEDULE.map(rowHtml).join("");
+  }
+
+  /* ---------- 日历：标准月历，真的可以翻页 ---------- */
+  let calYear, calMonth; // calMonth: 0-11
+  (function initCalView() {
+    const t = new Date();
+    calYear = t.getFullYear();
+    calMonth = t.getMonth();
+  })();
+
+  function renderCalendar() {
+    $("czCalLabel").textContent = MONTH_NAMES[calMonth] + " " + calYear;
+    $("czCalHead").innerHTML = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
+      .map(d => "<span>" + d + "</span>").join("");
+
+    const first = isoDate(new Date(calYear, calMonth, 1));
+    const last = isoDate(new Date(calYear, calMonth + 1, 0));
+    const gridStart = mondayOfISO(first);
+    const gridEnd = mondayOfISO(last);
+    const t = todayStr();
+
+    let html = "";
+    for (let wk = gridStart; wk <= gridEnd; wk = addDaysISO(wk, 7)) {
+      let cells = "";
+      for (let i = 0; i < 7; i++) {
+        const d = addDaysISO(wk, i);
+        const sess = SCHEDULE_BY_DATE[d];
+        const outside = d < first || d > last;
+        const isToday = d === t;
+        const hasLink = sess && !!linkByDate[sess.date];
+        let cls = "lcz-mgrid-cell" + (outside ? " outside" : "");
+        if (sess) {
+          cls += " lcz-has";
+          if (isToday) cls += " lcz-tint-today";
+          else if (hasLink) cls += " lcz-tint-done";
+        }
+        cells += `<div class="${cls}"${sess ? ` data-date="${d}"` : ""}>` +
+          `<span class="lcz-daynum${isToday ? " lcz-today-badge" : ""}">${Number(d.slice(8, 10))}</span>` +
+          (sess
+            ? `<div class="lcz-cell-title">${esc(sess.title)}</div><div class="lcz-cell-ch">Ch ${sess.chapter}</div>`
+            : "") +
+          "</div>";
+      }
+      html += `<div class="lcz-mgrid-row">${cells}</div>`;
+    }
+    $("czCalBody").innerHTML = html;
+  }
+
+  $("czCalPrev").addEventListener("click", () => {
+    calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; }
+    renderCalendar();
+  });
+  $("czCalNext").addEventListener("click", () => {
+    calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; }
+    renderCalendar();
+  });
+  $("czCalToday").addEventListener("click", () => {
+    const t = new Date();
+    calYear = t.getFullYear(); calMonth = t.getMonth();
+    renderCalendar();
+  });
+
+  function jumpToDate(d) {
+    const row = document.querySelector('.lcn-tl-item[data-date="' + d + '"]');
+    if (!row) return;
+    row.scrollIntoView({ behavior: "smooth", block: "center" });
+    row.classList.remove("lcz-flash");
+    void row.offsetWidth; // 重新触发动画
+    row.classList.add("lcz-flash");
+    const input = row.querySelector(".lcz-input");
+    if (input) input.focus();
+  }
+  $("czCalBody").addEventListener("click", e => {
+    const cell = e.target.closest("[data-date]");
+    if (cell) jumpToDate(cell.dataset.date);
+  });
+
+  /* 一行两个字段（link + password）现在共用一次 PUT——后端 upsert 整行，
+     只发一个字段会把另一个字段拿旧值覆盖掉。所以两个输入框的 input/blur
+     都汇到同一个 saveRow(date)，落库前现从 DOM 里把两个字段的当前值都读
+     一遍，而不是各自只带着自己那份 value 调用。 */
+  const saveTimers = {};
+  async function saveRow(date, statusEl) {
+    statusEl.textContent = "Saving…";
+    try {
+      const rowEl = document.querySelector('.lcn-tl-item[data-date="' + date + '"]');
+      const link = rowEl.querySelector(".lcz-input").value.trim();
+      const pw = rowEl.querySelector(".lcz-pass").value.trim();
+      const row = await api("PUT", "/api/leetcode/class-links/" + date, { recording_link: link, password: pw });
+      linkByDate[date] = row.recording_link;
+      passwordByDate[date] = row.password;
+      statusEl.textContent = "Saved";
+      renderCalendar(); // 日历没有活跃输入框，整块重画不会丢焦点
+      setTimeout(() => { if (statusEl.textContent === "Saved") statusEl.textContent = ""; }, 1800);
+    } catch (err) {
+      statusEl.textContent = "Save failed";
+    }
+  }
+
+  $("czList").addEventListener("input", e => {
+    const field = e.target.closest(".lcz-input, .lcz-pass");
+    if (!field) return;
+    const row = field.closest(".lcn-tl-item");
+    const date = row.dataset.date;
+    const statusEl = row.querySelector(".lcz-status");
+    clearTimeout(saveTimers[date]);
+    saveTimers[date] = setTimeout(() => saveRow(date, statusEl), 500);
+  });
+  $("czList").addEventListener("blur", e => {
+    const field = e.target.closest(".lcz-input, .lcz-pass");
+    if (!field) return;
+    const row = field.closest(".lcn-tl-item");
+    const date = row.dataset.date;
+    clearTimeout(saveTimers[date]);
+    saveRow(date, row.querySelector(".lcz-status"));
+  }, true);
+
+  render();
+  renderCalendar();
+  api("GET", "/api/leetcode/class-links").then(rows => {
+    linkByDate = Object.fromEntries(rows.map(r => [r.date, r.recording_link]));
+    passwordByDate = Object.fromEntries(rows.map(r => [r.date, r.password]));
+    render();
+    renderCalendar();
+  }).catch(() => {
+    $("czCols").style.display = "none";
+    $("czOffline").hidden = false;
+  });
+})();
+</script>
+</body>
+</html>

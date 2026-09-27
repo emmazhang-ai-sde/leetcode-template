@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>257. Binary Tree Paths · 填空</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/fill-theme.css">
+<script src="../../assets/repo-corner.js" defer></script>
+</head>
+<body class="problem-page">
+<main class="problem-main">
+  <h1 class="prob-title">
+    <a id="probLink" href="https://leetcode.com/problems/binary-tree-paths/description/" target="_blank" rel="noopener noreferrer">
+      <span class="prob-title__num" id="probNum">257.</span><span id="probName">Binary Tree Paths</span>
+    </a>
+  </h1>
+  <table class="code-table" id="ct" aria-label="代码填空">
+    <tr><td class="ln">1</td><td class="lc"><span class="seg"># Definition for a binary tree node.</span></td></tr>
+    <tr><td class="ln">2</td><td class="lc"><span class="seg"># class TreeNode:</span></td></tr>
+    <tr><td class="ln">3</td><td class="lc"><span class="seg">#     def __init__(self, val=0, left=None, right=None):</span></td></tr>
+    <tr><td class="ln">4</td><td class="lc"><span class="seg">#         self.val = val</span></td></tr>
+    <tr><td class="ln">5</td><td class="lc"><span class="seg">#         self.left = left</span></td></tr>
+    <tr><td class="ln">6</td><td class="lc"><span class="seg">#         self.right = right</span></td></tr>
+    <tr><td class="ln">7</td><td class="lc"><span class="seg"></span></td></tr>
+    <tr><td class="ln">8</td><td class="lc"><span class="seg">class Solution:</span></td></tr>
+    <tr><td class="ln">9</td><td class="lc"><span class="seg">    def dfs(self, root) -&gt; List[str]:</span></td></tr>
+    <tr><td class="ln">10</td><td class="lc"><span class="seg">        returnPath = </span><span class="blank-group"><input type="text" class="blank" data-answer="[]" data-answers='["[]"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">[]</span></span></td></tr>
+    <tr><td class="ln">11</td><td class="lc"><span class="seg">        if </span><span class="blank-group"><input type="text" class="blank" data-answer="not root" data-answers='["not root"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">not root</span></span><span class="seg">:</span></td></tr>
+    <tr><td class="ln">12</td><td class="lc"><span class="seg">            return </span><span class="blank-group"><input type="text" class="blank" data-answer="returnPath" data-answers='["returnPath"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">returnPath</span></span></td></tr>
+    <tr><td class="ln">13</td><td class="lc"><span class="seg"></span></td></tr>
+    <tr><td class="ln">14</td><td class="lc"><span class="seg">        leftReturn = self.dfs(</span><span class="blank-group"><input type="text" class="blank" data-answer="root.left" data-answers='["root.left"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">root.left</span></span><span class="seg">)</span></td></tr>
+    <tr><td class="ln">15</td><td class="lc"><span class="seg">        rightReturn = self.dfs(</span><span class="blank-group"><input type="text" class="blank" data-answer="root.right" data-answers='["root.right"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">root.right</span></span><span class="seg">)</span></td></tr>
+    <tr><td class="ln">16</td><td class="lc"><span class="seg"></span></td></tr>
+    <tr><td class="ln">17</td><td class="lc"><span class="seg">        if root.left is None and root.right is None:</span></td></tr>
+    <tr><td class="ln">18</td><td class="lc"><span class="seg">            return [str(</span><span class="blank-group"><input type="text" class="blank" data-answer="root.val" data-answers='["root.val","root .val"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">root.val</span></span><span class="seg">)]</span></td></tr>
+    <tr><td class="ln">19</td><td class="lc"><span class="seg"></span></td></tr>
+    <tr><td class="ln">20</td><td class="lc"><span class="seg">        for list_str in leftReturn:</span></td></tr>
+    <tr><td class="ln">21</td><td class="lc"><span class="seg">            returnPath.append(</span><span class="blank-group"><input type="text" class="blank" data-answer="str(root.val)" data-answers='["str(root.val)","str(root .val)"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">str(root.val)</span></span><span class="seg">+ "</span><span class="blank-group"><input type="text" class="blank" data-answer="->" data-answers='["->"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">-></span></span><span class="seg">" + </span><span class="blank-group"><input type="text" class="blank" data-answer="list_str" data-answers='["list_str"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">list_str</span></span><span class="seg">)</span></td></tr>
+    <tr><td class="ln">22</td><td class="lc"><span class="seg"></span></td></tr>
+    <tr><td class="ln">23</td><td class="lc"><span class="seg">        for list_str in rightReturn:</span></td></tr>
+    <tr><td class="ln">24</td><td class="lc"><span class="seg">            returnPath.append(</span><span class="blank-group"><input type="text" class="blank" data-answer="str(root.val)" data-answers='["str(root.val)","str(root .val)"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">str(root.val)</span></span><span class="seg">+ "</span><span class="blank-group"><input type="text" class="blank" data-answer="->" data-answers='["->"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">-></span></span><span class="seg">" + </span><span class="blank-group"><input type="text" class="blank" data-answer="list_str" data-answers='["list_str"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">list_str</span></span><span class="seg">)</span></td></tr>
+    <tr><td class="ln">25</td><td class="lc"><span class="seg"></span></td></tr>
+    <tr><td class="ln">26</td><td class="lc"><span class="seg">        return returnPath</span></td></tr>
+    <tr><td class="ln">27</td><td class="lc"><span class="seg"></span></td></tr>
+    <tr><td class="ln">28</td><td class="lc"><span class="seg">    def binaryTreePaths(self, root: Optional[TreeNode]) -&gt; List[str]:</span></td></tr>
+    <tr><td class="ln">29</td><td class="lc"><span class="seg">        res = </span><span class="blank-group"><input type="text" class="blank" data-answer="self.dfs(root)" data-answers='["self.dfs(root)"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">self.dfs(root)</span></span></td></tr>
+    <tr><td class="ln">30</td><td class="lc"><span class="seg">        return </span><span class="blank-group"><input type="text" class="blank" data-answer="res" data-answers='["res"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">res</span></span></td></tr>
+  </table>
+</main>
+<script src="../../assets/fill-blanks.js"></script>
+<script src="../../assets/fill-core.js"></script>
+</body>
+</html>

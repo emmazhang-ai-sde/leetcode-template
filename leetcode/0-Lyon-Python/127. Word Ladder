@@ -1,0 +1,44 @@
+class Solution:
+    def ladderLength(self, beginWord: str, endWord: str, wordList: List[str]) -> int:
+        # Create Graph
+        graph = collections.defaultdict(list)
+        wordList.append(beginWord)
+        for word in wordList:
+            graph[word] = self.get_neighbour(word, set(wordList))
+
+        queue = collections.deque([beginWord])
+        visited = set()
+        visited.add(beginWord)
+
+        # Go through graph
+        return self.bfs(queue, visited, graph, endWord)
+
+
+    def get_neighbour(self, word, wordList):  # O(26 * L^2)
+        res = []
+        for index,letter in enumerate(word):          # O (L)
+            for replaceLetter in "abcdefghijklmnopqrstuvwxyz": # O(25)
+                if letter != replaceLetter:
+                    newWord = word[:index] + replaceLetter + word[index+1:] #O(L)
+                    if newWord in wordList:
+                        res.append(newWord)
+        return res
+
+    def bfs(self, queue, visited, graph, endWord):
+        step = 1
+        while len(queue) > 0:
+            size = len(queue)
+            for _ in range(size):
+                word = queue.popleft()
+                neighbours = graph[word]
+                for neighbour in neighbours:
+                    if neighbour not in visited:
+                        if neighbour == endWord:
+                            return step + 1
+                        visited.add(neighbour)
+                        queue.append(neighbour)
+            step +=1
+        return 0
+
+
+

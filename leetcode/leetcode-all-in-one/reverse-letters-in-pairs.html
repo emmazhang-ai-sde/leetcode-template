@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reverse Letters in Pairs</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  .oa-layout { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+  .oa-layout .card { width: 100%; min-width: 0; line-height: 1.7; }
+  .oa-layout .card p { margin: 0 0 10px; }
+  .oa-layout .card p:last-child { margin-bottom: 0; }
+  .oa-layout .card ul, .oa-layout .card ol { margin: 0 0 10px 20px; }
+  .oa-layout .card li { margin-bottom: 8px; }
+  .oa-layout .card code { background: var(--ink-chip); border-radius: 4px; padding: 1px 5px; font-family: var(--ink-mono); font-size: 12.5px; }
+  .oa-tag { display: inline-block; font-family: var(--ink-mono); font-size: 11px; letter-spacing: .03em; background: var(--ink-chip); border: var(--ink-border); border-radius: 6px; padding: 2px 8px; margin-bottom: 12px; }
+  .oa-layout .code-panel { padding: 0 54px 0 0; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: 'Reverse Letters in Pairs',
+  controls: false,
+});
+</script>
+
+<div class="oa-layout">
+  <div class="card">
+    <span class="oa-tag">TikTok OA · 2026-08-16 · no official LeetCode number</span>
+    <h3>Problem</h3>
+    <p>Given a string <code>s</code> consisting of lowercase English letters, reverse its letters in adjacent pairs:</p>
+    <ul>
+      <li>Swap the 1st and 2nd characters.</li>
+      <li>Swap the 3rd and 4th characters.</li>
+      <li>Continue in the same way for the rest of the string.</li>
+      <li>If the string has an odd number of characters, leave the final character unchanged.</li>
+    </ul>
+    <p><strong>Examples</strong></p>
+    <p><code>s = "abcdef"</code> → <code>"badcfe"</code></p>
+    <p><code>s = "abcde"</code> → <code>"badce"</code>（奇数长度,最后的 <code>e</code> 不动）</p>
+  </div>
+</div>
+</div>
+</body>
+</html>

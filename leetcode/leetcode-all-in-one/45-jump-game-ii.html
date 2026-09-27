@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>45. Jump Game II</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  /* nums 数组：上方 SVG 弧线 = 调用栈上每一层正在试的那一跳；下方一排 memo 格子
+     （Lyon 的 memo 是 list，跟 nums 一一对齐）。nums 格子：当前帧黑框、还在栈上的
+     用身份色、虚线框 = 当前帧这一层能跳到的范围 (pos+1 .. nextPos) */
+  .arc-svg { display: block; }
+  .arc { fill: none; stroke: #3A6FD4; stroke-width: 2.5; }
+  .arc-tag { font-family: var(--ink-mono); font-size: 10px; font-weight: 700; fill: #3A6FD4; }
+  .nums-row { display: flex; gap: 8px; }
+  .num-cell { width: 52px; height: 46px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+              font-family: var(--ink-mono); font-size: 17px; font-weight: 700; color: #1a1a1a;
+              background: #f5f5f5; border: 1px solid #c9c9c9; transition: background 0.2s, box-shadow 0.15s; }
+  .num-cell.reach { border: 1.5px dashed #888; }
+  .num-cell.cur   { box-shadow: 0 0 0 2px #1a1a1a; }
+  .num-idx-row { display: flex; gap: 8px; margin-top: 4px; }
+  .num-idx { width: 52px; text-align: center; font-family: var(--ink-mono); font-size: 10.5px; color: #aaa; }
+  .num-flag-row { display: flex; gap: 8px; min-height: 16px; }
+  .num-flag { width: 52px; text-align: center; font-size: 12px; }
+  .memo-label { margin-top: 10px; font-family: var(--ink-mono); font-size: 11px; color: #9333C0; }
+  .memo-row { display: flex; gap: 8px; margin-top: 4px; }
+  .memo-cell { width: 52px; height: 34px; border-radius: 7px; display: flex; align-items: center; justify-content: center;
+               font-family: var(--ink-mono); font-size: 15px; font-weight: 700; color: #1a1a1a;
+               background: #f5f5f5; border: 1px solid #c9c9c9; transition: background 0.2s, box-shadow 0.15s; }
+  .memo-cell.m-inf  { color: #c4c4c4; }
+  .memo-cell.m-done { background: rgba(93,202,165,0.4); border-color: rgba(60,160,125,0.5); }
+  .memo-cell.m-hot  { box-shadow: 0 0 0 2px #1a1a1a; }
+  .memo-val { margin-top: 12px; font-family: var(--ink-mono); font-size: 12.5px; white-space: normal; max-width: 560px; line-height: 1.6; }
+
+  /* 递归树：节点里写 pos，边上标 +跳几步 */
+  #tree-svg { display: block; }
+  .edge { stroke: #d5d5d5; stroke-width: 2; }
+  .edge.on-path { stroke: #3A6FD4; stroke-width: 3; }
+  .edge-tag { font-family: var(--ink-mono); font-size: 9.5px; fill: #b0b0b0; }
+  .edge-tag.on-path { fill: #3A6FD4; font-weight: 700; }
+  .node-box { fill: #f5f5f5; stroke: #c9c9c9; stroke-width: 1; transition: fill 0.2s; }
+  .node-box.n-hit { stroke-dasharray: 3 2; }
+  .node-box.n-current { stroke: #1a1a1a; stroke-width: 2.5; }
+  .node-box.n-stack   { stroke: rgba(90,130,200,0.55); }
+  .node-box.n-stack.n-hit, .node-box.n-current.n-hit { stroke-dasharray: 3 2; }
+  .node-box.n-done        { fill: rgba(93,202,165,0.4); stroke: rgba(60,160,125,0.5); }
+  .node-box.n-done.r-inf  { fill: rgba(224,133,133,0.3); stroke: rgba(200,90,90,0.5); }
+  .node-text { font-family: var(--ink-mono); font-size: 12px; font-weight: 700; fill: #1a1a1a; }
+  .node-text.dim { fill: #b5b5b5; }
+  .node-sub { font-family: var(--ink-mono); font-size: 9px; fill: #6a6a6a; }
+  .tree-note { margin-top: 8px; font-family: -apple-system, sans-serif; font-size: 11.5px; color: #888; line-height: 1.6; max-width: 420px; }
+
+  /* 四个块排成 2×2：左列 变量栏 / nums，右列 调用链 / 递归树（跟 55 一致） */
+  .viz-grid { display: grid; grid-template-columns: max-content max-content; gap: 16px; align-items: stretch; }
+  .viz-grid > .card, .viz-grid > .var-bar { min-width: 0; width: auto; }
+
+  .fn-tag { display: inline-block; padding: 1px 8px; border-radius: 5px; background: rgba(199,146,234,0.18);
+            color: #6b3fa0; font-family: var(--ink-mono); font-size: 12px; font-weight: 700; }
+  .fn-note { margin-left: 8px; font-family: -apple-system, sans-serif; font-size: 11px; color: #aaa; }
+  /* 变量名占固定宽度（最长的是 memo[pos] / distance，9 个字符），让每行的 = 对齐 */
+  #var-bar .var-name { display: inline-block; min-width: 9ch; }
+
+  /* 调用链：一层一行、按深度缩进，底色 = 这一帧的 pos 的颜色 */
+  .call-chain { display: flex; flex-direction: column; gap: 4px; min-height: 132px; }
+  .chain-row { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 10px;
+               border-radius: 7px; font-family: var(--ink-mono); font-size: 12px;
+               color: #1a1a1a; white-space: nowrap; align-self: flex-start;
+               transition: box-shadow 0.15s; }
+  .chain-row.top { box-shadow: 0 0 0 1.5px #1a1a1a; font-weight: 700; }
+  .chain-i { color: #C4501E; font-weight: 700; }
+  .chain-dim { color: #8a8a8a; font-weight: 400; }
+  .chain-empty { font-family: var(--ink-mono); font-size: 12px; color: #bbb; }
+  .chain-note { margin-top: 10px; font-family: -apple-system, sans-serif; font-size: 11.5px; color: #888; line-height: 1.6; max-width: 460px; }
+
+  .legend-below { flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 0; max-width: none; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '45. Jump Game II',
+  link: 'https://leetcode.com/problems/jump-game-ii/',
+  examples: [
+    { id: 'ex1', label: '[2,3,1,1,4] -> 2' },
+    { id: 'ex2', label: '[2,3,0,1,4] -> 2' },
+  ],
+  legend: [
+    { color: 'rgba(249,203,66,0.30)', extra: 'box-shadow:inset 0 0 0 2px #1a1a1a;', label: '黑框 = 正在执行这一行的那次调用（数组上 = 这一帧站的 pos；memo 上 = 这一步在读 / 写的格子）' },
+    { color: 'rgba(120,160,225,0.22)', label: '每个 pos 一种颜色 — 代码高亮行 / 调用链 / 树节点 / 数组格子同色；同一 pos 不管被调几次都是同一色' },
+    { color: '#f5f5f5', extra: 'border:1.5px dashed #888;', label: '树上虚线框 = 命中 memo 直接返回；数组上虚线框 = 当前帧能跳到的范围 pos+1 .. nextPos' },
+    { color: 'rgba(93,202,165,0.4)', label: 'memo 格子已有有限值（从这里到终点最少几跳）/ helper 已返回' },
+    { color: 'rgba(224,133,133,0.3)', label: 'helper 返回 ∞：从这里到不了终点（memo 仍是 ∞，下次会重算）' },
+    { color: '#f5f5f5', extra: 'border:1px solid #c9c9c9;', label: '还没调用到 / memo 还是 ∞' },
+    { color: '#3A6FD4', extra: 'border-radius:2px;width:14px;height:3px;', label: '蓝弧 / 蓝边 = 调用栈上每一层正在试的那一跳（根 → 当前帧）' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+  <script>
+  renderCodeBox({
+    code: `
+class Solution:
+    def jump(self, nums: List[int]) -> int:
+        def helper(pos,nums):
+            if memo[pos] != float('INF'):
+                return memo[pos]
+
+            nextPos = min( (pos + nums[pos]) , len(nums)-1)
+            # print(nextPos)
+            distance = float('INF')
+            for i in range(nextPos, pos, -1):
+                distance = min(distance, 1 + helper(i,nums))
+            memo[pos] = distance
+            return memo[pos]
+
+        memo = [float('INF')] * len(nums)
+        memo[len(nums)-1] = 0
+
+
+        helper(0,nums)
+        return memo[0]`,
+  });
+  </script>
+
+  <script>
+  (function () {
+    const stack = document.querySelector('.code-stack');
+    stack.appendChild(document.getElementById('info'));
+    const legend = document.querySelector('.legend');
+    const legendRow = legend.parentElement;
+    legend.classList.add('legend-below');
+    stack.appendChild(legend);
+    legendRow.remove();
+  })();
+  </script>
+
+  <div class="viz-panel">
+    <div class="viz-grid">
+      <div class="var-bar" id="var-bar"></div>
+      <div class="card">
+        <h3>调用链 — 现在这行代码是谁在跑</h3>
+        <div class="call-chain" id="call-chain"></div>
+        <div class="chain-note">memo 是外层的 list，所有层共用同一份（只写名字不写值）；nums 从不改、只写名字；pos 按值传，每层各有一份；nextPos / i / distance 是每层自己的局部变量。</div>
+      </div>
+
+      <div class="card">
+        <h3>nums + memo — 从每一格到终点最少几跳</h3>
+        <svg class="arc-svg" id="arc-svg"></svg>
+        <div class="nums-row" id="nums-row"></div>
+        <div class="num-idx-row" id="nums-idx-row"></div>
+        <div class="num-flag-row" id="nums-flag-row"></div>
+        <div class="memo-label">memo</div>
+        <div class="memo-row" id="memo-row"></div>
+        <div class="memo-val" id="memo-val"></div>
+      </div>
+
+      <div class="card">
+        <h3>递归树 — 每个节点是一次 helper(pos) 调用</h3>
+        <svg id="tree-svg"></svg>
+        <div class="tree-note" id="tree-note"></div>
+      </div>
+    </div>
+  </div>
+</div><!-- /.main -->
+</div><!-- /.content-wrapper -->
+
+<script>
+// ── 例子：LeetCode 45 官方 Example 1 / 2（可切换） ────────────────────────
+const EXAMPLES = {
+  ex1: { nums: [2, 3, 1, 1, 4] },
+  ex2: { nums: [2, 3, 0, 1, 4] },
+};
+let NUMS = EXAMPLES.ex1.nums.slice();
+const INF = Infinity;
+
+/* 行号表：正文从 1 开始，空行也占号（6/14/17/18 是空行，8 是注释）。
+   按 ANIMATION_GUIDE：每行可执行代码 ≥ 1 步，if/for 头每轮都停（True 和 False
+   都停），函数调用行走两遍（发起 + 返回），def 行进入时也停。 */
+const L = {
+  JUMP:     2,   // def jump(self, nums)   进入时一步
+  HELPER:   3,   // def helper(pos,nums)   jump 里"定义"时一步；每次进入 helper 也一步
+  IFMEMO:   4,   // if memo[pos] != float('INF'):   True / False 各停一次
+  RETMEMO:  5,   // return memo[pos]（命中）
+  NEXT:     7,   // nextPos = min(pos + nums[pos], len(nums)-1)
+  DIST:     9,   // distance = float('INF')
+  FOR:     10,   // for i in range(nextPos, pos, -1):   每轮 + 取空各一次
+  MIN:     11,   // distance = min(distance, 1 + helper(i,nums))   调用 + 返回各一次
+  SET:     12,   // memo[pos] = distance
+  RET:     13,   // return memo[pos]
+  MEMO:    15,   // memo = [float('INF')] * len(nums)
+  SEED:    16,   // memo[len(nums)-1] = 0
+  CALL:    19,   // helper(0,nums)   调用 + 返回各一次
+  RETURN:  20,   // return memo[0]
+};
+
+/* 色板按 pos 分：同一 pos 的所有调用（第一次真算的 + 后面命中 memo 的）同一种底色。 */
+const CALL_TINT = [
+  'rgba(126,158,221,0.24)',
+  'rgba(227,192,109,0.30)',
+  'rgba(180,131,216,0.26)',
+  'rgba(216,143,121,0.26)',
+  'rgba(117,209,163,0.26)',
+  'rgba(127,196,210,0.28)',
+  'rgba(209,166,117,0.30)',
+  'rgba(219,148,184,0.24)',
+];
+const OUTER_TINT = 'rgba(150,150,150,0.18)';   // 外层 jump()，不是 helper
+const tintOf = (pos) => pos == null ? OUTER_TINT : CALL_TINT[pos % CALL_TINT.length];
+
+const fmt = (a) => '[' + a.join(', ') + ']';
+const fmtV = (v) => v == null ? '-' : v === INF ? '∞' : String(v);
+const fmtMemo = (memo) => '[' + memo.map(fmtV).join(', ') + ']';
+
+// 递归树的节点：buildSteps() 跑算法时按调用顺序 push 进来，layoutTree() 再算坐标
+let NODES = [];
+
+// ── 真跑一遍 Lyon 的解法生成步骤 ──────────────────────────────────────────
+function buildSteps() {
+  const steps = [];
+  const n = NUMS.length;
+  let memo = null;        // Line 15 之前还不存在；之后全程只有一份，所有层共用
+  let stack = [];         // helper 调用栈：[{ id, pos, kind, nextPos, i, distance }]
+  let done = [];
+  let fn = null;
+  let ret = null;
+  let hot = null;         // 这一步被读 / 写的 memo 下标
+  let callCount = 0;
+  NODES = [];
+
+  function snap(line, info) {
+    const top = stack.length ? stack[stack.length - 1] : null;
+    steps.push({
+      line, info, fn, ret, hot,
+      memo: memo ? memo.slice() : null,
+      stack: stack.map(f => Object.assign({}, f)),
+      done: [...done],
+      pos: top ? top.pos : null,
+      nextPos: top ? top.nextPos : null,
+      i: top ? top.i : null,
+      distance: top ? top.distance : null,
+    });
+    hot = null;
+  }
+
+  snap(null, 'DFS + memo：helper(pos) = 从下标 pos 跳到终点最少几跳。每一层枚举能跳到的每个落点 i' +
+    '（从最远的 nextPos 往回试到 pos+1），答案 = 1 + helper(i) 里最小的那个，记进 memo[pos]。' +
+    'memo 用 ∞ 初始化，∞ 就代表"还没算过"。nums = ' + fmt(NUMS) + '，终点是下标 ' + (n - 1) + '。');
+
+  fn = 'jump';
+  snap(L.JUMP, 'Line 2: 进入 jump(nums=' + fmt(NUMS) + ') — 入口函数。');
+  snap(L.HELPER, 'Line 3: def helper(pos,nums) — 这里只是定义内层函数，还没调用；它是闭包，会用到下面才创建的 memo（调用时 memo 已经存在，没问题）。');
+  memo = new Array(n).fill(INF);
+  snap(L.MEMO, 'Line 15: memo = [∞] * ' + n + ' — 一个 list，memo[x] = 从 x 到终点最少几跳；∞ 兼作"还没算过"的标记。');
+  memo[n - 1] = 0; hot = n - 1;
+  snap(L.SEED, 'Line 16: memo[len(nums)-1] = memo[' + (n - 1) + '] = 0 — 已经站在终点，0 跳，递归的出口。');
+  snap(L.CALL, 'Line 19: 调用 helper(0, nums) — 从起点下标 0 开始问；返回值不接，答案之后从 memo[0] 拿。');
+
+  function helper(pos, parentId) {
+    const id = callCount++;
+    const kind = memo[pos] !== INF ? 'hit' : 'full';
+    const parent = parentId == null ? null : NODES[parentId];
+    const node = { id, pos, parent: parentId, kind, viaStep: parent ? pos - parent.pos : null, result: null,
+                   depth: parent ? parent.depth + 1 : 0, children: [] };
+    NODES.push(node);
+    if (parent) parent.children.push(node);
+    const frame = { id, pos, kind, nextPos: null, i: null, distance: null };
+    stack.push(frame);
+    fn = 'helper';
+    snap(L.HELPER, 'Line 3: 进入 helper(pos=' + pos + ', nums) — ' +
+      (kind === 'full' ? '站在下标 ' + pos + '（最多跳 ' + NUMS[pos] + ' 步），到终点最少几跳？' : '下标 ' + pos + ' 又被问到了。'));
+
+    if (memo[pos] !== INF) {
+      hot = pos;
+      snap(L.IFMEMO, 'Line 4: memo[' + pos + '] = ' + fmtV(memo[pos]) + ' != ∞ → True — 下标 ' + pos + ' 已有答案' +
+        (pos === n - 1 ? '（终点，一开始就填的 0）' : '（之前算过的）') + '，不用再展开。');
+      hot = pos;
+      snap(L.RETMEMO, 'Line 5: return memo[' + pos + '] = ' + fmtV(memo[pos]) + ' — 直接交回上一层。');
+      stack.pop(); done.push(id); node.result = memo[pos];
+      return memo[pos];
+    }
+    snap(L.IFMEMO, 'Line 4: memo[' + pos + '] = ∞ → 条件不成立 — 下标 ' + pos + ' 还没算过' +
+      (memoWasComputed(pos) ? '（其实上次算过、结果就是 ∞，但 ∞ 跟"没算过"分不开，只好重算一遍）' : '') + '，往下走。');
+
+    const raw = pos + NUMS[pos];
+    frame.nextPos = Math.min(raw, n - 1);
+    snap(L.NEXT, 'Line 7: nextPos = min(' + pos + ' + ' + NUMS[pos] + ', ' + (n - 1) + ') = min(' + raw + ', ' + (n - 1) + ') = ' + frame.nextPos +
+      ' — 最远能落到的下标' + (raw > n - 1 ? '，超出终点就截到终点' : '') + '。');
+    frame.distance = INF;
+    snap(L.DIST, 'Line 9: distance = ∞ — 先当作到不了，下面逐个落点取 min。');
+
+    const cands = [];
+    for (let i = frame.nextPos; i > pos; i--) cands.push(i);
+    for (const i of cands) {
+      frame.i = i;
+      snap(L.FOR, 'Line 10: for i in range(nextPos=' + frame.nextPos + ', pos=' + pos + ', -1) → i = ' + i +
+        ' — 从最远的落点往回试，这一跳落到下标 ' + i + '。');
+      snap(L.MIN, 'Line 11: distance = min(distance, 1 + helper(' + i + ')) — 先算 helper(' + i + ')：从 ' + i + ' 到终点最少几跳。');
+      const r = helper(i, id);
+      fn = 'helper';
+      const before = frame.distance;
+      frame.distance = Math.min(before, 1 + r);
+      snap(L.MIN, 'Line 11: helper(' + i + ') 返回 ' + fmtV(r) + ' → distance = min(' + fmtV(before) + ', 1 + ' + fmtV(r) + ') = ' + fmtV(frame.distance) +
+        (frame.distance < before ? ' — 跳到 ' + i + ' 更省。' : ' — 不比之前好，distance 不变。'));
+    }
+    frame.i = null;
+    if (!cands.length) {
+      snap(L.FOR, 'Line 10: range(' + frame.nextPos + ', ' + pos + ', -1) 是空的 — nums[' + pos + '] = 0，一步也跳不了，循环一次都不进，distance 留在 ∞。');
+    } else {
+      snap(L.FOR, 'Line 10: range(' + frame.nextPos + ', ' + pos + ', -1) 已经走完 — ' + cands.length + ' 个落点都比过了，最少 ' + fmtV(frame.distance) + ' 跳。');
+    }
+    memo[pos] = frame.distance; hot = pos;
+    computed.add(pos);
+    snap(L.SET, 'Line 12: memo[' + pos + '] = distance = ' + fmtV(frame.distance) +
+      (frame.distance === INF ? ' — 记的是 ∞，跟初始值一样：等于没记，下次再问 ' + pos + ' 会重算（这是 Lyon 这版的小坑）。' : ' — 记下结论。'));
+    hot = pos;
+    snap(L.RET, 'Line 13: return memo[' + pos + '] = ' + fmtV(frame.distance) + ' — 交回上一层。');
+    stack.pop(); done.push(id); node.result = frame.distance;
+    return frame.distance;
+  }
+  const computed = new Set();
+  function memoWasComputed(pos) { return computed.has(pos); }
+
+  helper(0, null);
+  fn = 'jump';
+  const nFull = NODES.filter(x => x.kind === 'full').length;
+  const nHit = NODES.filter(x => x.kind === 'hit').length;
+  snap(L.CALL, 'Line 19: helper(0) 返回 ' + fmtV(memo[0]) + '（返回值没接，答案已经写在 memo[0] 里） — 整棵递归树走完：' +
+    NODES.length + ' 次调用里 ' + nFull + ' 次真算，' + nHit + ' 次命中 memo。');
+  ret = memo[0]; hot = 0;
+  snap(L.RETURN, 'Line 20: return memo[0] = ' + fmtV(memo[0]) + '。');
+  fn = null;
+  snap(null, '✅ jump 返回 ' + fmtV(memo[0]) + '，最终答案 = ' + fmtV(memo[0]) + '（0 → 1 → ' + (n - 1) + '，两跳）。' +
+    '每个下标正常只真算一次，复杂度 O(n × max(nums))；' +
+    (NODES.some(x => x.kind === 'full' && x.result === INF) ? '但到不了终点的下标记成 ∞ 跟"没算过"分不开，会被重算——题目保证终点可达，所以答案不受影响。' :
+      '这个例子里没有到不了终点的下标，memo 全程都有效。'));
+  return steps;
+}
+
+let STEPS = buildSteps();
+let cur = -1;
+
+// ── 递归树坐标：叶子按调用顺序从左到右排格子，内部节点取首尾孩子中点，y 按深度 ──
+const SLOT = 56, X0 = 30, Y0 = 22, DY = 50;
+const NODE_W = 38, NODE_H = 24;
+function layoutTree() {
+  let slot = 0;
+  let maxDepth = 0;
+  function place(nd) {
+    nd.children.forEach(place);
+    if (!nd.children.length) nd.x = X0 + (slot++) * SLOT;
+    else nd.x = (nd.children[0].x + nd.children[nd.children.length - 1].x) / 2;
+    nd.y = Y0 + nd.depth * DY;
+    if (nd.depth > maxDepth) maxDepth = nd.depth;
+  }
+  place(NODES[0]);
+  const w = Math.max(X0 * 2 + (slot - 1) * SLOT, 200);
+  const h = Y0 * 2 + maxDepth * DY;
+  const svg = document.getElementById('tree-svg');
+  svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+  svg.style.width = w + 'px';
+  svg.style.height = h + 'px';
+}
+layoutTree();
+
+// ── 渲染（只读快照，无副作用；Prev / Reset / lockStableSizes 干跑都靠这点）──
+const CELL = 52, GAP = 8, ARC_H = 46;
+const cellX = (k) => k * (CELL + GAP) + CELL / 2;
+
+function renderNums(s) {
+  const n = NUMS.length;
+  const top = s.stack.length ? s.stack[s.stack.length - 1] : null;
+  const onStack = {};
+  s.stack.forEach(f => { onStack[f.pos] = true; });
+  const reach = (top && top.nextPos != null) ? { from: top.pos + 1, to: top.nextPos } : null;
+  document.getElementById('nums-row').innerHTML = NUMS.map((v, k) => {
+    const cls = ['num-cell'];
+    let style = '';
+    if (onStack[k]) style = ' style="background:' + tintOf(k) + '"';
+    if (reach && k >= reach.from && k <= reach.to) cls.push('reach');
+    if (top && top.pos === k) cls.push('cur');
+    return '<div class="' + cls.join(' ') + '"' + style + '>' + v + '</div>';
+  }).join('');
+  document.getElementById('nums-idx-row').innerHTML = NUMS.map((v, k) => '<div class="num-idx">' + k + '</div>').join('');
+  document.getElementById('nums-flag-row').innerHTML = NUMS.map((v, k) =>
+    '<div class="num-flag">' + (k === n - 1 ? '🏁' : k === 0 ? '▲' : '') + '</div>').join('');
+
+  document.getElementById('memo-row').innerHTML = NUMS.map((v, k) => {
+    const cls = ['memo-cell'];
+    let text = '·';
+    if (s.memo) {
+      text = fmtV(s.memo[k]);
+      cls.push(s.memo[k] === INF ? 'm-inf' : 'm-done');
+    }
+    if (s.hot === k) cls.push('m-hot');
+    return '<div class="' + cls.join(' ') + '">' + text + '</div>';
+  }).join('');
+
+  // 调用栈上每一层正在试的那一跳画成弧线：pos → i
+  const w = n * (CELL + GAP) - GAP;
+  const parts = [];
+  s.stack.forEach(f => {
+    if (f.i == null) return;
+    const x1 = cellX(f.pos), x2 = cellX(f.i);
+    const step = f.i - f.pos;
+    const mid = (x1 + x2) / 2, lift = Math.min(ARC_H - 8, 14 + step * 9);
+    parts.push('<path class="arc" d="M' + x1 + ' ' + ARC_H + ' Q' + mid + ' ' + (ARC_H - lift * 2) + ' ' + x2 + ' ' + ARC_H + '"/>');
+    parts.push('<circle cx="' + x2 + '" cy="' + ARC_H + '" r="3" fill="#3A6FD4"/>');
+    parts.push('<text class="arc-tag" x="' + mid + '" y="' + (ARC_H - lift - 3) + '" text-anchor="middle">+' + step + '</text>');
+  });
+  const svg = document.getElementById('arc-svg');
+  svg.setAttribute('viewBox', '0 0 ' + w + ' ' + ARC_H);
+  svg.style.width = w + 'px';
+  svg.style.height = ARC_H + 'px';
+  svg.innerHTML = parts.join('');
+
+  document.getElementById('memo-val').innerHTML =
+    '<span class="var-name">memo</span><span class="var-eq"> = </span>' +
+    '<span class="var-val">' + (s.memo ? fmtMemo(s.memo) : '—') + '</span>';
+}
+
+const stackIds = (s) => s.stack.map(f => f.id);
+
+function nodeState(s, id) {
+  if (s.done.indexOf(id) >= 0) return 'n-done';
+  const at = stackIds(s).indexOf(id);
+  if (at >= 0) return at === s.stack.length - 1 ? 'n-current' : 'n-stack';
+  return '';
+}
+
+function renderTree(s) {
+  const parts = [];
+  const ids = stackIds(s);
+  NODES.forEach(nd => {
+    if (nd.parent == null) return;
+    const p = NODES[nd.parent];
+    const onPath = ids.indexOf(nd.id) >= 0 && ids.indexOf(nd.parent) >= 0;
+    const x1 = p.x, y1 = p.y + NODE_H / 2, x2 = nd.x, y2 = nd.y - NODE_H / 2;
+    parts.push('<line class="edge' + (onPath ? ' on-path' : '') + '" x1="' + x1 + '" y1="' + y1 +
+      '" x2="' + x2 + '" y2="' + y2 + '"/>');
+    parts.push('<text class="edge-tag' + (onPath ? ' on-path' : '') + '" x="' + ((x1 + x2) / 2 + 5) +
+      '" y="' + ((y1 + y2) / 2 + 3) + '">+' + nd.viaStep + '</text>');
+  });
+  NODES.forEach(nd => {
+    const st = nodeState(s, nd.id);
+    const onStack = st === 'n-current' || st === 'n-stack';
+    const cls = ['node-box', st];
+    if (nd.kind === 'hit') cls.push('n-hit');
+    if (st === 'n-done' && nd.result === INF) cls.push('r-inf');
+    const fill = onStack ? ' style="fill:' + tintOf(nd.pos) + '"' : '';
+    parts.push('<g>' +
+      '<rect class="' + cls.join(' ') + '"' + fill + ' x="' + (nd.x - NODE_W / 2) + '" y="' + (nd.y - NODE_H / 2) +
+        '" width="' + NODE_W + '" height="' + NODE_H + '" rx="6"/>' +
+      '<text class="node-text' + (st ? '' : ' dim') + '" x="' + nd.x + '" y="' + (nd.y + 4) +
+        '" text-anchor="middle">' + nd.pos + '</text>' +
+      (st === 'n-done' ? '<text class="node-sub" x="' + (nd.x + NODE_W / 2 + 3) + '" y="' + (nd.y + 4) + '">=' + fmtV(nd.result) + '</text>' : '') +
+      '</g>');
+  });
+  document.getElementById('tree-svg').innerHTML = parts.join('');
+  document.getElementById('tree-note').textContent =
+    '节点里写的是 pos，边上的 +k 是这一跳跳了几步（从最远往回试），节点右边的 =v 是这次调用返回的最少跳数。' +
+    '虚线框的节点命中 memo，下面不再长子树；红色 = 返回 ∞（到不了终点）。';
+}
+
+function renderVars(s) {
+  const row = (name, val, note) => '<span class="var-row"><span class="var-name">' + name +
+    '</span><span class="var-eq"> = </span><span class="var-val">' + val + '</span>' +
+    (note ? '<span class="fn-note">' + note + '</span>' : '') + '</span>';
+  const d = (v) => v == null ? '-' : v;
+  document.getElementById('var-bar').innerHTML =
+    '<span class="var-row"><span class="fn-tag">' + (s.fn ? s.fn + '()' : '—') +
+      '</span><span class="fn-note">当前所在函数</span></span>' +
+    row('nums', fmt(NUMS)) +
+    row('len(nums)', NUMS.length) +
+    row('pos', d(s.pos), '当前这一层站的下标') +
+    row('nums[pos]', s.pos == null ? '-' : NUMS[s.pos], '最多能跳几步') +
+    row('nextPos', d(s.nextPos), '最远能落到的下标') +
+    row('i', d(s.i), 'for 循环局部变量：这一跳的落点') +
+    row('distance', fmtV(s.distance), 'helper 局部变量') +
+    row('memo[pos]', s.pos == null || !s.memo ? '-' : fmtV(s.memo[s.pos]));
+}
+
+/* 调用链卡片：从最外层往里一层一层列，缩进 = 递归深度。memo / nums 全程是同一份
+   对象，按 CH4 规范只写名字不写值；pos 按值传、每层各一份，写具体数值；
+   nextPos / i / distance 是每层自己的局部变量，另外用 chain-i 标出来。 */
+function renderChain(s) {
+  const host = document.getElementById('call-chain');
+  if (!s.fn) {
+    host.innerHTML = '<span class="chain-empty">还没开始 / 已经全部返回</span>';
+    return;
+  }
+  const val = (v) => '<span class="var-val">' + v + '</span>';
+  const rows = [];
+  rows.push({ pos: null, depth: 0, top: !s.stack.length, text: 'jump(nums)', local: null, tag: null });
+  s.stack.forEach((f, k) => {
+    const locals = [];
+    if (f.nextPos != null) locals.push('nextPos = ' + f.nextPos);
+    if (f.i != null) locals.push('i = ' + f.i);
+    if (f.distance != null) locals.push('distance = ' + fmtV(f.distance));
+    rows.push({
+      pos: f.pos, depth: k + 1, top: k === s.stack.length - 1,
+      text: 'helper(pos=' + val(f.pos) + ', nums)',
+      local: locals.length ? locals.join(', ') : null,
+      tag: f.kind === 'hit' ? '命中 memo' : null,
+    });
+  });
+  host.innerHTML = rows.map(r =>
+    '<div class="chain-row' + (r.top ? ' top' : '') + '"' +
+      ' style="background:' + tintOf(r.pos) + ';margin-left:' + (r.depth * 18) + 'px">' +
+      '<span>' + r.text + '</span>' +
+      (r.local ? '<span class="chain-i">' + r.local + '</span>' : '') +
+      (r.tag ? '<span class="chain-dim">→ ' + r.tag + '</span>' : '') +
+    '</div>').join('');
+}
+
+function tintLine(s) {
+  document.querySelectorAll('.code-line').forEach(el => { el.style.background = ''; });
+  if (s.line == null || !s.fn) return;
+  const el = document.querySelector('.code-line[data-l="' + s.line + '"]');
+  if (!el) return;
+  const top = s.stack.length ? s.stack[s.stack.length - 1] : null;
+  el.style.background = tintOf(top ? top.pos : null);
+}
+
+const EMPTY = { line: null, info: null, fn: null, ret: null, hot: null, memo: null,
+                stack: [], done: [], pos: null, nextPos: null, i: null, distance: null };
+
+function renderAll() {
+  const step = cur >= 0 ? STEPS[cur] : null;
+  const s = step || EMPTY;
+
+  renderChain(s);
+  renderNums(s);
+  renderTree(s);
+  renderVars(s);
+  highlightLine(s.line);
+  tintLine(s);
+  renderCtrl(cur, STEPS.length, step ? step.info :
+    '点 Next 开始：nums = ' + fmt(NUMS) + '，从下标 0 出发，每格的数是最多能跳的步数，求跳到最后一格最少几跳。');
+}
+
+function loadExample(id) {
+  const ex = EXAMPLES[id];
+  if (!ex) return;
+  stopAuto();
+  NUMS = ex.nums.slice();
+  STEPS = buildSteps();
+  layoutTree();
+  cur = -1;
+  render();
+  lockStableSizes();
+  Object.keys(EXAMPLES).forEach(key => {
+    const btn = document.getElementById('ex-' + key);
+    if (btn) btn.classList.toggle('auto-active', key === id);
+  });
+}
+
+var render = renderAll;
+loadExample('ex1');
+</script>
+</body>
+</html>

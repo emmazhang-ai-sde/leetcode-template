@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>257. Binary Tree Paths</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  svg { display: block; width: 100%; max-height: 240px; }
+
+  /* Call stack (recursion frames) */
+  .frame-stack-container { display: flex; flex-direction: column-reverse; align-items: center; gap: 4px; min-height: 156px; justify-content: flex-start; padding: 8px 0; }
+  .frame-cell { min-width: 96px; height: 32px; padding: 0 12px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-family: 'SF Mono', monospace; font-size: 12px; font-weight: 700; background: rgba(139,133,212,0.22); color: #1a1a1a; transition: all 0.2s; white-space: nowrap; }
+  .frame-cell.top { background: rgba(249,203,66,0.5); }
+  .frame-cell.none-frame { color: #999; font-weight: 600; background: #f0f0f0; }
+  .frame-cell.resolved { background: rgba(93,202,165,0.45); }
+  .frame-stack-base { width: 108px; height: 3px; background: #ccc; border-radius: 2px; margin-top: 4px; }
+  .stack-empty { font-size: 12px; color: #aaa; font-family: 'SF Mono', monospace; }
+
+  /* Result path pills */
+  .res-row { display: flex; flex-direction: column; gap: 6px; }
+  .res-cell { min-width: 76px; height: 34px; padding: 0 12px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 13.5px; font-weight: 700; font-family: 'SF Mono', monospace; background: #f5f5f5; color: #bbb; transition: background 0.2s, color 0.2s, transform 0.15s; white-space: nowrap; }
+  .res-cell.filled { background: rgba(93,202,165,0.3); color: #1a1a1a; }
+  .res-cell.newest { background: rgba(93,202,165,0.55); transform: scale(1.05); }
+
+  .stack-result-row { display: flex; gap: 16px; align-items: stretch; }
+  .stack-result-row .card { display: flex; flex-direction: column; align-items: center; }
+  .stack-result-row .card:last-child { align-items: flex-start; justify-content: flex-start; }
+
+  /* Inline variable readouts, anchored under the block they describe */
+  .node-vars { margin-top: 8px; display: flex; flex-direction: column; align-items: center; gap: 3px; font-family: 'SF Mono', 'Menlo', monospace; font-size: 12.5px; }
+  .depth-var-row { margin-top: 8px; text-align: center; font-family: 'SF Mono', 'Menlo', monospace; font-size: 13px; }
+  .res-label { margin: 12px 0 0; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '257. Binary Tree Paths',
+  link: 'https://leetcode.com/problems/binary-tree-paths/',
+  examples: [
+    { id: 'ex1', label: 'Example 1: [1,2,3,null,5]' },
+    { id: 'ex2', label: 'Example 2: balanced, 3 levels' },
+  ],
+  examplesLabel: 'Example:',
+  legend: [
+    { color: 'rgba(249,203,66,0.55)', label: '栈顶 — dfs(node) 正在执行' },
+    { color: 'rgba(93,202,165,0.4)', label: '子树已解决 — 路径已返回' },
+    { color: '#f5f5f5', extra: 'border:1px solid #ccc;', label: '尚未访问' },
+    { color: '#3A6FD4', extra: 'border-radius:2px;width:14px;height:3px;', label: '正在下探的边' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+  <script>
+  renderCodeBox({
+    prereq: `
+# Definition for a binary tree node.
+# class TreeNode:
+#     def __init__(self, val=0, left=None, right=None):
+#         self.val = val
+#         self.left = left
+#         self.right = right`,
+    code: `
+class Solution:
+    def binaryTreePaths(self, root: Optional[TreeNode]) -> List[str]:
+        return self.dfs(root)
+
+    def dfs(self, root) -> List[str]:
+        if not root:  # tree is empty
+            return []
+
+        if root.left is None and root.right is None:
+            return [str(root.val)]
+
+        left_return = self.dfs(root.left)
+        right_return = self.dfs(root.right)
+
+        path = []
+        for left in left_return:
+            path.append(str(root.val) + "->" + left)
+        for right in right_return:
+            path.append(str(root.val) + "->" + right)
+
+        return path`,
+  });
+  </script>
+
+  <div class="viz-panel">
+    <div class="card">
+      <h3>Binary Tree</h3>
+      <svg id="tree-svg" viewBox="0 0 360 240"></svg>
+      <div class="node-vars" id="node-vars"></div>
+    </div>
+
+    <div class="stack-result-row">
+      <div class="card">
+        <h3>Call Stack（递归栈）</h3>
+        <div class="frame-stack-container" id="frame-stack">
+          <span class="stack-empty">尚未调用 dfs()</span>
+        </div>
+        <div class="frame-stack-base"></div>
+        <div style="font-size:11px;color:#aaa;margin-top:4px;">bottom</div>
+        <div class="depth-var-row" id="depth-var"></div>
+      </div>
+
+      <div class="card">
+        <div class="res-row" id="answer-row"></div>
+        <h3 class="res-label">res = binaryTreePaths(root)</h3>
+      </div>
+    </div>
+  </div>
+</div><!-- /.main -->
+</div><!-- /.content-wrapper -->
+
+<script>
+// ── Tree definitions ───────────────────────────────────────────────────────
+// ex1 (LeetCode example: [1,2,3,null,5]):
+//        1
+//       / \
+//      2   3
+//       \
+//        5
+// ex2 (balanced, 3 levels — every internal node has both children):
+//          1
+//        /   \
+//       2     3
+//      / \   / \
+//     4   5 6   7
+const EXAMPLES = {
+  ex1: {
+    root: 1,
+    tree: {
+      1: { left: 2, right: 3 },
+      2: { left: null, right: 5 },
+      3: { left: null, right: null },
+      5: { left: null, right: null },
+    },
+    pos: {
+      1: { x: 180, y: 36 },
+      2: { x: 100, y: 110 },
+      3: { x: 260, y: 110 },
+      5: { x: 140, y: 184 },
+    },
+    edges: [[1,2],[1,3],[2,5]],
+    nodeIds: [1, 2, 3, 5],
+    resLen: 2,
+  },
+  ex2: {
+    root: 1,
+    tree: {
+      1: { left: 2, right: 3 },
+      2: { left: 4, right: 5 },
+      3: { left: 6, right: 7 },
+      4: { left: null, right: null },
+      5: { left: null, right: null },
+      6: { left: null, right: null },
+      7: { left: null, right: null },
+    },
+    pos: {
+      1: { x: 180, y: 36 },
+      2: { x: 100, y: 110 }, 3: { x: 260, y: 110 },
+      4: { x: 55,  y: 184 }, 5: { x: 145, y: 184 },
+      6: { x: 215, y: 184 }, 7: { x: 305, y: 184 },
+    },
+    edges: [[1,2],[1,3],[2,4],[2,5],[3,6],[3,7]],
+    nodeIds: [1, 2, 3, 4, 5, 6, 7],
+    resLen: 4,
+  },
+};
+let ROOT, TREE, POS, EDGES, NODE_IDS, RES_LEN;
+
+// data-l line numbers (prereq occupies 1-6, main code continues from 7)
+const L = { CALL_MAIN: 9, CHECK_NONE: 12, RET_EMPTY: 13, CHECK_LEAF: 15, RET_LEAF: 16, LEFT_CALL: 18, RIGHT_CALL: 19, PATH_INIT: 21, LOOP_L_HEAD: 22, LOOP_L_APP: 23, LOOP_R_HEAD: 24, LOOP_R_APP: 25, RET_PATH: 27 };
+
+function fmt(arr) {
+  if (arr === null) return '·';
+  if (!arr.length) return '[]';
+  return '[' + arr.map(s => '"' + s + '"').join(', ') + ']';
+}
+
+// ── Build steps by simulating the divide-and-conquer recursion ───────────
+function buildSteps() {
+  const steps = [];
+  let stack = [];    // frames: { node, leftRet, rightRet, path, result }
+  let resolved = {}; // nodeVal -> returned paths array, once its call returned
+  let activeEdge = null;
+
+  const cloneStack = () => stack.map(f => ({
+    ...f,
+    leftRet: f.leftRet && [...f.leftRet],
+    rightRet: f.rightRet && [...f.rightRet],
+    path: f.path && [...f.path],
+    result: f.result && [...f.result],
+  }));
+  const cloneResolved = () => { const o = {}; for (const k in resolved) o[k] = [...resolved[k]]; return o; };
+  function snap(line, info) { steps.push({ line, info, stack: cloneStack(), resolved: cloneResolved(), activeEdge }); }
+
+  snap(null, `点击 Next 开始：调用 binaryTreePaths(root)，root 指向节点 ${ROOT}。`);
+  snap(L.CALL_MAIN, `Line 9: return self.dfs(root) → 调用 dfs(${ROOT})。`);
+
+  function dfs(nodeVal) {
+    const frame = { node: nodeVal, leftRet: null, rightRet: null, path: null, result: null };
+    stack.push(frame);
+
+    if (nodeVal === null) {
+      snap(L.CHECK_NONE, '进入 dfs(None)。Line 12: not root → True。');
+      frame.result = [];
+      snap(L.RET_EMPTY, 'Line 13: return [] — 空子树贡献不了任何路径。');
+      stack.pop();
+      return [];
+    }
+
+    activeEdge = null;
+    snap(L.CHECK_NONE, `进入 dfs(${nodeVal})。Line 12: root=${nodeVal} 存在 → 条件 False，继续执行。`);
+
+    const { left, right } = TREE[nodeVal];
+
+    if (left === null && right === null) {
+      snap(L.CHECK_LEAF, `Line 15: 节点 ${nodeVal} 左右子节点都是 None → 是叶子！`);
+      const r = [String(nodeVal)];
+      frame.result = r;
+      resolved[nodeVal] = r;
+      snap(L.RET_LEAF, `Line 16: return ["${nodeVal}"] — 叶子的路径就是它自己。`);
+      stack.pop();
+      return r;
+    }
+    snap(L.CHECK_LEAF, `Line 15: 节点 ${nodeVal} 有子节点 → 不是叶子，继续分治。`);
+
+    activeEdge = left != null ? [nodeVal, left] : null;
+    snap(L.LEFT_CALL, `Line 18: left_return = self.dfs(root.left) → ${left != null ? `调用 dfs(${left})` : '左子节点为 None，调用 dfs(None)'}`);
+    const leftRet = dfs(left);
+    activeEdge = null;
+    frame.leftRet = leftRet;
+    snap(L.LEFT_CALL, `递归返回 → left_return = ${fmt(leftRet)}`);
+
+    activeEdge = right != null ? [nodeVal, right] : null;
+    snap(L.RIGHT_CALL, `Line 19: right_return = self.dfs(root.right) → ${right != null ? `调用 dfs(${right})` : '右子节点为 None，调用 dfs(None)'}`);
+    const rightRet = dfs(right);
+    activeEdge = null;
+    frame.rightRet = rightRet;
+    snap(L.RIGHT_CALL, `递归返回 → right_return = ${fmt(rightRet)}`);
+
+    frame.path = [];
+    snap(L.PATH_INIT, 'Line 21: path = [] — 准备拼接本节点开头的所有路径。');
+
+    if (leftRet.length === 0) {
+      snap(L.LOOP_L_HEAD, `Line 22: left_return = [] 为空 → 循环体一次都不执行。`);
+    } else {
+      snap(L.LOOP_L_HEAD, `Line 22: 遍历 left_return = ${fmt(leftRet)}`);
+      for (const l of leftRet) {
+        frame.path.push(nodeVal + '->' + l);
+        snap(L.LOOP_L_APP, `Line 23: path.append("${nodeVal}" + "->" + "${l}") → path = ${fmt(frame.path)}`);
+      }
+    }
+    if (rightRet.length === 0) {
+      snap(L.LOOP_R_HEAD, `Line 24: right_return = [] 为空 → 循环体一次都不执行。`);
+    } else {
+      snap(L.LOOP_R_HEAD, `Line 24: 遍历 right_return = ${fmt(rightRet)}`);
+      for (const r of rightRet) {
+        frame.path.push(nodeVal + '->' + r);
+        snap(L.LOOP_R_APP, `Line 25: path.append("${nodeVal}" + "->" + "${r}") → path = ${fmt(frame.path)}`);
+      }
+    }
+
+    frame.result = [...frame.path];
+    resolved[nodeVal] = frame.result;
+    snap(L.RET_PATH, `Line 27: return path = ${fmt(frame.result)} — 节点 ${nodeVal} 的子树解决完毕。`);
+    stack.pop();
+    return frame.result;
+  }
+
+  const answer = dfs(ROOT);
+  snap(null, `✅ binaryTreePaths 返回 ${fmt(answer)}，共 ${answer.length} 条根到叶路径。`);
+
+  return steps;
+}
+
+let STEPS = [];
+let cur = -1;
+
+// ── Rendering ─────────────────────────────────────────────────────────────
+function renderTree(step) {
+  const svg = document.getElementById('tree-svg');
+  svg.innerHTML = '';
+  function mkEl(tag) { return document.createElementNS('http://www.w3.org/2000/svg', tag); }
+
+  for (const [a, b] of EDGES) {
+    const pa = POS[a], pb = POS[b];
+    const isActive = step.activeEdge && step.activeEdge[0] === a && step.activeEdge[1] === b;
+    const line = mkEl('line');
+    line.setAttribute('x1', pa.x); line.setAttribute('y1', pa.y);
+    line.setAttribute('x2', pb.x); line.setAttribute('y2', pb.y);
+    line.setAttribute('stroke', isActive ? '#3A6FD4' : '#c8c6be');
+    line.setAttribute('stroke-width', isActive ? '3' : '1.5');
+    svg.appendChild(line);
+  }
+
+  const top = step.stack.length ? step.stack[step.stack.length - 1] : null;
+  const activeNode = top && top.node !== null ? top.node : null;
+
+  for (const id of NODE_IDS) {
+    const p = POS[id];
+    const isDone = step.resolved[id] !== undefined;
+    let fill = '#f5f5f5', stroke = '#c9c9c9', strokeW = 1.5;
+    if (id === activeNode) { fill = 'rgba(249,203,66,0.55)'; stroke = '#d4a800'; strokeW = 2.5; }
+    else if (isDone) { fill = 'rgba(93,202,165,0.4)'; stroke = '#1D9E75'; strokeW = 1.5; }
+
+    const g = mkEl('g');
+    const circle = mkEl('circle');
+    circle.setAttribute('cx', p.x); circle.setAttribute('cy', p.y); circle.setAttribute('r', 22);
+    circle.setAttribute('fill', fill); circle.setAttribute('stroke', stroke); circle.setAttribute('stroke-width', strokeW);
+    g.appendChild(circle);
+
+    const text = mkEl('text');
+    text.setAttribute('x', p.x); text.setAttribute('y', p.y);
+    text.setAttribute('text-anchor', 'middle'); text.setAttribute('dominant-baseline', 'central');
+    text.setAttribute('font-size', '14'); text.setAttribute('font-weight', '700'); text.setAttribute('fill', '#1a1a1a');
+    text.setAttribute('font-family', 'SF Mono, Menlo, monospace');
+    text.textContent = id;
+    g.appendChild(text);
+
+    if (isDone) {
+      const badge = mkEl('text');
+      badge.setAttribute('x', p.x); badge.setAttribute('y', p.y + 34);
+      badge.setAttribute('text-anchor', 'middle'); badge.setAttribute('font-size', '10');
+      badge.setAttribute('font-weight', '700'); badge.setAttribute('fill', '#1D9E75');
+      badge.setAttribute('font-family', 'SF Mono, monospace');
+      badge.textContent = '[' + step.resolved[id].map(s => '"' + s + '"').join(',') + ']';
+      g.appendChild(badge);
+    }
+
+    svg.appendChild(g);
+  }
+}
+
+function renderCallStack(stack) {
+  const el = document.getElementById('frame-stack');
+  if (!stack.length) {
+    el.innerHTML = '<span class="stack-empty">尚未调用 dfs()</span>';
+    return;
+  }
+  el.innerHTML = stack.map((f, i) => {
+    const isTop = i === stack.length - 1;
+    const isNone = f.node === null;
+    const label = isNone ? 'dfs(None)' : `dfs(${f.node})`;
+    const resolvedFrame = f.result !== null;
+    const suffix = resolvedFrame ? ' = [' + f.result.map(s => '"' + s + '"').join(',') + ']' : '';
+    return `<div class="frame-cell${isTop ? ' top' : ''}${isNone ? ' none-frame' : ''}${resolvedFrame ? ' resolved' : ''}">${label}${suffix}</div>`;
+  }).join('');
+}
+
+function renderAnswerRow(step) {
+  const answer = step.resolved[ROOT];
+  document.getElementById('answer-row').innerHTML = Array.from({ length: RES_LEN }).map((_, i) => {
+    const filled = answer !== undefined;
+    return `<div class="res-cell${filled ? ' filled newest' : ''}">${filled ? '"' + answer[i] + '"' : '?'}</div>`;
+  }).join('');
+}
+
+function renderNodeVars(step) {
+  const top = step.stack.length ? step.stack[step.stack.length - 1] : null;
+  const rootDisplay = !top ? '—' : (top.node === null ? 'None' : top.node);
+  document.getElementById('node-vars').innerHTML =
+    `<div><span class="var-name">root</span><span class="var-eq"> = </span><span class="var-val">${rootDisplay}</span></div>` +
+    `<div><span class="var-name">left_return</span><span class="var-eq"> = </span><span class="var-val">${fmt(top ? top.leftRet : null)}</span></div>` +
+    `<div><span class="var-name">right_return</span><span class="var-eq"> = </span><span class="var-val">${fmt(top ? top.rightRet : null)}</span></div>` +
+    `<div><span class="var-name">path</span><span class="var-eq"> = </span><span class="var-val">${fmt(top ? top.path : null)}</span></div>`;
+}
+
+function renderDepthVar(step) {
+  document.getElementById('depth-var').innerHTML =
+    `<span class="var-name">stack depth</span><span class="var-eq"> = </span><span class="var-val">${step.stack.length}</span>`;
+}
+
+function renderAll() {
+  const step = cur >= 0 ? STEPS[cur] : null;
+  const empty = { stack: [], resolved: {}, activeEdge: null };
+
+  if (!step) {
+    renderTree(empty);
+    renderCallStack([]);
+    renderAnswerRow(empty);
+    renderNodeVars(empty);
+    renderDepthVar(empty);
+    renderCtrl(-1, STEPS.length, '');
+    highlightLine(null);
+    return;
+  }
+
+  renderTree(step);
+  renderCallStack(step.stack);
+  renderAnswerRow(step);
+  renderNodeVars(step);
+  renderDepthVar(step);
+  highlightLine(step.line);
+  renderCtrl(cur, STEPS.length, step.info);
+}
+
+var render = renderAll;
+
+// ── Example switcher ─────────────────────────────────────────────────────
+function loadExample(id) {
+  const ex = EXAMPLES[id];
+  if (!ex) return;
+  stopAuto();
+  ROOT = ex.root;
+  TREE = ex.tree;
+  POS = ex.pos;
+  EDGES = ex.edges;
+  NODE_IDS = ex.nodeIds;
+  RES_LEN = ex.resLen;
+  STEPS = buildSteps();
+  cur = -1;
+  render();
+  lockStableSizes(); // re-pin block heights for the new example's steps
+  Object.keys(EXAMPLES).forEach(k => {
+    const btn = document.getElementById('ex-' + k);
+    if (btn) btn.classList.toggle('auto-active', k === id);
+  });
+}
+
+loadExample('ex1');
+</script>
+</body>
+</html>

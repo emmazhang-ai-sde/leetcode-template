@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chapter 5: Graph · 课件</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/ch01-notes.css">
+<link rel="stylesheet" href="../../assets/notes-shared.css">
+<script src="../../assets/repo-corner.js" defer></script>
+</head>
+<body>
+<div class="notes-standalone-wrap notes-courseware-page">
+  <div class="chapter-notes-panel" id="chapter5NotesPanel">
+    <h2 class="prob-title notes-main-title" id="notesMainTitleCh5">Chapter 5 - 课件</h2>
+    <div class="notes-main-scroll">
+
+      <div class="notes-section" id="chapter5-courseware">
+        <div class="notes-concept-block">
+          <p>图的问题:</p>
+          <p>1.如何构建图 邻接表</p>
+          <p>2.如何遍历图</p>
+          <p>BFS + DFS</p>
+        </div>
+      </div>
+
+      <br>
+
+      <div class="notes-section">
+        <div class="notes-section-title">Recommended Practice Order</div>
+        <table class="order-table" aria-label="Recommended practice order for Chapter 5 graph problems">
+          <thead>
+            <tr>
+              <th>Order</th>
+              <th>Problem</th>
+              <th>Key Idea</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>1</td>
+              <td><a href="https://leetcode.com/problems/number-of-provinces/" target="_blank" rel="noopener noreferrer">547. Number of Provinces</a></td>
+              <td>Build graph + BFS/DFS to count connected components - foundational template</td>
+            </tr>
+            <tr>
+              <td>2</td>
+              <td><a href="https://leetcode.com/problems/graph-valid-tree/" target="_blank" rel="noopener noreferrer">261. Graph Valid Tree</a></td>
+              <td>Add two conditions on top of 547: no cycle + fully connected; introduces <code>parent</code> parameter trick</td>
+            </tr>
+            <tr>
+              <td>3</td>
+              <td><a href="https://leetcode.com/problems/number-of-connected-components-in-an-undirected-graph/" target="_blank" rel="noopener noreferrer">323. Number of Connected Components</a></td>
+              <td>Redo connectivity with Union Find; compare against BFS/DFS approach</td>
+            </tr>
+            <tr>
+              <td>4</td>
+              <td><a href="https://leetcode.com/problems/clone-graph/" target="_blank" rel="noopener noreferrer">133. Clone Graph</a></td>
+              <td>Pure DFS traversal + copy; practice node to visited map pattern</td>
+            </tr>
+            <tr>
+              <td>5</td>
+              <td><a href="https://leetcode.com/problems/all-paths-from-source-to-target/" target="_blank" rel="noopener noreferrer">797. All Paths From Source to Target</a></td>
+              <td>DFS backtracking on a DAG; reuses append/recurse/pop template from Ch04</td>
+            </tr>
+            <tr>
+              <td>6</td>
+              <td><a href="https://leetcode.com/problems/all-nodes-distance-k-in-binary-tree/" target="_blank" rel="noopener noreferrer">863. All Nodes Distance K in Binary Tree</a></td>
+              <td>Rebuild binary tree as undirected graph first, then BFS - good build-before-traverse exercise</td>
+            </tr>
+            <tr>
+              <td>7</td>
+              <td><a href="https://leetcode.com/problems/word-ladder/" target="_blank" rel="noopener noreferrer">127. Word Ladder</a></td>
+              <td>Implicit graph (build edges between words), BFS for shortest path - significant difficulty jump</td>
+            </tr>
+            <tr>
+              <td>8</td>
+              <td><a href="https://leetcode.com/problems/alien-dictionary/" target="_blank" rel="noopener noreferrer">269. Alien Dictionary</a></td>
+              <td>Build directed graph from word order, then Kahn's topological sort - harder</td>
+            </tr>
+            <tr>
+              <td>9</td>
+              <td><a href="https://leetcode.com/problems/reconstruct-itinerary/" target="_blank" rel="noopener noreferrer">332. Reconstruct Itinerary</a></td>
+              <td>Eulerian Path via Hierholzer's algorithm - completely different paradigm, save for last</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <br>
+
+      <div class="notes-section">
+
+        <div class="notes-prob-group">
+          <div class="notes-section-title">BFS</div>
+          <div class="notes-prob-list">
+            <a class="notes-prob-item" href="https://leetcode.com/problems/word-ladder/" target="_blank" rel="noopener noreferrer">127. Word Ladder<span class="notes-prob-arrow" aria-hidden="true">→</span></a>
+          </div>
+        </div>
+
+        <br>
+
+        <div class="notes-prob-group">
+          <div class="notes-section-title">DFS / Backtracking</div>
+          <div class="notes-prob-list">
+            <a class="notes-prob-item" href="https://leetcode.com/problems/all-paths-from-source-to-target/" target="_blank" rel="noopener noreferrer">797. All Paths From Source to Target<span class="notes-prob-arrow" aria-hidden="true">→</span></a>
+          </div>
+        </div>
+
+        <br>
+
+        <div class="notes-prob-group">
+          <div class="notes-section-title">Graph Theory (BFS + DFS)</div>
+          <div class="notes-prob-list">
+            <a class="notes-prob-item" href="https://leetcode.com/problems/graph-valid-tree/" target="_blank" rel="noopener noreferrer">261. Graph Valid Tree<span class="notes-prob-arrow" aria-hidden="true">→</span></a>
+            <a class="notes-prob-item" href="https://leetcode.com/problems/clone-graph/" target="_blank" rel="noopener noreferrer">133. Clone Graph<span class="notes-prob-arrow" aria-hidden="true">→</span></a>
+            <a class="notes-prob-item" href="https://leetcode.com/problems/number-of-provinces/" target="_blank" rel="noopener noreferrer">547. Number of Provinces<span class="notes-prob-arrow" aria-hidden="true">→</span></a>
+            <a class="notes-prob-item" href="https://leetcode.com/problems/all-nodes-distance-k-in-binary-tree/" target="_blank" rel="noopener noreferrer">863. All Nodes Distance K in Binary Tree<span class="notes-prob-arrow" aria-hidden="true">→</span></a>
+          </div>
+        </div>
+
+        <br>
+
+        <div class="notes-prob-group">
+          <div class="notes-section-title">Topological Sort</div>
+          <div class="notes-prob-list">
+            <a class="notes-prob-item" href="https://leetcode.com/problems/alien-dictionary/" target="_blank" rel="noopener noreferrer">269. Alien Dictionary<span class="notes-prob-arrow" aria-hidden="true">→</span></a>
+            <a class="notes-prob-item" href="https://leetcode.com/problems/reconstruct-itinerary/" target="_blank" rel="noopener noreferrer">332. Reconstruct Itinerary<span class="notes-prob-arrow" aria-hidden="true">→</span></a>
+          </div>
+        </div>
+
+        <br>
+
+        <div class="notes-prob-group">
+          <div class="notes-section-title">Union Find</div>
+          <div class="notes-prob-list">
+            <a class="notes-prob-item" href="https://leetcode.com/problems/number-of-connected-components-in-an-undirected-graph/" target="_blank" rel="noopener noreferrer">323. Number of Connected Components in an Undirected Graph<span class="notes-prob-arrow" aria-hidden="true">→</span></a>
+          </div>
+        </div>
+      </div>
+
+      <br>
+
+      <div class="notes-section" style="display:flex; gap:16px; align-items:flex-start;">
+        <div class="notes-tmpl-card" style="flex:1; min-width:0;">
+          <div class="notes-tmpl-header">
+            <span class="notes-tmpl-header-title">BFS Traverse Graph - PYTHON模板</span>
+            <span class="notes-lang-pill notes-lang-py">Python</span>
+          </div>
+          <pre class="notes-code-block">graphs = collections.<span class="fn">defaultdict</span>(list)
+    <span class="cm"># Create Graph</span>
+    <span class="kw">for</span> edge <span class="kw">in</span> edges:
+        start = edge[<span class="num">0</span>]
+        end = edge[<span class="num">1</span>]
+        graphs[start].append(end)
+        graphs[end].append(start)
+
+queue = collections.<span class="fn">deque</span>([])
+visited = {<span class="num">1</span>}
+queue.append(<span class="num">1</span>)
+<span class="kw">while</span> len(queue) &gt; <span class="num">0</span>:
+    size = len(queue)
+    <span class="kw">for</span> _ <span class="kw">in</span> range(size):
+        curr = queue.popleft()
+        neighbours = graphs.get(curr, [])
+        <span class="kw">for</span> neighbour <span class="kw">in</span> neighbours:
+            <span class="kw">if</span> neighbour <span class="kw">not in</span> visited:
+                visited.add(neighbour)
+                queue.append(neighbour)
+
+<span class="kw">return</span> len(visited) == n</pre>
+        </div>
+
+        <div class="notes-tmpl-card" style="flex:1; min-width:0;">
+          <div class="notes-tmpl-header">
+            <span class="notes-tmpl-header-title">DFS Traverse Graph - PYTHON模板</span>
+            <span class="notes-lang-pill notes-lang-py">Python</span>
+          </div>
+          <pre class="notes-code-block"><span class="kw">def</span> <span class="fn">DFS</span>(self, graph, node, target, path):
+
+    <span class="kw">if</span> node == target:
+        self.paths.append(list(path))
+        <span class="kw">return</span>
+
+    <span class="kw">for</span> node_next <span class="kw">in</span> graph[node]:
+        path.append(node_next)
+        self.<span class="fn">DFS</span>(graph, node_next, target, path)
+        path.pop()</pre>
+        </div>
+      </div>
+
+      <div class="notes-section">
+        <div class="notes-tmpl-card">
+          <div class="notes-tmpl-header">
+            <span class="notes-tmpl-header-title">BFS Traverse Graph - Java模板</span>
+            <span class="notes-lang-pill notes-lang-java">Java</span>
+          </div>
+          <pre class="notes-code-block"><span class="tp">Map</span>&lt;<span class="tp">Integer</span>, <span class="tp">List</span>&lt;<span class="tp">Integer</span>&gt;&gt; graph = <span class="kw">new</span> <span class="tp">HashMap</span>&lt;&gt;();
+
+<span class="kw">for</span> (<span class="tp">int</span>[] edge: edges) {
+    <span class="tp">int</span> start = edge[<span class="num">0</span>];
+    <span class="tp">int</span> end = edge[<span class="num">1</span>];
+    <span class="kw">if</span> (!graph.containsKey(start)) {
+        graph.put(start, <span class="kw">new</span> <span class="tp">ArrayList</span>&lt;&gt;());
+    }
+    graph.get(start).add(end);
+
+    <span class="kw">if</span> (!graph.containsKey(end)) {
+        graph.put(end, <span class="kw">new</span> <span class="tp">ArrayList</span>&lt;&gt;());
+    }
+    graph.get(end).add(start);
+}
+
+<span class="tp">Queue</span>&lt;<span class="tp">Integer</span>&gt; queue = <span class="kw">new</span> <span class="tp">LinkedList</span>&lt;&gt;();
+
+queue.offer(<span class="num">1</span>);
+<span class="tp">Set</span>&lt;<span class="tp">Integer</span>&gt; visited = <span class="kw">new</span> <span class="tp">HashSet</span>&lt;&gt;();
+visited.add(<span class="num">1</span>);
+
+<span class="kw">while</span> (queue.size() &gt; <span class="num">0</span>) {
+    <span class="tp">int</span> size = queue.size();
+    <span class="kw">for</span> (<span class="tp">int</span> count =<span class="num">0</span>; count &lt; size; count++) {
+        <span class="tp">int</span> curr = queue.poll();
+        <span class="tp">List</span>&lt;<span class="tp">Integer</span>&gt; neighbours = graph.getOrDefault(curr, <span class="kw">new</span> <span class="tp">ArrayList</span>&lt;&gt;());
+
+        <span class="kw">for</span> (<span class="tp">int</span> neighbour : neighbours) {
+            <span class="kw">if</span> (!visited.contains(neighbour)) {
+                visited.add(neighbour);
+                queue.offer(neighbour);
+            }
+        }
+    }
+}</pre>
+        </div>
+      </div>
+
+      <div class="notes-section">
+        <div class="notes-tmpl-card">
+          <div class="notes-tmpl-header">
+            <span class="notes-tmpl-header-title">DFS Traverse Graph - Java模板</span>
+            <span class="notes-lang-pill notes-lang-java">Java</span>
+          </div>
+          <pre class="notes-code-block"><span class="kw">public</span> <span class="kw">void</span> <span class="fn">dfs</span>(<span class="tp">List</span>&lt;<span class="tp">Integer</span>&gt; path, <span class="tp">int</span> curr, <span class="tp">int</span> target, <span class="tp">List</span>&lt;<span class="tp">List</span>&lt;<span class="tp">Integer</span>&gt;&gt; result, <span class="tp">int</span>[][] graph) {
+    <span class="kw">if</span> (curr == target) {
+        result.add(<span class="kw">new</span> <span class="tp">ArrayList</span>&lt;&gt;(path));
+        <span class="kw">return</span>;
+    }
+
+    <span class="kw">for</span> (<span class="tp">int</span> node : graph[curr]) {
+        path.add(node);
+        dfs(path, node, target, result, graph);
+        path.remove(path.size()-<span class="num">1</span>);
+    }
+}</pre>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</body>
+</html>
+

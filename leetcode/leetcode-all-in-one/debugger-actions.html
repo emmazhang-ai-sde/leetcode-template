@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Debugger Actions</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  /* 图例挪到代码框下面后改纵向单列（ANIMATION_GUIDE 硬性规则） */
+  .legend-below { flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 0; max-width: none; }
+
+  /* 代码行条（被调试的那段"虚拟代码"，1..codeLength 压缩显示） */
+  .dbg-row { display: flex; align-items: flex-end; gap: 6px; flex-wrap: wrap; }
+  .dbg-cell { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .dbg-box { position: relative; width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; font-family: var(--ink-mono); background: #f5f5f5; border: 1px solid #c9c9c9; color: var(--ink); transition: background 0.2s; }
+  .dbg-box.seen { background: rgba(93,202,165,0.4); border-color: transparent; }
+  .dbg-box.cur  { background: rgba(249,203,66,0.55); border-color: transparent; }
+  .dbg-box .dot { position: absolute; right: 4px; top: 4px; width: 7px; height: 7px; border-radius: 50%; background: #e5534b; }
+  .dbg-gap { align-self: center; font-family: var(--ink-mono); color: #aaa; padding: 0 2px; }
+  .dbg-ptr { font-size: 10.5px; font-weight: 700; font-family: var(--ink-mono); color: #B07800; height: 14px; line-height: 14px; }
+
+  /* breakpoints 数组 */
+  .bp-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .bp-cell { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .bp-box { width: 44px; height: 44px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; font-family: var(--ink-mono); background: #f5f5f5; border: 1px solid #c9c9c9; color: var(--ink); transition: background 0.2s, outline 0.15s; }
+  .bp-box.at   { background: rgba(120,160,225,0.3); border-color: transparent; }
+  .bp-box.cmp  { background: rgba(249,203,66,0.55); border-color: transparent; }
+  .bp-box.past { background: rgba(93,202,165,0.4); border-color: transparent; }
+  .bp-idx { font-size: 11px; color: #aaa; font-family: var(--ink-mono); }
+  .bp-ptr { font-size: 10.5px; font-weight: 700; font-family: var(--ink-mono); color: #3A6FD4; height: 14px; line-height: 14px; }
+
+  /* actions 列表 */
+  .act-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .act-chip { font-family: var(--ink-mono); font-size: 12.5px; font-weight: 700; padding: 6px 10px; border-radius: 8px; background: #f5f5f5; border: 1px solid #c9c9c9; color: var(--ink); transition: background 0.2s; }
+  .act-chip.doing { background: rgba(249,203,66,0.55); border-color: transparent; }
+  .act-chip.done  { background: rgba(93,202,165,0.4); border-color: transparent; }
+
+  /* 移动轨迹 */
+  .trail-row { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; min-height: 34px; font-family: var(--ink-mono); }
+  .trail-cell { min-width: 34px; height: 34px; padding: 0 6px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; background: rgba(93,202,165,0.25); }
+  .trail-cell.newest { background: rgba(249,203,66,0.55); }
+  .trail-sep { color: #aaa; font-size: 13px; }
+  .trail-empty { font-size: 12px; color: #aaa; }
+
+  /* OA 题面（notes.js 会挪进 Notes 区；后端不在时显示在动画下面） */
+  .oa-layout { max-width: 760px; margin: 24px auto 0; display: flex; flex-direction: column; gap: 16px; }
+  .oa-layout .card { width: 100%; min-width: 0; line-height: 1.7; }
+  .oa-layout .card p { margin: 0 0 10px; }
+  .oa-layout .card p:last-child { margin-bottom: 0; }
+  .oa-layout .card ul, .oa-layout .card ol { margin: 0 0 10px 20px; }
+  .oa-layout .card li { margin-bottom: 8px; }
+  .oa-layout .card code { background: var(--ink-chip); border-radius: 4px; padding: 1px 5px; font-family: var(--ink-mono); font-size: 12.5px; }
+  .oa-tag { display: inline-block; font-family: var(--ink-mono); font-size: 11px; letter-spacing: .03em; background: var(--ink-chip); border: var(--ink-border); border-radius: 6px; padding: 2px 8px; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: 'Debugger Actions',
+  legend: [
+    { color: 'rgba(249,203,66,0.55)', label: '当前 — current_line 所在行 / 正在比较的断点 / 正在处理的 action' },
+    { color: 'rgba(120,160,225,0.3)', label: 'breakpoint_index 指向的断点' },
+    { color: 'rgba(93,202,165,0.4)', label: '已经过的行 / 已扫过的断点 / 已处理完的 action' },
+    { color: '#e5534b', label: '断点标记（右上角红点）' },
+    { color: '#f5f5f5', extra: 'border:1px solid #c9c9c9;', label: '未访问' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+  <script>
+  renderCodeBox({
+    code: `
+def solution(codeLength, breakpoints, actions):
+    current_line = 1
+    breakpoint_index = 0
+
+    for action in actions:
+        if action == "next":
+            current_line += 1
+
+        else:  # action == "continue"
+            while breakpoints[breakpoint_index] <= current_line:
+                breakpoint_index += 1
+
+            current_line = breakpoints[breakpoint_index]
+
+    return current_line`,
+  });
+  </script>
+  <script>
+  (function () {
+    const stack = document.querySelector('.code-stack');
+    stack.appendChild(document.getElementById('info'));
+    const legend = document.querySelector('.legend');
+    const legendRow = legend.parentElement;
+    legend.classList.add('legend-below');
+    stack.appendChild(legend);
+    legendRow.remove();
+  })();
+  </script>
+
+  <div class="viz-panel">
+    <div class="var-bar" id="var-bar"></div>
+
+    <div class="card">
+      <h3>被调试的代码 — 行号 1 … 55（红点 = 断点）</h3>
+      <div class="dbg-row" id="dbg-row"></div>
+    </div>
+
+    <div class="card">
+      <h3>breakpoints（有序断点表）</h3>
+      <div class="bp-row" id="bp-row"></div>
+    </div>
+
+    <div class="card">
+      <h3>actions（依次处理）</h3>
+      <div class="act-row" id="act-row"></div>
+    </div>
+
+    <div class="card">
+      <h3>移动轨迹 Movement</h3>
+      <div class="trail-row" id="trail-row"></div>
+    </div>
+  </div>
+</div><!-- /.main -->
+
+<!-- OA 题面：notes.js（problemToNotes）会把这块挪进 Notes 区当只读 Problem 卡 -->
+<div class="oa-layout">
+  <div class="card">
+    <span class="oa-tag">TikTok OA · 2026-08-16 · no official LeetCode number</span>
+    <h3>Problem</h3>
+    <p>You are debugging a code snippet whose final line number is <code>codeLength</code>. The sorted list <code>breakpoints</code> contains unique breakpoint line numbers. The debugger initially starts on line <code>1</code>.</p>
+    <p>Process every string in <code>actions</code>:</p>
+    <ul>
+      <li><code>"next"</code>: move forward exactly one line.</li>
+      <li><code>"continue"</code>: move forward to the first breakpoint strictly after the current line.</li>
+    </ul>
+    <p>Return the line on which the debugger finishes. The input guarantees that every action is valid.</p>
+    <p><strong>Example</strong></p>
+    <p><code>codeLength = 55</code>, <code>breakpoints = [2, 5, 21, 44]</code>, <code>actions = ["next", "next", "continue", "next", "next"]</code></p>
+    <p>Movement: <code>1 → 2 → 3 → 5 → 6 → 7</code> → output <code>7</code>.</p>
+  </div>
+</div>
+</div><!-- /.content-wrapper -->
+
+<script>
+// ── Data ───────────────────────────────────────────────────────────────────
+const CODE_LENGTH = 55;
+const BREAKPOINTS = [2, 5, 21, 44];
+const ACTIONS = ['next', 'next', 'continue', 'next', 'next'];
+// 代码行条压缩显示：走到的都在 1..9 里，21/44/55 单独露出来标断点和结尾
+const STRIP = [1, 2, 3, 4, 5, 6, 7, 8, 9, null, 21, null, 44, null, 55];
+
+// 行号表（renderCodeBox 从 1 起连续编号，空行也占号）
+const L = { DEF: 1, INIT_CUR: 2, INIT_BI: 3, FOR: 5, IF: 6, NEXT: 7, ELSE: 9, WHILE: 10, BI_INC: 11, JUMP: 13, RET: 15 };
+
+// ── Step builder：真实模拟算法本身 ─────────────────────────────────────────
+function buildSteps() {
+  const steps = [];
+  let cur = null;      // current_line
+  let bi = null;       // breakpoint_index
+  let ai = null;       // 正在处理第几个 action（0-based），null = 不在循环里
+  let cmp = null;      // while 里正在比较的断点下标
+  let path = [];       // 移动轨迹
+  let acted = 0;       // 已处理完的 action 个数（chips 染绿用）
+
+  function snap(line, info) {
+    steps.push({ line, info, cur, bi, ai, cmp, acted, path: path.slice() });
+  }
+
+  snap(null, '初始状态：codeLength = 55，断点表 [2, 5, 21, 44]，5 个 action 待处理 — 点击 Next 开始');
+  snap(L.DEF, 'Line 1: 进入 solution(codeLength=55, breakpoints=[2,5,21,44], actions=[…]) — 开始模拟调试器');
+
+  cur = 1; path.push(1);
+  snap(L.INIT_CUR, 'Line 2: current_line = 1 — 调试器从第 1 行出发');
+  bi = 0;
+  snap(L.INIT_BI, 'Line 3: breakpoint_index = 0 — 断点指针指向最小的断点 2；breakpoints 有序，指针只会前进');
+
+  for (let i = 0; i < ACTIONS.length; i++) {
+    const a = ACTIONS[i];
+    ai = i;
+    snap(L.FOR, `Line 5: for 取下一个动作 — action = "${a}"（第 ${i + 1}/${ACTIONS.length} 个）`);
+
+    const isNext = a === 'next';
+    snap(L.IF, `Line 6: action == "next" → ${isNext ? 'True，走 if 分支' : 'False，进 else 分支'}`);
+
+    if (isNext) {
+      cur += 1; path.push(cur);
+      snap(L.NEXT, `Line 7: current_line += 1 → ${cur} — "next" 只前进一行`);
+    } else {
+      snap(L.ELSE, 'Line 9: else 分支 — action == "continue"，要跳到当前行之后的第一个断点');
+      while (true) {
+        cmp = bi;
+        const hit = BREAKPOINTS[bi] <= cur;
+        snap(L.WHILE, `Line 10: breakpoints[${bi}] (${BREAKPOINTS[bi]}) <= current_line (${cur}) → ${hit ? 'True，这个断点在身后，跳过它' : 'False，它在前方，扫描结束'}`);
+        if (!hit) break;
+        bi += 1;
+        snap(L.BI_INC, `Line 11: breakpoint_index += 1 → ${bi} — 被跳过的断点不会再回头看`);
+      }
+      cmp = null;
+      cur = BREAKPOINTS[bi]; path.push(cur);
+      snap(L.JUMP, `Line 13: current_line = breakpoints[${bi}] = ${cur} — 直接落在第一个"严格在前方"的断点上`);
+    }
+    acted = i + 1;
+  }
+
+  ai = null;
+  snap(L.FOR, 'Line 5: actions 全部处理完毕，退出 for 循环');
+  snap(L.RET, `✅ Line 15: return current_line = ${cur} — 调试器最终停在第 ${cur} 行，最终答案 = ${cur}`);
+
+  return steps;
+}
+
+const STEPS = buildSteps();
+var cur = -1;
+
+// ── DOM init ───────────────────────────────────────────────────────────────
+(function buildDOM() {
+  const bpSet = new Set(BREAKPOINTS);
+  document.getElementById('dbg-row').innerHTML = STRIP.map(n => {
+    if (n === null) return '<span class="dbg-gap">⋯</span>';
+    return `<div class="dbg-cell"><div class="dbg-box" id="dbg-${n}">${n}${bpSet.has(n) ? '<span class="dot"></span>' : ''}</div><div class="dbg-ptr" id="dbgp-${n}"></div></div>`;
+  }).join('');
+  document.getElementById('bp-row').innerHTML = BREAKPOINTS.map((v, i) =>
+    `<div class="bp-cell"><div class="bp-box" id="bp-${i}">${v}</div><div class="bp-idx">${i}</div><div class="bp-ptr" id="bpp-${i}"></div></div>`
+  ).join('');
+  document.getElementById('act-row').innerHTML = ACTIONS.map((a, i) =>
+    `<span class="act-chip" id="act-${i}">"${a}"</span>`
+  ).join('');
+})();
+
+function renderVarBar(s) {
+  const v = x => (x === null || x === undefined) ? '-' : x;
+  const actTxt = s && s.ai !== null ? `"${ACTIONS[s.ai]}"（${s.ai + 1}/${ACTIONS.length}）` : '-';
+  return `<span><span class="var-name">current_line</span> <span class="var-eq">=</span> <span class="var-val">${v(s && s.cur)}</span></span>` +
+    `<span><span class="var-name">breakpoint_index</span> <span class="var-eq">=</span> <span class="var-val">${v(s && s.bi)}</span></span>` +
+    `<span><span class="var-name">action</span> <span class="var-eq">=</span> <span class="var-val">${actTxt}</span></span>`;
+}
+
+// ── Render（只读快照，无副作用）────────────────────────────────────────────
+function render() {
+  const s = cur < 0 ? null : STEPS[cur];
+  highlightLine(s ? s.line : null);
+  renderCtrl(cur < 0 ? -1 : cur, STEPS.length, s ? s.info : '');
+  document.getElementById('var-bar').innerHTML = renderVarBar(s);
+
+  const pathSet = new Set(s ? s.path : []);
+  STRIP.forEach(n => {
+    if (n === null) return;
+    const box = document.getElementById(`dbg-${n}`);
+    const ptr = document.getElementById(`dbgp-${n}`);
+    const isCur = s && s.cur === n;
+    box.classList.toggle('cur', !!isCur);
+    box.classList.toggle('seen', !isCur && pathSet.has(n));
+    ptr.textContent = isCur ? '▲ cur' : '';
+  });
+
+  BREAKPOINTS.forEach((v, i) => {
+    const box = document.getElementById(`bp-${i}`);
+    const ptr = document.getElementById(`bpp-${i}`);
+    const isCmp = s && s.cmp === i;
+    const isAt = s && s.bi === i;
+    const isPast = s && s.bi !== null && i < s.bi;
+    box.className = 'bp-box' + (isCmp ? ' cmp' : isAt ? ' at' : isPast ? ' past' : '');
+    ptr.textContent = isAt ? '↑ bi' : '';
+  });
+
+  ACTIONS.forEach((a, i) => {
+    const chip = document.getElementById(`act-${i}`);
+    const doing = s && s.ai === i;
+    const done = s && i < s.acted && !doing;
+    chip.className = 'act-chip' + (doing ? ' doing' : done ? ' done' : '');
+  });
+
+  const trail = document.getElementById('trail-row');
+  if (s && s.path.length) {
+    trail.innerHTML = s.path.map((n, i) =>
+      `<span class="trail-cell${i === s.path.length - 1 ? ' newest' : ''}">${n}</span>`
+    ).join('<span class="trail-sep">→</span>');
+  } else {
+    trail.innerHTML = '<span class="trail-empty">（还未开始）</span>';
+  }
+}
+
+doReset();
+</script>
+</body>
+</html>

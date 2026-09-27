@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1120. Maximum Average Subtree</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  svg { display: block; width: 100%; max-height: 270px; }
+
+  /* Call stack (recursion frames) */
+  .frame-stack-container { display: flex; flex-direction: column-reverse; align-items: center; gap: 4px; min-height: 160px; justify-content: flex-start; padding: 8px 0; }
+  .frame-cell { min-width: 96px; height: 32px; padding: 0 12px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-family: 'SF Mono', monospace; font-size: 12px; font-weight: 700; background: rgba(139,133,212,0.22); color: #1a1a1a; transition: all 0.2s; white-space: nowrap; }
+  .frame-cell.top { background: rgba(249,203,66,0.5); }
+  .frame-cell.none-frame { color: #999; font-weight: 600; background: #f0f0f0; }
+  .frame-cell.resolved { background: rgba(93,202,165,0.45); }
+  .frame-stack-base { width: 108px; height: 3px; background: #ccc; border-radius: 2px; margin-top: 4px; }
+  .stack-empty { font-size: 12px; color: #aaa; font-family: 'SF Mono', monospace; }
+
+  /* Single-value answer cell */
+  .res-row { display: flex; }
+  .res-cell { min-width: 84px; height: 44px; padding: 0 10px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; font-family: 'SF Mono', monospace; background: #f5f5f5; color: #bbb; transition: background 0.2s, color 0.2s, transform 0.15s; }
+  .res-cell.filled { background: rgba(93,202,165,0.3); color: #1a1a1a; }
+  .res-cell.newest { background: rgba(93,202,165,0.6); transform: scale(1.08); }
+
+  .stack-result-row { display: flex; gap: 16px; align-items: stretch; }
+  .stack-result-row .card { display: flex; flex-direction: column; align-items: center; }
+  .stack-result-row .card:last-child { align-items: flex-start; justify-content: flex-start; }
+
+  /* Inline variable readouts, anchored under the block they describe */
+  .node-vars { margin-top: 8px; display: flex; flex-direction: column; align-items: center; gap: 3px; font-family: 'SF Mono', 'Menlo', monospace; font-size: 12.5px; }
+  .depth-var-row { margin-top: 8px; text-align: center; font-family: 'SF Mono', 'Menlo', monospace; font-size: 13px; }
+  .res-label { margin: 12px 0 0; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '1120. Maximum Average Subtree',
+  link: 'https://leetcode.com/problems/maximum-average-subtree/',
+  legend: [
+    { color: 'rgba(249,203,66,0.55)', label: '栈顶 — dfs(node) 正在执行' },
+    { color: 'rgba(93,202,165,0.4)', label: '子树已解决 — (count, sum) 已返回' },
+    { color: '#f5f5f5', extra: 'border:1px solid #ccc;', label: '尚未访问' },
+    { color: '#3A6FD4', extra: 'border-radius:2px;width:14px;height:3px;', label: '正在下探的边' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+  <script>
+  renderCodeBox({
+    prereq: `
+# Definition for a binary tree node.
+# class TreeNode:
+#     def __init__(self, val=0, left=None, right=None):
+#         self.val = val
+#         self.left = left
+#         self.right = right`,
+    code: `
+class Solution:
+    def dfs(self, root):
+        if not root:
+            return (0, 0)
+
+        leftCount, leftSum = self.dfs(root.left)
+        rightCount, rightSum = self.dfs(root.right)
+
+        currentAvg = (leftSum + rightSum + root.val) / (leftCount + rightCount + 1)
+
+        self.maxAvg = max(currentAvg, self.maxAvg)
+
+        return (leftCount + rightCount + 1, leftSum + rightSum + root.val)
+
+    def maximumAverageSubtree(self, root: Optional[TreeNode]) -> float:
+        self.maxAvg = 0
+        self.dfs(root)
+        return self.maxAvg`,
+  });
+  </script>
+
+  <div class="viz-panel">
+    <div class="card">
+      <h3>Binary Tree</h3>
+      <svg id="tree-svg" viewBox="0 0 360 270"></svg>
+      <div class="node-vars" id="node-vars"></div>
+    </div>
+
+    <div class="stack-result-row">
+      <div class="card">
+        <h3>Call Stack（递归栈）</h3>
+        <div class="frame-stack-container" id="frame-stack">
+          <span class="stack-empty">尚未调用 dfs()</span>
+        </div>
+        <div class="frame-stack-base"></div>
+        <div style="font-size:11px;color:#aaa;margin-top:4px;">bottom</div>
+        <div class="depth-var-row" id="depth-var"></div>
+      </div>
+
+      <div class="card">
+        <div class="res-row" id="answer-row"></div>
+        <h3 class="res-label">answer = self.maxAvg</h3>
+      </div>
+    </div>
+  </div>
+</div><!-- /.main -->
+</div><!-- /.content-wrapper -->
+
+<script>
+// ── Tree definition ──────────────────────────────────────────────────────
+// A node's own value can outweigh low-value children — node 2 (val=100)
+// pulls its subtree average (34.00) above every leaf, showing why the
+// answer can live at an INTERNAL node, not just at the root or a leaf.
+//        1 (val=5)
+//       / \
+//      2(100)  3(1)
+//     / \
+//    4(1)  5(1)
+const TREE = {
+  1: { left: 2, right: 3 },
+  2: { left: 4, right: 5 },
+  3: { left: null, right: null },
+  4: { left: null, right: null },
+  5: { left: null, right: null },
+};
+const VALS = { 1: 5, 2: 100, 3: 1, 4: 1, 5: 1 };
+const POS = {
+  1: { x: 180, y: 50 },
+  2: { x: 100, y: 134 },
+  3: { x: 260, y: 134 },
+  4: { x: 60,  y: 218 },
+  5: { x: 140, y: 218 },
+};
+const EDGES = [[1,2],[1,3],[2,4],[2,5]];
+const NODE_IDS = [1, 2, 3, 4, 5];
+
+// data-l line numbers (prereq occupies 1-6, main code continues from 7)
+const L = { CHECK_NONE: 9, RET_BASE: 10, LEFT_CALL: 12, RIGHT_CALL: 13, COMPUTE_AVG: 15, UPDATE_MAX: 17, RETURN_TUPLE: 19, CALL_INIT_MAXAVG: 22, CALL_DFS_ROOT: 23, RETURN_MAXAVG: 24 };
+
+// ── Build steps by simulating the recursion (divide → conquer → combine,
+// plus a maxAvg side effect updated at EVERY node, not just at the root) ──
+function buildSteps() {
+  const steps = [];
+  let stack = [];    // frame objects: { node, leftRet, rightRet, avg, result }
+  let resolved = {}; // nodeVal -> { count, sum, avg }, once its call has returned
+  let activeEdge = null;
+  let maxAvg = 0;
+
+  const cloneStack = () => stack.map(f => ({
+    ...f,
+    leftRet: f.leftRet && [...f.leftRet],
+    rightRet: f.rightRet && [...f.rightRet],
+    result: f.result && [...f.result],
+  }));
+  const cloneResolved = () => { const o = {}; for (const k in resolved) o[k] = { ...resolved[k] }; return o; };
+  function snap(line, info, justUpdated) {
+    steps.push({ line, info, stack: cloneStack(), resolved: cloneResolved(), activeEdge, maxAvg, justUpdated: !!justUpdated });
+  }
+
+  snap(null, '点击 Next 开始：调用 maximumAverageSubtree(root)，root 指向节点 1。');
+  snap(L.CALL_INIT_MAXAVG, 'Line 22: self.maxAvg = 0 — 初始化全局最大平均值。');
+  snap(L.CALL_DFS_ROOT, 'Line 23: self.dfs(root) → 调用 dfs(1)。');
+
+  function dfs(nodeVal) {
+    const frame = { node: nodeVal, leftRet: null, rightRet: null, avg: null, result: null };
+    stack.push(frame);
+
+    if (nodeVal === null) {
+      snap(L.CHECK_NONE, '进入 dfs(None)。Line 9: not root → True。');
+      frame.result = [0, 0];
+      snap(L.RET_BASE, 'Line 10: return (0, 0) — 空节点不贡献计数和总和。');
+      stack.pop();
+      return [0, 0];
+    }
+
+    activeEdge = null;
+    const val = VALS[nodeVal];
+    snap(L.CHECK_NONE, `进入 dfs(${nodeVal})，val=${val}。Line 9: root=${nodeVal} 存在 → 条件 False。`);
+
+    const { left, right } = TREE[nodeVal];
+
+    activeEdge = left != null ? [nodeVal, left] : null;
+    snap(L.LEFT_CALL, `Line 12: leftCount, leftSum = self.dfs(root.left) → ${left != null ? `调用 dfs(${left})` : '左子节点为 None，调用 dfs(None)'}`);
+    const [leftCount, leftSum] = dfs(left);
+    activeEdge = null;
+    frame.leftRet = [leftCount, leftSum];
+    snap(L.LEFT_CALL, `递归返回 → leftCount=${leftCount}, leftSum=${leftSum}`);
+
+    activeEdge = right != null ? [nodeVal, right] : null;
+    snap(L.RIGHT_CALL, `Line 13: rightCount, rightSum = self.dfs(root.right) → ${right != null ? `调用 dfs(${right})` : '右子节点为 None，调用 dfs(None)'}`);
+    const [rightCount, rightSum] = dfs(right);
+    activeEdge = null;
+    frame.rightRet = [rightCount, rightSum];
+    snap(L.RIGHT_CALL, `递归返回 → rightCount=${rightCount}, rightSum=${rightSum}`);
+
+    const avg = (leftSum + rightSum + val) / (leftCount + rightCount + 1);
+    frame.avg = avg;
+    snap(L.COMPUTE_AVG, `Line 15: currentAvg = (${leftSum}+${rightSum}+${val}) / (${leftCount}+${rightCount}+1) = ${avg.toFixed(2)} — 节点 ${nodeVal} 这棵子树自己的平均值。`);
+
+    const prevMax = maxAvg;
+    maxAvg = Math.max(avg, maxAvg);
+    snap(
+      L.UPDATE_MAX,
+      `Line 17: self.maxAvg = max(${avg.toFixed(2)}, ${prevMax.toFixed(2)}) = ${maxAvg.toFixed(2)}` + (maxAvg !== prevMax ? ' ⭐ 刷新了全局最大值！' : '（没有变化）'),
+      maxAvg !== prevMax
+    );
+
+    const count = leftCount + rightCount + 1;
+    const sum = leftSum + rightSum + val;
+    frame.result = [count, sum];
+    resolved[nodeVal] = { count, sum, avg };
+    snap(L.RETURN_TUPLE, `Line 19: return (${count}, ${sum}) — 把节点 ${nodeVal} 子树的 (count, sum) 交给上层继续合并。`);
+    stack.pop();
+    return [count, sum];
+  }
+
+  dfs(1);
+  snap(L.RETURN_MAXAVG, `Line 24: return self.maxAvg = ${maxAvg.toFixed(2)} ✓ 完成！最大平均值出现在节点 2（它自己 val=100，即使两个孩子都只有 1）。`);
+
+  return steps;
+}
+
+const STEPS = buildSteps();
+let cur = -1;
+
+// ── Rendering ─────────────────────────────────────────────────────────────
+function renderTree(step) {
+  const svg = document.getElementById('tree-svg');
+  svg.innerHTML = '';
+  function mkEl(tag) { return document.createElementNS('http://www.w3.org/2000/svg', tag); }
+
+  for (const [a, b] of EDGES) {
+    const pa = POS[a], pb = POS[b];
+    const isActive = step.activeEdge && step.activeEdge[0] === a && step.activeEdge[1] === b;
+    const line = mkEl('line');
+    line.setAttribute('x1', pa.x); line.setAttribute('y1', pa.y);
+    line.setAttribute('x2', pb.x); line.setAttribute('y2', pb.y);
+    line.setAttribute('stroke', isActive ? '#3A6FD4' : '#c8c6be');
+    line.setAttribute('stroke-width', isActive ? '3' : '1.5');
+    svg.appendChild(line);
+  }
+
+  const top = step.stack.length ? step.stack[step.stack.length - 1] : null;
+  const activeNode = top && top.node !== null ? top.node : null;
+
+  for (const id of NODE_IDS) {
+    const p = POS[id];
+    const isDone = step.resolved[id] !== undefined;
+    let fill = '#f5f5f5', stroke = '#c9c9c9', strokeW = 1.5;
+    if (id === activeNode) { fill = 'rgba(249,203,66,0.55)'; stroke = '#d4a800'; strokeW = 2.5; }
+    else if (isDone) { fill = 'rgba(93,202,165,0.4)'; stroke = '#1D9E75'; strokeW = 1.5; }
+
+    // Given input value, shown above the node
+    const valLabel = mkEl('text');
+    valLabel.setAttribute('x', p.x); valLabel.setAttribute('y', p.y - 32);
+    valLabel.setAttribute('text-anchor', 'middle'); valLabel.setAttribute('font-size', '10.5');
+    valLabel.setAttribute('font-weight', '700'); valLabel.setAttribute('fill', '#3A6FD4');
+    valLabel.setAttribute('font-family', 'SF Mono, monospace');
+    valLabel.textContent = `val=${VALS[id]}`;
+    svg.appendChild(valLabel);
+
+    const g = mkEl('g');
+    const circle = mkEl('circle');
+    circle.setAttribute('cx', p.x); circle.setAttribute('cy', p.y); circle.setAttribute('r', 22);
+    circle.setAttribute('fill', fill); circle.setAttribute('stroke', stroke); circle.setAttribute('stroke-width', strokeW);
+    g.appendChild(circle);
+
+    const text = mkEl('text');
+    text.setAttribute('x', p.x); text.setAttribute('y', p.y);
+    text.setAttribute('text-anchor', 'middle'); text.setAttribute('dominant-baseline', 'central');
+    text.setAttribute('font-size', '14'); text.setAttribute('font-weight', '700'); text.setAttribute('fill', '#1a1a1a');
+    text.setAttribute('font-family', 'SF Mono, Menlo, monospace');
+    text.textContent = id;
+    g.appendChild(text);
+
+    if (isDone) {
+      const badge = mkEl('text');
+      badge.setAttribute('x', p.x); badge.setAttribute('y', p.y + 34);
+      badge.setAttribute('text-anchor', 'middle'); badge.setAttribute('font-size', '10');
+      badge.setAttribute('font-weight', '700'); badge.setAttribute('fill', '#1D9E75');
+      badge.setAttribute('font-family', 'SF Mono, monospace');
+      badge.textContent = `avg=${step.resolved[id].avg.toFixed(2)}`;
+      g.appendChild(badge);
+    }
+
+    svg.appendChild(g);
+  }
+}
+
+function renderCallStack(stack) {
+  const el = document.getElementById('frame-stack');
+  if (!stack.length) {
+    el.innerHTML = '<span class="stack-empty">尚未调用 dfs()</span>';
+    return;
+  }
+  el.innerHTML = stack.map((f, i) => {
+    const isTop = i === stack.length - 1;
+    const isNone = f.node === null;
+    const label = isNone ? 'dfs(None)' : `dfs(${f.node})`;
+    const resolvedFrame = f.result !== null;
+    const suffix = resolvedFrame ? ` = (${f.result[0]},${f.result[1]})` : '';
+    return `<div class="frame-cell${isTop ? ' top' : ''}${isNone ? ' none-frame' : ''}${resolvedFrame ? ' resolved' : ''}">${label}${suffix}</div>`;
+  }).join('');
+}
+
+function renderAnswerRow(step) {
+  const filled = step.maxAvg !== undefined;
+  document.getElementById('answer-row').innerHTML =
+    `<div class="res-cell${filled ? ' filled' : ''}${step.justUpdated ? ' newest' : ''}">${filled ? step.maxAvg.toFixed(2) : '?'}</div>`;
+}
+
+function fmtPair(pair) {
+  return pair ? `(${pair[0]}, ${pair[1]})` : '·';
+}
+
+function renderNodeVars(step) {
+  const top = step.stack.length ? step.stack[step.stack.length - 1] : null;
+  const rootDisplay = !top ? '—' : (top.node === null ? 'None' : `${top.node} (val=${VALS[top.node]})`);
+  document.getElementById('node-vars').innerHTML =
+    `<div><span class="var-name">root</span><span class="var-eq"> = </span><span class="var-val">${rootDisplay}</span></div>` +
+    `<div><span class="var-name">left_ret</span><span class="var-eq"> = </span><span class="var-val">${fmtPair(top ? top.leftRet : null)}</span></div>` +
+    `<div><span class="var-name">right_ret</span><span class="var-eq"> = </span><span class="var-val">${fmtPair(top ? top.rightRet : null)}</span></div>` +
+    `<div><span class="var-name">currentAvg</span><span class="var-eq"> = </span><span class="var-val">${top && top.avg !== null ? top.avg.toFixed(2) : '·'}</span></div>`;
+}
+
+function renderDepthVar(step) {
+  document.getElementById('depth-var').innerHTML =
+    `<span class="var-name">stack depth</span><span class="var-eq"> = </span><span class="var-val">${step.stack.length}</span>`;
+}
+
+function renderAll() {
+  const step = cur >= 0 ? STEPS[cur] : null;
+  const empty = { stack: [], resolved: {}, activeEdge: null, maxAvg: undefined, justUpdated: false };
+
+  if (!step) {
+    renderTree(empty);
+    renderCallStack([]);
+    renderAnswerRow(empty);
+    renderNodeVars(empty);
+    renderDepthVar(empty);
+    renderCtrl(-1, STEPS.length, '');
+    highlightLine(null);
+    return;
+  }
+
+  renderTree(step);
+  renderCallStack(step.stack);
+  renderAnswerRow(step);
+  renderNodeVars(step);
+  renderDepthVar(step);
+  highlightLine(step.line);
+  renderCtrl(cur, STEPS.length, step.info);
+}
+
+var render = renderAll;
+doReset();
+</script>
+</body>
+</html>

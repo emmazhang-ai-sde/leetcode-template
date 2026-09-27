@@ -1,0 +1,16 @@
+<p>Given the <code>root</code> of a binary tree and an integer <code>targetSum</code>, return <code>true</code> if the tree has a <strong>root-to-leaf</strong> path such that adding up all the values along the path equals <code>targetSum</code>.</p>
+<p>A <strong>leaf</strong> is a node with no children.</p>
+<h3>Example 1</h3>
+<p><img src="https://assets.leetcode.com/uploads/2021/01/18/pathsum1.jpg" alt=""></p>
+<p><strong>Input:</strong> <code>root = [5,4,8,11,null,13,4,7,2,null,null,null,1], targetSum = 22</code><br><strong>Output:</strong> <code>true</code><br><strong>Explanation:</strong> The root-to-leaf path with the target sum is shown.</p>
+<h3>Example 2</h3>
+<p><img src="https://assets.leetcode.com/uploads/2021/01/18/pathsum2.jpg" alt=""></p>
+<p><strong>Input:</strong> <code>root = [1,2,3], targetSum = 5</code><br><strong>Output:</strong> <code>false</code><br><strong>Explanation:</strong> There are two root-to-leaf paths in the tree:<br><code>(1 --&gt; 2): The sum is 3.</code><br><code>(1 --&gt; 3): The sum is 4.</code><br><code>There is no root-to-leaf path with sum = 5.</code></p>
+<h3>Example 3</h3>
+<p><strong>Input:</strong> <code>root = [], targetSum = 0</code><br><strong>Output:</strong> <code>false</code><br><strong>Explanation:</strong> Since the tree is empty, there are no root-to-leaf paths.</p>
+<h3>Constraints</h3>
+<ul>
+<li>The number of nodes in the tree is in the range <code>[0, 5000]</code>.</li>
+<li><code>-1000 &lt;= Node.val &lt;= 1000</code></li>
+<li><code>-1000 &lt;= targetSum &lt;= 1000</code></li>
+</ul>

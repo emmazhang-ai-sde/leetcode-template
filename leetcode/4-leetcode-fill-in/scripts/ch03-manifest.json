@@ -1,0 +1,34 @@
+{
+  "problems": [
+    {
+      "path": "chapters/ch03/BFS-102-binary-tree-level-order-traversal.html",
+      "num": "102",
+      "group": "bfsTree"
+    },
+    {
+      "path": "chapters/ch03/BFS-103-binary-tree-zigzag-level-order-traversal.html",
+      "num": "103",
+      "group": "bfsTree"
+    },
+    {
+      "path": "chapters/ch03/BFS-199-binary-tree-right-side-view.html",
+      "num": "199",
+      "group": "bfsTree"
+    },
+    {
+      "path": "chapters/ch03/BFS-207-course-schedule.html",
+      "num": "207",
+      "group": "topo"
+    },
+    {
+      "path": "chapters/ch03/BFS Dijkstra-743-network-delay-time.html",
+      "num": "743",
+      "group": "dijkstra"
+    },
+    {
+      "path": "chapters/ch03/BFS Dijkstra-787-cheapest-flights-within-k-stops.html",
+      "num": "787",
+      "group": "dijkstra"
+    }
+  ]
+}

@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>33. Search in Rotated Sorted Array</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  .lc33-layout {
+    width: min(1320px, 100%);
+  }
+  .lc33-layout .code-half {
+    grid-column: 1;
+    grid-row: 1;
+    width: 640px;
+    max-width: 100%;
+    min-width: 0;
+    justify-self: end;
+  }
+  .lc33-layout .viz-panel {
+    grid-column: 2;
+    grid-row: 1;
+    width: fit-content;
+    max-width: 100%;
+    min-width: 0;
+    justify-self: start;
+    align-items: flex-start;
+  }
+  .lc33-layout .code-stack,
+  .lc33-layout .step-info,
+  .lc33-layout .code-panel {
+    width: 100%;
+    min-width: 0;
+  }
+  .lc33-layout .card,
+  .lc33-layout .var-bar {
+    width: fit-content;
+    max-width: 640px;
+    min-width: 0;
+  }
+  .lc33-layout .code-block { overflow-x: auto; }
+  .lc33-layout .step-info {
+    min-height: 48px;
+    padding: 8px 14px;
+    line-height: 20px;
+  }
+
+  .array-row {
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 8px;
+    min-height: 84px;
+  }
+  .cell-wrap {
+    position: relative;
+    width: 48px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    font-family: 'SF Mono', Menlo, monospace;
+  }
+  .cell-box {
+    width: 48px;
+    height: 44px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f5f5f5;
+    color: #1a1a1a;
+    font-size: 16px;
+    font-weight: 800;
+    transition: background 0.2s, transform 0.2s, opacity 0.2s, border 0.2s;
+  }
+  .cell-box.in-range { background: rgba(139,133,212,0.22); }
+  .cell-box.cmp-test { background: rgba(249,203,66,0.50); transform: scale(1.08); }
+  .cell-box.eliminated { background: #f0f0f0; color: #aaa; opacity: 0.55; }
+  .cell-box.peak { background: rgba(93,202,165,0.45); border: 2px solid #1D9E75; transform: scale(1.06); }
+  .cell-box.no-match { background: rgba(196,80,30,0.16); border: 2px dashed #C4501E; }
+  .eval-badge {
+    position: absolute;
+    top: -6px;
+    right: -4px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 800;
+    font-family: 'SF Mono', monospace;
+    color: #fff;
+  }
+  .eval-badge.top { background: #7B5EA7; }
+  .eval-badge.bot { background: #4A6572; }
+  .cell-idx {
+    height: 14px;
+    font-size: 11px;
+    color: #aaa;
+  }
+  .cell-ptr {
+    height: 46px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-size: 11.5px;
+    line-height: 15px;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+  .ptr-arrow { font-size: 12px; line-height: 12px; color: #888; }
+  .lbl-s { color: #3A6FD4; }
+  .lbl-m { color: #B07800; }
+  .lbl-e { color: #C4501E; }
+
+  .brace-row {
+    position: relative;
+    height: 40px;
+    margin-top: 2px;
+  }
+  .brace-svg {
+    position: absolute;
+    top: 0;
+    visibility: hidden;
+  }
+  .brace-label {
+    position: absolute;
+    top: 18px;
+    transform: translateX(-50%);
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #6B65B8;
+    white-space: nowrap;
+    visibility: hidden;
+  }
+
+  .answer-line {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 14px;
+    font-weight: 700;
+    color: #1D9E75;
+    text-align: center;
+  }
+  .answer-line.empty {
+    color: #aaa;
+    font-weight: 500;
+  }
+  .answer-line.not-found {
+    color: #C4501E;
+  }
+
+  @media (max-width: 1100px) {
+    .main.layout-grid.lc33-layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .main.layout-grid.lc33-layout .code-half,
+    .main.layout-grid.lc33-layout .viz-panel {
+      grid-column: 1;
+      justify-self: center;
+    }
+    .main.layout-grid.lc33-layout .viz-panel { grid-row: 2; }
+  }
+
+  @media (max-width: 700px) {
+    .array-row { gap: 5px; }
+    .cell-wrap,
+    .cell-box {
+      width: 40px;
+    }
+    .cell-box {
+      height: 40px;
+      font-size: 14px;
+    }
+  }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '33. Search in Rotated Sorted Array',
+  link: 'https://leetcode.com/problems/search-in-rotated-sorted-array/',
+  examples: [
+    { id: 'ex1', label: '[4,5,6,7,0,1,2], target=0 -> 4' },
+    { id: 'ex2', label: '[4,5,6,7,0,1,2], target=3 -> -1' },
+    { id: 'ex3', label: '[2,3,4,5,6,7,1], target=6 -> 4' },
+    { id: 'ex4', label: '[1,3], target=1 -> 0' },
+  ],
+  legend: [
+    { color: 'rgba(139,133,212,0.22)', label: 'current search range [start, end]' },
+    { color: 'rgba(249,203,66,0.50)', label: 'mid — index being tested' },
+    { color: '#7B5EA7', extra: 'border-radius:50%;width:12px;height:12px;', label: 'T — mid landed in the upper (un-rotated) half' },
+    { color: '#4A6572', extra: 'border-radius:50%;width:12px;height:12px;', label: 'B — mid landed in the lower (rotated) half' },
+    { color: '#f0f0f0', extra: 'border:1px solid #ccc;', label: 'eliminated — outside the current range' },
+    { color: 'rgba(93,202,165,0.45)', extra: 'border:2px solid #1D9E75;', label: 'target found here' },
+  ],
+});
+</script>
+
+<div class="main layout-grid lc33-layout">
+  <script>
+  renderCodeBox({
+    code: `
+class Solution:
+    def search(self, nums: List[int], target: int) -> int:
+        if not nums:
+            return -1
+
+        start = 0
+        end = len(nums) - 1
+
+        while start + 1 < end:
+            mid = (start + end) // 2
+            # discuss whetehr mid on top or down
+            if nums[mid] > nums[end]:
+                if nums[0] <= target <= nums[mid]:
+                    end = mid
+                else:
+                    start = mid
+            else:               # mid in bot
+                if nums[mid] <= target <= nums[end]:
+                    start = mid
+                else:
+                    end = mid
+
+        if nums[start] == target:
+            return start
+
+        if nums[end] == target:
+            return end
+
+        return -1`,
+  });
+  </script>
+
+  <div class="viz-panel">
+    <div class="card">
+      <h3 id="input-title">Input  nums = [4, 5, 6, 7, 0, 1, 2], target = 0</h3>
+      <div class="array-row" id="array-row"></div>
+      <div class="brace-row">
+        <svg class="brace-svg" id="brace-svg"><path id="brace-path" fill="none" stroke="#8B85D4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <div class="brace-label" id="brace-label"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Answer</h3>
+      <div class="answer-line empty" id="answer">no result yet</div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+const EXAMPLES = {
+  ex1: { nums: [4, 5, 6, 7, 0, 1, 2], target: 0 },
+  ex2: { nums: [4, 5, 6, 7, 0, 1, 2], target: 3 },
+  ex3: { nums: [2, 3, 4, 5, 6, 7, 1], target: 6 },
+  ex4: { nums: [1, 3], target: 1 },
+};
+
+let NUMS = EXAMPLES.ex1.nums.slice();
+let TARGET = EXAMPLES.ex1.target;
+
+// data-l line numbers from renderCodeBox (no prereq block, so numbering starts at 1)
+const L = {
+  GUARD: 3, RET_NEG1_EMPTY: 4,
+  INIT_START: 6, INIT_END: 7,
+  WHILE: 9, MID: 10,
+  CMP_TOP: 12,
+  TOP_RANGE_CHECK: 13, TOP_SET_END: 14, TOP_SET_START: 16,
+  BOT_RANGE_CHECK: 18, BOT_SET_START: 19, BOT_SET_END: 21,
+  FINAL_START_CHECK: 23, RET_START: 24,
+  FINAL_END_CHECK: 26, RET_END: 27,
+  RET_NEG1_FINAL: 29,
+};
+
+function buildSteps() {
+  const steps = [];
+  const n = NUMS.length;
+  let start = null, end = null, mid = null;
+  let segmentEval = {};   // idx -> 'TOP' | 'BOT', persists once mid has visited that index
+  let checkInfo = null;   // { lo, hi, inRange } for the containment test in flight
+  let finalAnswer = undefined;
+  let found = false;
+
+  function snap(line, info) {
+    steps.push({
+      line, info, start, end, mid,
+      segmentEval: { ...segmentEval },
+      checkInfo: checkInfo ? { ...checkInfo } : null,
+      finalAnswer, found,
+    });
+  }
+
+  snap(null, `Click Next to start: binary search nums = [${NUMS.join(', ')}] for target = ${TARGET}. The array is sorted but rotated at one unknown point, so at every mid we first figure out which sorted half mid is standing in before deciding where the target could be.`);
+
+  if (n === 0) {
+    snap(L.GUARD, 'nums is empty, so "if not nums" is True.');
+    finalAnswer = -1;
+    snap(L.RET_NEG1_EMPTY, 'return -1');
+    return steps;
+  }
+
+  snap(L.GUARD, `nums has ${n} element${n > 1 ? 's' : ''}, so "if not nums" is False — continue.`);
+
+  start = 0;
+  snap(L.INIT_START, 'start = 0');
+  end = n - 1;
+  snap(L.INIT_END, `end = len(nums) - 1 = ${end}`);
+
+  while (true) {
+    const cond = start + 1 < end;
+    snap(L.WHILE, cond
+      ? `start + 1 = ${start + 1} < end = ${end} → keep narrowing.`
+      : `start + 1 = ${start + 1} >= end = ${end} → stop; only two candidates remain.`);
+    if (!cond) break;
+
+    mid = Math.floor((start + end) / 2);
+    snap(L.MID, `mid = (start + end) // 2 = (${start} + ${end}) // 2 = ${mid}`);
+
+    const midIsTop = NUMS[mid] > NUMS[end];
+    segmentEval[mid] = midIsTop ? 'TOP' : 'BOT';
+    snap(L.CMP_TOP, `nums[mid] = ${NUMS[mid]} ${midIsTop ? '>' : '<='} nums[end] = ${NUMS[end]} → mid is in the ${midIsTop ? 'upper half (still un-rotated)' : 'lower half (already past the rotation point)'}.`);
+
+    if (midIsTop) {
+      const inTopRange = NUMS[0] <= TARGET && TARGET <= NUMS[mid];
+      checkInfo = { lo: NUMS[0], hi: NUMS[mid], inRange: inTopRange };
+      snap(L.TOP_RANGE_CHECK, `Is target = ${TARGET} inside the sorted upper half [nums[0]=${NUMS[0]}, nums[mid]=${NUMS[mid]}]? → ${inTopRange}`);
+      if (inTopRange) {
+        end = mid;
+        snap(L.TOP_SET_END, `target is inside the upper half → it can't be past mid → end = mid = ${end}.`);
+      } else {
+        start = mid;
+        snap(L.TOP_SET_START, `target is outside the upper half → it must be further right → start = mid = ${start}.`);
+      }
+    } else {
+      const inBotRange = NUMS[mid] <= TARGET && TARGET <= NUMS[end];
+      checkInfo = { lo: NUMS[mid], hi: NUMS[end], inRange: inBotRange };
+      snap(L.BOT_RANGE_CHECK, `Is target = ${TARGET} inside the sorted lower half [nums[mid]=${NUMS[mid]}, nums[end]=${NUMS[end]}]? → ${inBotRange}`);
+      if (inBotRange) {
+        start = mid;
+        snap(L.BOT_SET_START, `target is inside the lower half → it can't be before mid → start = mid = ${start}.`);
+      } else {
+        end = mid;
+        snap(L.BOT_SET_END, `target is outside the lower half → it must be further left → end = mid = ${end}.`);
+      }
+    }
+    mid = null;
+    checkInfo = null;
+  }
+
+  const startMatches = NUMS[start] === TARGET;
+  snap(L.FINAL_START_CHECK, `nums[start] = ${NUMS[start]} ${startMatches ? '==' : '!='} target = ${TARGET}`);
+  if (startMatches) {
+    finalAnswer = start;
+    found = true;
+    snap(L.RET_START, `Match! return start = ${start}.`);
+    return steps;
+  }
+
+  const endMatches = NUMS[end] === TARGET;
+  snap(L.FINAL_END_CHECK, `nums[end] = ${NUMS[end]} ${endMatches ? '==' : '!='} target = ${TARGET}`);
+  if (endMatches) {
+    finalAnswer = end;
+    found = true;
+    snap(L.RET_END, `Match! return end = ${end}.`);
+    return steps;
+  }
+
+  finalAnswer = -1;
+  snap(L.RET_NEG1_FINAL, `Neither start nor end matches target = ${TARGET} → return -1 (not found).`);
+  return steps;
+}
+
+let STEPS = buildSteps();
+let cur = -1;
+
+function formatArray(nums) {
+  return `[${nums.join(', ')}]`;
+}
+
+function buildArrayDOM() {
+  const row = document.getElementById('array-row');
+  row.innerHTML = '';
+  for (let idx = 0; idx < NUMS.length; idx++) {
+    const wrap = document.createElement('div');
+    wrap.className = 'cell-wrap';
+
+    const box = document.createElement('div');
+    box.className = 'cell-box';
+    box.id = `cell-${idx}`;
+    box.textContent = NUMS[idx];
+    wrap.appendChild(box);
+
+    const badge = document.createElement('div');
+    badge.className = 'eval-badge';
+    badge.id = `badge-${idx}`;
+    badge.style.display = 'none';
+    wrap.appendChild(badge);
+
+    const idxEl = document.createElement('div');
+    idxEl.className = 'cell-idx';
+    idxEl.textContent = idx;
+    wrap.appendChild(idxEl);
+
+    const ptr = document.createElement('div');
+    ptr.className = 'cell-ptr';
+    ptr.id = `ptr-${idx}`;
+    wrap.appendChild(ptr);
+
+    row.appendChild(wrap);
+  }
+}
+
+function renderArray(state) {
+  for (let idx = 0; idx < NUMS.length; idx++) {
+    const box = document.getElementById(`cell-${idx}`);
+    const ptr = document.getElementById(`ptr-${idx}`);
+    const badge = document.getElementById(`badge-${idx}`);
+    if (!box || !ptr || !badge) continue;
+
+    const isMid = state.mid === idx;
+    const inRange = state.start != null && state.end != null && idx >= state.start && idx <= state.end;
+    const isEliminated = state.start != null && !inRange;
+    const isFound = state.found && state.finalAnswer === idx;
+    const isNoMatch = state.finalAnswer === -1 && !state.found && (idx === state.start || idx === state.end);
+
+    let cls = 'cell-box';
+    if (isFound) cls += ' peak';
+    else if (isMid) cls += ' cmp-test';
+    else if (isNoMatch) cls += ' no-match';
+    else if (inRange) cls += ' in-range';
+    else if (isEliminated) cls += ' eliminated';
+    box.className = cls;
+
+    const roles = [];
+    if (state.start === idx) roles.push('<span class="lbl-s">start=' + idx + '</span>');
+    if (state.mid === idx) roles.push('<span class="lbl-m">mid=' + idx + '</span>');
+    if (state.end === idx) roles.push('<span class="lbl-e">end=' + idx + '</span>');
+    ptr.innerHTML = roles.length
+      ? '<span class="ptr-arrow">↑</span>' + roles.join('')
+      : '';
+
+    const seg = state.segmentEval ? state.segmentEval[idx] : undefined;
+    if (seg === undefined) {
+      badge.style.display = 'none';
+    } else {
+      badge.style.display = 'flex';
+      badge.className = 'eval-badge ' + (seg === 'TOP' ? 'top' : 'bot');
+      badge.textContent = seg === 'TOP' ? 'T' : 'B';
+    }
+  }
+}
+
+// Draws an upward-pointing curly brace under the cells of the current
+// search range, sized from the cells' real offsets so it survives zoom
+// and the narrow-screen media query.
+function renderBrace(state) {
+  const svg = document.getElementById('brace-svg');
+  const label = document.getElementById('brace-label');
+  if (!state || state.start == null || state.end == null) {
+    svg.style.visibility = 'hidden';
+    label.style.visibility = 'hidden';
+    return;
+  }
+  const a = document.getElementById(`cell-${state.start}`).parentElement;
+  const b = document.getElementById(`cell-${state.end}`).parentElement;
+  const left = a.offsetLeft;
+  const w = b.offsetLeft + b.offsetWidth - left;
+  const H = 12, M = 7, c = w / 2;
+  const r = Math.min(10, c / 2);
+  const d = `M1,${H} Q1,${M} ${1 + r},${M} L${c - r},${M} Q${c},${M} ${c},1 Q${c},${M} ${c + r},${M} L${w - 1 - r},${M} Q${w - 1},${M} ${w - 1},${H}`;
+  svg.setAttribute('width', w);
+  svg.setAttribute('height', H + 2);
+  svg.setAttribute('viewBox', `0 0 ${w} ${H + 2}`);
+  document.getElementById('brace-path').setAttribute('d', d);
+  svg.style.left = left + 'px';
+  svg.style.visibility = 'visible';
+  label.textContent = `search range = nums[${state.start}..${state.end}]`;
+  label.style.left = (left + c) + 'px';
+  label.style.visibility = 'visible';
+}
+
+function renderAnswer(state) {
+  const answer = document.getElementById('answer');
+  if (!state || state.finalAnswer === undefined) {
+    answer.className = 'answer-line empty';
+    answer.textContent = 'no result yet';
+    return;
+  }
+  if (state.finalAnswer === -1) {
+    answer.className = 'answer-line not-found';
+    answer.textContent = `target ${TARGET} not found → return -1`;
+    return;
+  }
+  answer.className = 'answer-line';
+  answer.textContent = `found at index ${state.finalAnswer} (nums[${state.finalAnswer}] = ${NUMS[state.finalAnswer]})`;
+}
+
+function render() {
+  if (cur < 0) {
+    highlightLine(null);
+    renderCtrl(-1, STEPS.length, '');
+    renderArray({});
+    renderBrace(null);
+    renderAnswer(null);
+    return;
+  }
+
+  const state = STEPS[cur];
+  highlightLine(state.line);
+  renderCtrl(cur, STEPS.length, state.info);
+  renderArray(state);
+  renderBrace(state);
+  renderAnswer(state);
+}
+
+function loadExample(id) {
+  const ex = EXAMPLES[id];
+  if (!ex) return;
+  stopAuto();
+  NUMS = ex.nums.slice();
+  TARGET = ex.target;
+  document.getElementById('input-title').textContent = `Input  nums = ${formatArray(NUMS)}, target = ${TARGET}`;
+  buildArrayDOM();
+  STEPS = buildSteps();
+  cur = -1;
+  render();
+  lockStableSizes();
+  Object.keys(EXAMPLES).forEach(key => {
+    const btn = document.getElementById('ex-' + key);
+    if (btn) btn.classList.toggle('auto-active', key === id);
+  });
+}
+
+loadExample('ex1');
+window.addEventListener('resize', () => render());
+</script>
+</body>
+</html>

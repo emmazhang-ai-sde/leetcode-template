@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>295. Find Median from Data Stream — Two-Heap Animation</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  /* 295-specific heap-node sizing and top state */
+  .heap-node { min-width: 52px; padding: 6px 10px; }
+  .heap-node.heap-top { background: rgba(139,133,212,0.45); }
+
+  /* Median display */
+  .median-box { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 80px; }
+  .median-val { font-size: 30px; font-weight: 800; color: #ccc; font-family: 'SF Mono', monospace; transition: color 0.25s; }
+  .median-val.active { color: #9333C0; }
+  .median-sub { font-size: 10px; color: #bbb; margin-top: 2px; font-family: 'SF Mono', monospace; letter-spacing: 0.05em; text-transform: uppercase; }
+
+  /* Call log */
+  .log-table { display: flex; flex-direction: column; gap: 3px; }
+  .log-row { display: flex; align-items: center; gap: 10px; padding: 4px 8px; border-radius: 6px; font-family: 'SF Mono', monospace; font-size: 12px; color: #888; }
+  .log-row.log-latest { background: rgba(147,51,192,0.07); color: #1a1a1a; }
+  .log-call { min-width: 90px; color: #9333C0; font-weight: 600; }
+  .log-arrow { color: #ccc; }
+  .log-median { color: #C4501E; font-weight: 700; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '295. Find Median from Data Stream — Two-Heap Animation',
+  legend: [
+    { color: 'rgba(139,133,212,0.45)', label: 'heap top' },
+    { color: 'rgba(93,202,165,0.3)', label: 'just pushed' },
+    { color: 'rgba(249,203,66,0.35)', label: 'being popped' },
+  ],
+});
+</script>
+  <div class="main layout-grid">
+    <!-- Code panel -->
+    <script>
+    renderCodeBox({
+      code: `
+class MedianFinder:
+
+    def __init__(self):
+        self.min_heap = []  # upper half
+        self.max_heap = []  # lower half (negated)
+
+    def addNum(self, num):
+        heapq.heappush(self.max_heap, -1 * num)
+        num = -1 * heapq.heappop(self.max_heap)
+        heapq.heappush(self.min_heap, num)
+
+        if len(self.min_heap) - len(self.max_heap) > 1:
+            num = heapq.heappop(self.min_heap)
+            heapq.heappush(self.max_heap, -1 * num)
+
+    def findMedian(self) -> float:
+        if len(self.min_heap) > len(self.max_heap):
+            return self.min_heap[0]
+        else:
+            return (self.min_heap[0] - self.max_heap[0]) / 2`,
+    });
+    </script>
+
+    <!-- Viz panel -->
+    <div class="viz-panel">
+      <!-- Vars bar -->
+      <div class="var-bar" id="vars-bar"><span class="var-dim">variable state</span></div>
+
+      <!-- Two heaps + median -->
+      <div class="card">
+        <h3>Two Heaps</h3>
+        <div style="display:flex; gap:0; align-items:flex-start; justify-content:space-between;">
+
+          <!-- max_heap (lower half) -->
+          <div style="flex:1;">
+            <div style="font-size:11px; font-weight:600; color:#5a54a8; margin-bottom:4px; font-family:'SF Mono',monospace;">max_heap — lower half</div>
+            <div style="font-size:10px; color:#aaa; font-family:'SF Mono',monospace; margin-bottom:8px;">top = MAX  ·  displayed sorted ↓</div>
+            <div class="heap-area" id="max-heap-row"><span class="heap-empty">empty</span></div>
+          </div>
+
+          <!-- Median center -->
+          <div class="median-box" style="padding: 20px 16px 0;">
+            <div class="median-val" id="median-val">—</div>
+            <div class="median-sub">median</div>
+          </div>
+
+          <!-- min_heap (upper half) -->
+          <div style="flex:1;">
+            <div style="font-size:11px; font-weight:600; color:#5a54a8; margin-bottom:4px; font-family:'SF Mono',monospace;">min_heap — upper half</div>
+            <div style="font-size:10px; color:#aaa; font-family:'SF Mono',monospace; margin-bottom:8px;">top = MIN  ·  displayed sorted ↑</div>
+            <div class="heap-area" id="min-heap-row"><span class="heap-empty">empty</span></div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- Call log -->
+      <div class="card">
+        <h3>Call Log</h3>
+        <div class="log-table" id="call-log">
+          <span style="color:#aaa;font-size:12px;font-family:'SF Mono',monospace;">no calls yet</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+const NUMS = [5, 3, 8, 1, 6];
+
+// ── Min-heap helpers ──────────────────────────────────────────────────────────
+function heapPush(heap, val) {
+  heap.push(val);
+  let i = heap.length - 1;
+  while (i > 0) {
+    const p = (i - 1) >> 1;
+    if (heap[p] <= heap[i]) break;
+    [heap[p], heap[i]] = [heap[i], heap[p]];
+    i = p;
+  }
+}
+
+function heapPop(heap) {
+  const top = heap[0];
+  const last = heap.pop();
+  if (heap.length > 0) {
+    heap[0] = last;
+    let i = 0;
+    while (true) {
+      const l = 2 * i + 1, r = 2 * i + 2;
+      let s = i;
+      if (l < heap.length && heap[l] < heap[s]) s = l;
+      if (r < heap.length && heap[r] < heap[s]) s = r;
+      if (s === i) break;
+      [heap[i], heap[s]] = [heap[s], heap[i]];
+      i = s;
+    }
+  }
+  return top;
+}
+
+// Display as sorted arrays (not raw heap array)
+function getMaxVals(heap) { return heap.map(v => -v).sort((a, b) => b - a); }
+function getMinVals(heap) { return [...heap].sort((a, b) => a - b); }
+
+// ── Step builder ──────────────────────────────────────────────────────────────
+function buildSteps() {
+  const steps = [];
+  let maxHeap = [];
+  let minHeap = [];
+  let numVar = null;
+  let poppingFromMax = false;
+  let poppingFromMin = false;
+  let newInMax = null;
+  let newInMin = null;
+  let median = null;
+  let callLog = [];
+
+  function snap(line, info) {
+    steps.push({
+      line, info,
+      maxVals: getMaxVals(maxHeap),
+      minVals: getMinVals(minHeap),
+      numVar,
+      poppingFromMax,
+      poppingFromMin,
+      newInMax,
+      newInMin,
+      median,
+      callLog: callLog.map(e => ({ ...e })),
+    });
+  }
+
+  snap(3, '__init__:  min_heap = []  ·  max_heap = []');
+
+  for (const origNum of NUMS) {
+    numVar = origNum;
+    poppingFromMax = false; poppingFromMin = false;
+    newInMax = null; newInMin = null; median = null;
+
+    snap(7, `── addNum(${origNum}) ──`);
+
+    // Line 8: push to max_heap
+    heapPush(maxHeap, -origNum);
+    newInMax = origNum;
+    snap(8, `Line 8: heapq.heappush(max_heap, -${origNum})  →  ${origNum} enters lower half`);
+    newInMax = null;
+
+    // Line 9: pop max from max_heap
+    const topBefore = getMaxVals(maxHeap)[0];
+    poppingFromMax = true;
+    snap(9, `Line 9: heapq.heappop(max_heap)  →  remove MAX (${topBefore}) from lower half`);
+    const poppedVal = -heapPop(maxHeap);
+    poppingFromMax = false;
+    numVar = poppedVal;
+    snap(9, `Popped ${poppedVal}  →  num = ${poppedVal}  (guarantees min_heap top ≥ max_heap top)`);
+
+    // Line 10: push to min_heap
+    heapPush(minHeap, poppedVal);
+    newInMin = poppedVal;
+    snap(10, `Line 10: heapq.heappush(min_heap, ${poppedVal})  →  ${poppedVal} enters upper half`);
+    newInMin = null;
+
+    // Line 12: check balance
+    const diff = minHeap.length - maxHeap.length;
+    const needRebalance = diff > 1;
+    snap(12, `Line 12: len(min_heap)=${minHeap.length} − len(max_heap)=${maxHeap.length} = ${diff} ${needRebalance ? '> 1  →  rebalance!' : '≤ 1  →  balanced ✓'}`);
+
+    if (needRebalance) {
+      // Line 13: pop min from min_heap
+      const minTopBefore = getMinVals(minHeap)[0];
+      poppingFromMin = true;
+      snap(13, `Line 13: heapq.heappop(min_heap)  →  remove MIN (${minTopBefore}) from upper half`);
+      const rebalVal = heapPop(minHeap);
+      poppingFromMin = false;
+      numVar = rebalVal;
+      snap(13, `Popped ${rebalVal}  →  num = ${rebalVal}`);
+
+      // Line 14: push to max_heap
+      heapPush(maxHeap, -rebalVal);
+      newInMax = rebalVal;
+      snap(14, `Line 14: heapq.heappush(max_heap, -${rebalVal})  →  ${rebalVal} moved to lower half. Balanced ✓`);
+      newInMax = null;
+    }
+
+    // findMedian
+    numVar = null;
+    snap(16, `── findMedian()  ─  len(min_heap)=${minHeap.length}  len(max_heap)=${maxHeap.length} ──`);
+
+    const minBig = minHeap.length > maxHeap.length;
+    snap(17, `Line 17: len(min_heap) > len(max_heap)?  →  ${minBig ? 'YES — odd total, return min_heap[0]' : 'NO — even total, average the two tops'}`);
+
+    if (minBig) {
+      median = minHeap[0];
+      snap(18, `Line 18: return min_heap[0] = ${median}  (middle element)`);
+      callLog.push({ num: origNum, median });
+      snap(18, `findMedian() = ${median} ✓`);
+    } else {
+      const minTop = minHeap[0];
+      const maxTopNeg = maxHeap[0]; // stored negated
+      median = (minTop - maxTopNeg) / 2;
+      snap(20, `Line 20: return (min_heap[0] − max_heap[0]) / 2 = (${minTop} − (${maxTopNeg})) / 2 = ${median}`);
+      callLog.push({ num: origNum, median });
+      snap(20, `findMedian() = ${median} ✓`);
+    }
+    median = null;
+  }
+
+  return steps;
+}
+
+const STEPS = buildSteps();
+let cur = -1;
+
+// ── Heap row renderer ─────────────────────────────────────────────────────────
+function renderHeapRow(id, vals, poppingTop, newVal, isMaxHeap) {
+  const container = document.getElementById(id);
+  if (vals.length === 0) {
+    container.innerHTML = '<span class="heap-empty">empty</span>';
+    return;
+  }
+  container.innerHTML = '';
+  vals.forEach((val, i) => {
+    const isTop = i === 0;
+    const isPopping = poppingTop && isTop;
+    const isNew = newVal === val;
+
+    const slot = document.createElement('div');
+    slot.className = 'heap-slot';
+
+    const node = document.createElement('div');
+    let cls = 'heap-node';
+    if (isPopping)    cls += ' popping';
+    else if (isNew)   cls += ' pushing';
+    else if (isTop)   cls += ' heap-top';
+    node.className = cls;
+
+    const valEl = document.createElement('span');
+    valEl.className = 'heap-val';
+    valEl.textContent = val;
+
+    const metaEl = document.createElement('span');
+    metaEl.className = 'heap-meta';
+    metaEl.textContent = isTop ? (isMaxHeap ? 'MAX' : 'MIN') : '';
+
+    node.appendChild(valEl);
+    node.appendChild(metaEl);
+    slot.appendChild(node);
+    container.appendChild(slot);
+  });
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function render() {
+  if (cur < 0) {
+    document.getElementById('max-heap-row').innerHTML = '<span class="heap-empty">empty</span>';
+    document.getElementById('min-heap-row').innerHTML = '<span class="heap-empty">empty</span>';
+    document.getElementById('median-val').textContent = '—';
+    document.getElementById('median-val').className = 'median-val';
+    document.getElementById('call-log').innerHTML = '<span style="color:#aaa;font-size:12px;font-family:\'SF Mono\',monospace;">no calls yet</span>';
+    document.getElementById('vars-bar').innerHTML = '<span class="var-dim">variable state</span>';
+    renderCtrl(-1, STEPS.length, '');
+    highlightLine(null);
+    return;
+  }
+
+  const s = STEPS[cur];
+  highlightLine(s.line);
+  renderCtrl(cur, STEPS.length, s.info);
+
+  // Vars bar
+  const parts = [];
+  if (s.numVar !== null) parts.push(`<span><span class="var-name">num</span> <span class="var-eq">=</span> <span class="var-val">${s.numVar}</span></span>`);
+  parts.push(`<span><span class="var-name">max_heap</span> <span class="var-eq">=</span> <span style="color:#333;">[${s.maxVals.join(', ')}]</span></span>`);
+  parts.push(`<span><span class="var-name">min_heap</span> <span class="var-eq">=</span> <span style="color:#333;">[${s.minVals.join(', ')}]</span></span>`);
+  document.getElementById('vars-bar').innerHTML = parts.join('');
+
+  // Heap rows
+  renderHeapRow('max-heap-row', s.maxVals, s.poppingFromMax, s.newInMax, true);
+  renderHeapRow('min-heap-row', s.minVals, s.poppingFromMin, s.newInMin, false);
+
+  // Median display
+  const medEl = document.getElementById('median-val');
+  if (s.median !== null) {
+    medEl.textContent = Number.isInteger(s.median) ? String(s.median) : s.median.toFixed(1);
+    medEl.className = 'median-val active';
+  } else {
+    medEl.textContent = '—';
+    medEl.className = 'median-val';
+  }
+
+  // Call log
+  const logEl = document.getElementById('call-log');
+  if (s.callLog.length === 0) {
+    logEl.innerHTML = '<span style="color:#aaa;font-size:12px;font-family:\'SF Mono\',monospace;">no calls yet</span>';
+  } else {
+    logEl.innerHTML = '';
+    s.callLog.forEach((entry, i) => {
+      const isLatest = i === s.callLog.length - 1;
+      const medStr = Number.isInteger(entry.median) ? String(entry.median) : entry.median.toFixed(1);
+      const row = document.createElement('div');
+      row.className = 'log-row' + (isLatest ? ' log-latest' : '');
+      row.innerHTML =
+        `<span class="log-call">addNum(${entry.num})</span>` +
+        `<span class="log-arrow">→</span>` +
+        `<span class="log-median">${medStr}</span>`;
+      logEl.appendChild(row);
+    });
+  }
+}
+
+doReset();
+</script>
+</body>
+</html>

@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>75. Sort Colors — 三指针动画</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  .code-block { }
+  .code-line.hl { background: rgba(199,146,234,0.18); }
+  .viz-panel { gap: 14px; }
+
+  /* Array cells */
+  .cell-group { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .cell {
+    width: 52px; height: 52px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; font-weight: 800; font-family: 'SF Mono', monospace;
+    transition: background 0.2s, transform 0.15s;
+    margin: 0 3px;
+  }
+  /* Default: all cells gray */
+  .cell { background: #e9eaec; color: #1a1a1a; }
+  /* fast: yellow background */
+  .cell.is-fast   { background: rgba(249,203,66,0.6); transform: scale(1.08); }
+  /* swap: green background */
+  .cell.swapping  { background: rgba(93,202,165,0.65); transform: scale(1.1); }
+  /* settled 0s: red, settled 2s: blue */
+  .cell.settled-0 { background: rgba(239,68,68,0.28); color: #b91c1c; }
+  .cell.settled-2 { background: rgba(59,130,246,0.28); color: #1d4ed8; }
+  .cell-idx { font-size: 10px; color: #aaa; font-family: 'SF Mono', monospace; }
+
+  /* Pointer row */
+  .ptr-row { display: flex; margin-top: 6px; }
+  .ptr-cell {
+    width: 52px; margin: 0 3px;
+    display: flex; flex-direction: column; align-items: center;
+    gap: 1px; font-family: 'SF Mono', monospace; font-size: 11px; font-weight: 700;
+    min-height: 32px;
+  }
+  .ptr-start { color: #b45309; }
+  .ptr-fast  { color: #d4a800; }
+  .ptr-end   { color: #1d4ed8; }
+
+  /* Legend color swatches */
+  .leg-box { width: 13px; height: 13px; border-radius: 3px; }
+
+  /* Region labels */
+  .region-labels { display: flex; margin-top: 10px; gap: 0; }
+  .region-label {
+    font-size: 11px; font-family: 'SF Mono', monospace;
+    padding: 3px 8px; border-radius: 4px; text-align: center;
+    white-space: nowrap;
+  }
+  .region-label.r0 { background: rgba(239,68,68,0.12); color: #b91c1c; }
+  .region-label.r1 { background: #f3f4f6; color: #6b7280; }
+  .region-label.r2 { background: rgba(59,130,246,0.12); color: #1d4ed8; }
+  .region-label.runknown { background: #fff9db; color: #92400e; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '75. Sort Colors — 荷兰国旗 · 三指针动画',
+  legend: [
+    { color: '#e9eaec', label: '未处理' },
+    { color: 'rgba(249,203,66,0.6)', label: 'fast 正在检查' },
+    { color: 'rgba(93,202,165,0.65)', label: '正在交换' },
+    { color: 'rgba(239,68,68,0.28)', label: '已归位 0' },
+    { color: 'rgba(59,130,246,0.28)', label: '已归位 2' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+    <!-- Code panel -->
+    <script>
+    renderCodeBox({
+      code: `
+def sortColors(self, nums):
+    start = 0
+    end   = len(nums) - 1
+    fast  = 0
+
+    while fast <= end:
+        if nums[fast] == 2:
+            nums[fast], nums[end] = nums[end], nums[fast]
+            end -= 1
+
+        elif nums[fast] == 0:
+            nums[fast], nums[start] = nums[start], nums[fast]
+            start += 1
+            fast  += 1
+
+        elif nums[fast] == 1:
+            fast += 1
+
+    return nums`,
+    });
+    </script>
+
+    <!-- Viz panel -->
+    <div class="viz-panel">
+
+      <!-- Vars bar -->
+      <div class="var-bar" id="vars-bar"><span class="var-dim">变量状态</span></div>
+
+      <!-- Array visualization -->
+      <div class="card">
+        <h3>nums 数组</h3>
+        <div style="font-size:12px;color:#aaa;font-family:'SF Mono',monospace;margin-bottom:10px;">
+          输入：nums = [2, 0, 2, 1, 1, 0]
+        </div>
+        <div style="display:flex;" id="nums-row"></div>
+        <div class="ptr-row" id="ptr-row"></div>
+
+        <!-- Region legend -->
+      </div>
+
+      <!-- Pointer explanation -->
+      <div class="card">
+        <h3>三指针含义</h3>
+        <div style="display:flex; gap:20px; font-family:'SF Mono',monospace; font-size:13px;">
+          <div>
+            <span class="ptr-start" style="font-weight:700;">start ↑</span>
+            <div style="color:#6b7280;font-size:12px;margin-top:4px;">下一个 0 放这里</div>
+          </div>
+          <div>
+            <span class="ptr-fast" style="font-weight:700;">fast ↑</span>
+            <div style="color:#6b7280;font-size:12px;margin-top:4px;">当前检查位置</div>
+          </div>
+          <div>
+            <span class="ptr-end" style="font-weight:700;">end ↑</span>
+            <div style="color:#6b7280;font-size:12px;margin-top:4px;">下一个 2 放这里</div>
+          </div>
+        </div>
+
+        <!-- Region bar -->
+        <div style="margin-top:14px;">
+          <div style="font-size:11px;color:#aaa;margin-bottom:6px;">当前分区状态：</div>
+          <div class="region-labels" id="region-bar"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+const NUMS_INIT = [2, 0, 2, 1, 1, 0];
+
+// ── Step builder ──────────────────────────────────────────────────────────
+function buildSteps() {
+  const steps = [];
+  let nums  = [...NUMS_INIT];
+  let start = 0;
+  let end   = nums.length - 1;
+  let fast  = 0;
+  let swapPair = null; // {i, j}
+
+  function snap(line, info) {
+    steps.push({ line, info, nums: [...nums], start, end, fast, swapPair: swapPair ? {...swapPair} : null });
+  }
+
+  // Init
+  snap(2, `初始化：start = 0，end = ${end}，fast = 0`);
+
+  while (fast <= end) {
+    snap(6, `第 6 行：fast(${fast}) <= end(${end}) ✓ 继续循环`);
+
+    if (nums[fast] === 2) {
+      snap(7, `第 7 行：nums[fast] = nums[${fast}] = 2 → 与 end(${end}) 交换`);
+      swapPair = { i: fast, j: end };
+      snap(8, `交换 nums[${fast}]↔nums[${end}]：${nums[fast]} ↔ ${nums[end]}`);
+      [nums[fast], nums[end]] = [nums[end], nums[fast]];
+      end--;
+      swapPair = null;
+      snap(9, `end -= 1 → end = ${end}（fast 不动，新换来的元素需要重新判断）`);
+
+    } else if (nums[fast] === 0) {
+      snap(11, `第 11 行：nums[fast] = nums[${fast}] = 0 → 与 start(${start}) 交换`);
+      swapPair = { i: fast, j: start };
+      snap(12, `交换 nums[${fast}]↔nums[${start}]：${nums[fast]} ↔ ${nums[start]}`);
+      [nums[fast], nums[start]] = [nums[start], nums[fast]];
+      start++;
+      fast++;
+      swapPair = null;
+      snap(13, `start += 1 → ${start}，fast += 1 → ${fast}`);
+
+    } else {
+      snap(16, `第 16 行：nums[fast] = nums[${fast}] = 1 → 跳过，fast 前进`);
+      fast++;
+      snap(17, `fast += 1 → fast = ${fast}`);
+    }
+  }
+
+  snap(6, `第 6 行：fast(${fast}) > end(${end})，循环结束 ✓`);
+  snap(19, `第 19 行：return nums = [${nums.join(', ')}] ✓`);
+  return steps;
+}
+
+const STEPS = buildSteps();
+let cur = -1;
+
+// ── Build DOM ─────────────────────────────────────────────────────────────
+function buildDOM() {
+  const row  = document.getElementById('nums-row');
+  const prow = document.getElementById('ptr-row');
+  row.innerHTML = '';
+  prow.innerHTML = '';
+
+  NUMS_INIT.forEach((val, i) => {
+    // Cell group
+    const g = document.createElement('div');
+    g.className = 'cell-group';
+    const c = document.createElement('div');
+    c.className = 'cell';
+    c.id = `cell-${i}`;
+    c.textContent = val;
+    const idx = document.createElement('div');
+    idx.className = 'cell-idx';
+    idx.textContent = `[${i}]`;
+    g.appendChild(c);
+    g.appendChild(idx);
+    row.appendChild(g);
+
+    // Pointer slot
+    const pc = document.createElement('div');
+    pc.className = 'ptr-cell';
+    pc.id = `ptr-${i}`;
+    prow.appendChild(pc);
+  });
+}
+
+// ── Render ────────────────────────────────────────────────────────────────
+function render() {
+  if (cur < 0) {
+    NUMS_INIT.forEach((val, i) => {
+      const el = document.getElementById(`cell-${i}`);
+      if (el) { el.className = 'cell'; el.style.background = '#e9eaec'; el.style.color = '#1a1a1a'; el.style.transform = ''; el.textContent = val; }
+      const p = document.getElementById(`ptr-${i}`);
+      if (p) p.innerHTML = '';
+    });
+    document.getElementById('vars-bar').innerHTML = '<span class="var-dim">变量状态</span>';
+    document.getElementById('region-bar').innerHTML = '';
+    renderCtrl(-1, STEPS.length, '');
+    highlightLine(null);
+    return;
+  }
+
+  const s = STEPS[cur];
+  highlightLine(s.line);
+  renderCtrl(cur, STEPS.length, s.info);
+
+  // Vars bar
+  const vb = document.getElementById('vars-bar');
+  vb.innerHTML = [
+    `<span><span style="color:#b45309;">start</span> <span class="var-eq">=</span> <span class="var-val">${s.start}</span></span>`,
+    `<span><span style="color:#d4a800;">fast</span> <span class="var-eq">=</span> <span class="var-val">${s.fast}</span></span>`,
+    `<span><span style="color:#1d4ed8;">end</span> <span class="var-eq">=</span> <span class="var-val">${s.end}</span></span>`,
+    `<span><span class="var-name">nums</span> <span class="var-eq">=</span> <span style="color:#333;">[${s.nums.join(', ')}]</span></span>`,
+  ].join('');
+
+  // Array cells
+  s.nums.forEach((val, i) => {
+    const el = document.getElementById(`cell-${i}`);
+    const ptr = document.getElementById(`ptr-${i}`);
+    if (!el) return;
+
+    const isSwap = s.swapPair && (i === s.swapPair.i || i === s.swapPair.j);
+    const isFast = (i === s.fast) && !isSwap;
+    const isSettledLeft  = i < s.start;
+    const isSettledRight = i > s.end;
+
+    el.className = 'cell';
+    if (isSwap) {
+      el.style.background = 'rgba(93,202,165,0.65)';
+      el.style.color = '#1a1a1a';
+      el.style.transform = 'scale(1.1)';
+    } else if (isFast) {
+      el.style.background = 'rgba(249,203,66,0.6)';
+      el.style.color = '#1a1a1a';
+      el.style.transform = 'scale(1.08)';
+    } else if (isSettledLeft) {
+      el.style.background = 'rgba(239,68,68,0.35)';
+      el.style.color = '#b91c1c';
+      el.style.transform = '';
+    } else if (isSettledRight) {
+      el.style.background = 'rgba(59,130,246,0.35)';
+      el.style.color = '#1d4ed8';
+      el.style.transform = '';
+    } else {
+      el.style.background = '#e9eaec';
+      el.style.color = '#1a1a1a';
+      el.style.transform = '';
+    }
+    el.textContent = val;
+
+    // Pointer labels
+    const labels = [];
+    if (i === s.start && i === s.fast && i === s.end) {
+      labels.push('<span class="ptr-start">▲start</span><span class="ptr-fast">fast</span><span class="ptr-end">end▲</span>');
+    } else {
+      if (i === s.start) labels.push('<span class="ptr-start">▲ start</span>');
+      if (i === s.fast)  labels.push('<span class="ptr-fast">▲ fast</span>');
+      if (i === s.end)   labels.push('<span class="ptr-end">▲ end</span>');
+    }
+    if (ptr) ptr.innerHTML = labels.join('');
+  });
+
+  // Region bar
+  const rb = document.getElementById('region-bar');
+  const n = s.nums.length;
+  const parts = [];
+
+  const zeroCount    = s.start;
+  const unknownCount = Math.max(0, s.end - s.fast + 1);
+  const oneCount     = Math.max(0, s.fast - s.start);
+  const twoCount     = n - 1 - s.end;
+
+  const cellW = 58; // approx cell width + margin
+  function widthStyle(count) {
+    return `width:${count * cellW}px; min-width:${count > 0 ? 16 : 0}px;`;
+  }
+
+  if (zeroCount > 0)    parts.push(`<div class="region-label r0" style="${widthStyle(zeroCount)}">← 0s (${zeroCount})</div>`);
+  if (oneCount > 0)     parts.push(`<div class="region-label r1" style="${widthStyle(oneCount)}">1s (${oneCount})</div>`);
+  if (unknownCount > 0) parts.push(`<div class="region-label runknown" style="${widthStyle(unknownCount)}">? (${unknownCount})</div>`);
+  if (twoCount > 0)     parts.push(`<div class="region-label r2" style="${widthStyle(twoCount)}">2s (${twoCount}) →</div>`);
+
+  rb.innerHTML = parts.join('') || '<span style="color:#aaa;font-size:12px;">—</span>';
+}
+
+
+buildDOM();
+doReset();
+</script>
+</body>
+</html>

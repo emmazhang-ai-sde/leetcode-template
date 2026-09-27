@@ -1,0 +1,4 @@
+/* 课件独立页：与 index 内 iframe 共用 courseware.css */
+@import url('repo-corner.css');
+@import url('globals.css');
+@import url('courseware.css');

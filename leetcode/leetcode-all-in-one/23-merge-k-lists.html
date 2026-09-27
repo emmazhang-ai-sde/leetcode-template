@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>23. Merge K Sorted Lists — Heap Animation</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  .bi { color: #B07800; }
+  .prereq-block .cm { color: #3A9E7E; } /* keep the green ListNode prelude */
+
+  /* Linked list */
+  .lists-area { display: flex; flex-direction: column; gap: 12px; }
+  .list-row { display: flex; align-items: center; }
+  .list-label { font-size: 12px; font-family: 'SF Mono', monospace; color: #1a1a1a; width: 48px; margin-right: 10px; flex-shrink: 0; }
+  .node { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 8px; font-size: 15px; font-weight: 700; font-family: 'SF Mono', monospace; background: #f5f5f5; color: #1a1a1a; transition: background 0.2s, opacity 0.2s; position: relative; flex-shrink: 0; }
+  .node.consumed { opacity: 0.25; background: #ebebeb; }
+  .node.current  { background: rgba(93,202,165,0.35); }
+  .node.in-heap  { background: rgba(139,133,212,0.25); }
+  .arrow { font-size: 13px; color: #1a1a1a; padding: 0 3px; flex-shrink: 0; }
+  .null-label { font-size: 12px; color: #1a1a1a; font-family: 'SF Mono', monospace; padding: 0 4px; }
+
+  /* Heap sizing */
+  .heap-node { width: 52px; height: 52px; gap: 1px; }
+  .heap-meta { font-size: 9px; }
+
+  /* Result */
+  .result-area { display: flex; align-items: center; gap: 0; flex-wrap: wrap; min-height: 44px; }
+  .res-node { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 8px; font-size: 15px; font-weight: 700; font-family: 'SF Mono', monospace; background: rgba(247,140,108,0.15); color: #1a1a1a; flex-shrink: 0; }
+  .res-node.newest { background: rgba(247,140,108,0.3); }
+  .res-arrow { font-size: 13px; color: #1a1a1a; padding: 0 3px; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '23. Merge K Sorted Lists — Min-Heap Animation',
+  legend: [
+    { color: 'rgba(139,133,212,0.2)', extra: 'border-color:#8B85D4;', label: '在 heap 中' },
+    { color: 'rgba(93,202,165,0.25)', extra: 'border-color:#3A9E7E;', label: '当前弹出' },
+    { color: 'rgba(249,203,66,0.4)', extra: 'border-color:#d4a800;', label: '已加入结果' },
+    { color: '#dedcd4', extra: 'border-color:#c8c6be;opacity:0.4;', label: '已消费' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+  <!-- Code panel: prereq comment block (lines 1-4) + solution (lines 5-20) -->
+  <script>
+  renderCodeBox({
+    prereq: `
+# class ListNode:
+#     def __init__(self, val=0, next=None):
+#         self.val = val
+#         self.next = next`,
+    code: `
+def mergeKLists(self, lists):
+    heap = []
+    for i, list in enumerate(lists):
+        if list:
+            heapq.heappush(heap, (list.val, i, list))
+
+    dummy = ListNode(0)
+    tail = dummy
+    while len(heap) > 0:
+        curr = heapq.heappop(heap)
+        node = curr[2]
+        tail.next = node
+        tail = tail.next
+        if node.next:
+            heapq.heappush(heap, (node.next.val, curr[1], node.next))
+    return dummy.next`,
+  });
+  </script>
+
+  <!-- Viz panel -->
+  <div class="viz-panel">
+
+    <!-- For-loop variables -->
+    <div id="loop-vars" style="background:#ffffff; border-radius:8px; padding:10px 14px; font-family:'SF Mono','Menlo',monospace; font-size:13px; color:#1a1a1a;"><span style="color:#aaa;">for i, list in enumerate(lists):</span></div>
+
+    <!-- Push history -->
+    <div class="card">
+      <h3>Heap Push 历史 (list.val, i, list)</h3>
+      <div id="push-history-area" style="font-family:'SF Mono','Menlo',monospace; font-size:13px; display:flex; flex-direction:column; gap:4px;">
+        <span style="color:#aaa;">（还没有 push）</span>
+      </div>
+    </div>
+
+    <!-- Input lists + Min-heap side by side -->
+    <div style="display:flex; gap:16px; align-items:flex-start;">
+      <!-- Input lists -->
+      <div class="card" style="flex:1;">
+        <h3>Input Lists</h3>
+        <div class="lists-area" id="lists-area"></div>
+      </div>
+
+      <!-- Min-heap -->
+      <div class="card" style="flex:1;">
+        <h3>Min-Heap（heap 当前内容，堆顶 = 最小值）</h3>
+        <div class="heap-area" id="heap-area">
+          <span class="heap-empty">heap = []</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- While loop variables -->
+    <div id="while-vars" style="background:#ffffff; border-radius:8px; padding:10px 14px; font-family:'SF Mono','Menlo',monospace; font-size:13px; color:#1a1a1a;"><span style="color:#aaa;">while len(heap) &gt; 0:</span></div>
+
+    <!-- Variable inspector -->
+    <div id="var-inspector" class="card" style="visibility:hidden;">
+      <h3>指针状态（dummy / tail / node / curr）</h3>
+      <div id="var-inspector-diagram"></div>
+    </div>
+
+  </div>
+</div><!-- /.main -->
+</div><!-- /.content-wrapper -->
+
+<script>
+// ── Data model ────────────────────────────────────────────────────────────
+// Three lists: [1,4,5], [1,3,4], [2,6]
+const LISTS_INIT = [
+  [1, 4, 5],
+  [1, 3, 4],
+  [2, 6],
+];
+const LIST_COLORS = ['#3A9E7E', '#EF9F27', '#AFA9EC'];
+const LIST_NAMES  = ['list[0]', 'list[1]', 'list[2]'];
+
+// We'll represent each node as { listIdx, nodeIdx, val }
+// nodeIdx = position within its list (0-based)
+
+// ── Step builder ─────────────────────────────────────────────────────────
+function buildSteps() {
+  const steps = [];
+
+  // Track state:
+  // consumed[li][ni] = true if that node has been popped and linked
+  // heap = array of {val, listIdx, nodeIdx}  (min-heap semantics; we'll sort for display)
+  // result = array of {val, listIdx, nodeIdx}
+  // poppingNode = {listIdx, nodeIdx} | null
+  // pushingNode = {listIdx, nodeIdx} | null
+
+  const consumed = LISTS_INIT.map(l => l.map(() => false));
+  const heap = [];
+  const result = [];
+  let poppingNode = null;
+  let pushingNode = null;
+  let loopI = null;
+  let loopList = null;
+  let whileCurr = null;
+  let svCreated = false;
+  let svTail = null;
+  let svNode = null;
+  let svNodeNextKnown = false;
+  let svNodeNextVal = null;
+  let svNodeInResult = false;
+  const pushHistory = [];
+
+  function snap(line, info) {
+    steps.push({
+      line,
+      info,
+      consumed: consumed.map(r => [...r]),
+      heap: heap.map(h => ({...h})),
+      result: [...result],
+      poppingNode: poppingNode ? {...poppingNode} : null,
+      pushingNode: pushingNode ? {...pushingNode} : null,
+      loopI: loopI,
+      loopList: loopList ? [...loopList] : null,
+      whileCurr: whileCurr ? {...whileCurr} : null,
+      svCreated, svTail, svNode, svNodeNextKnown, svNodeNextVal, svNodeInResult,
+      pushHistory: pushHistory.map(h => ({...h})),
+    });
+  }
+
+  function heapPush(item) {
+    heap.push(item);
+    // bubble up (min-heap by val, tie-break by listIdx)
+    let i = heap.length - 1;
+    while (i > 0) {
+      const parent = Math.floor((i - 1) / 2);
+      if (heap[parent].val > heap[i].val || (heap[parent].val === heap[i].val && heap[parent].listIdx > heap[i].listIdx)) {
+        [heap[parent], heap[i]] = [heap[i], heap[parent]];
+        i = parent;
+      } else break;
+    }
+  }
+
+  function heapPop() {
+    if (heap.length === 1) return heap.pop();
+    const top = heap[0];
+    heap[0] = heap.pop();
+    // bubble down
+    let i = 0;
+    while (true) {
+      const l = 2*i+1, r = 2*i+2;
+      let smallest = i;
+      if (l < heap.length && (heap[l].val < heap[smallest].val || (heap[l].val === heap[smallest].val && heap[l].listIdx < heap[smallest].listIdx))) smallest = l;
+      if (r < heap.length && (heap[r].val < heap[smallest].val || (heap[r].val === heap[smallest].val && heap[r].listIdx < heap[smallest].listIdx))) smallest = r;
+      if (smallest !== i) { [heap[i], heap[smallest]] = [heap[smallest], heap[i]]; i = smallest; }
+      else break;
+    }
+    return top;
+  }
+
+  // Line 6: heap = []
+  snap(6, '第 6 行：初始化 heap = []');
+
+  // Lines 7-9: push heads of each list
+  snap(7, '第 7-9 行：遍历 lists，把每个链表的头节点推入 heap');
+  for (let li = 0; li < LISTS_INIT.length; li++) {
+    loopI = li;
+    loopList = LISTS_INIT[li];
+    const lst = LISTS_INIT[li];
+    if (lst.length > 0) {
+      pushingNode = { listIdx: li, nodeIdx: 0 };
+      pushHistory.push({ val: lst[0], listIdx: li, nodeIdx: 0 });
+      snap(9, `heapq.heappush: 推入 list[${li}] 的头节点 val=${lst[0]}，tuple=(${lst[0]}, ${li}, node)`);
+      heapPush({ val: lst[0], listIdx: li, nodeIdx: 0 });
+      pushingNode = null;
+      snap(9, `heap 现在: [${heap.map(h=>`(${h.val},i=${h.listIdx})`).join(', ')}]`);
+    }
+  }
+  loopI = null;
+  loopList = null;
+
+  // Lines 11-12: dummy + tail
+  svCreated = true; svTail = 'dummy';
+  snap(11, '第 11-12 行：创建 dummy 哑节点，tail 指向 dummy');
+
+  // Main loop
+  let loopCount = 0;
+  while (heap.length > 0) {
+    loopCount++;
+    snap(13, `第 13 行：while 检查 heap 非空 ✓（heap 有 ${heap.length} 个元素）`);
+
+    // Pop
+    poppingNode = { listIdx: heap[0].listIdx, nodeIdx: heap[0].nodeIdx };
+    whileCurr = { val: heap[0].val, listIdx: heap[0].listIdx, nodeIdx: heap[0].nodeIdx };
+    svNode = null; svNodeNextKnown = false; svNodeNextVal = null; svNodeInResult = false;
+    snap(14, `第 14 行：heapq.heappop → 弹出堆顶 val=${heap[0].val}，来自 list[${heap[0].listIdx}]`);
+    const popped = heapPop();
+    poppingNode = null;
+
+    // node = curr[2]
+    svNode = popped.val;
+    snap(15, `第 15 行：node = curr[2] → 取出节点 val=${popped.val}（list[${popped.listIdx}][${popped.nodeIdx}]）`);
+
+    // tail.next = node + tail = tail.next
+    consumed[popped.listIdx][popped.nodeIdx] = true;
+    svTail = popped.val;
+    snap(16, `第 16-17 行：tail.next = node(${popped.val})，tail 前移。节点 ${popped.val} 加入结果链表！`);
+    result.push({ val: popped.val, listIdx: popped.listIdx, nodeIdx: popped.nodeIdx });
+    svNodeInResult = true;
+    snap(16, `结果链表目前: [${result.map(r=>r.val).join(' → ')}]`);
+
+    // Check node.next
+    const nextNodeIdx = popped.nodeIdx + 1;
+    const hasNext = nextNodeIdx < LISTS_INIT[popped.listIdx].length;
+    svNodeNextKnown = true;
+    svNodeNextVal = hasNext ? LISTS_INIT[popped.listIdx][nextNodeIdx] : null;
+    snap(18, `第 18 行：node.next ${hasNext ? '存在' : '= null'} → ${hasNext ? '推入 node.next' : '不 push'}`);
+
+    if (hasNext) {
+      const nextVal = LISTS_INIT[popped.listIdx][nextNodeIdx];
+      pushingNode = { listIdx: popped.listIdx, nodeIdx: nextNodeIdx };
+      pushHistory.push({ val: nextVal, listIdx: popped.listIdx, nodeIdx: nextNodeIdx });
+      snap(19, `第 19 行：heapq.heappush: 推入 list[${popped.listIdx}] 的下一个节点 val=${nextVal}，tuple=(${nextVal}, ${popped.listIdx}, node)`);
+      heapPush({ val: nextVal, listIdx: popped.listIdx, nodeIdx: nextNodeIdx });
+      pushingNode = null;
+      snap(19, `heap 现在: [${heap.map(h=>`(${h.val},i=${h.listIdx})`).join(', ')}]`);
+    }
+  }
+
+  whileCurr = null;
+  snap(13, `第 13 行：heap 为空，while 循环结束`);
+  snap(20, `第 20 行：return dummy.next → 结果: [${result.map(r=>r.val).join(' → ')}] ✓`);
+
+  return steps;
+}
+
+const STEPS = buildSteps();
+let cur = -1;
+
+// ── DOM builders ──────────────────────────────────────────────────────────
+function buildListsDOM() {
+  const area = document.getElementById('lists-area');
+  area.innerHTML = '';
+  LISTS_INIT.forEach((lst, li) => {
+    const row = document.createElement('div');
+    row.className = 'list-row';
+    const lbl = document.createElement('div');
+    lbl.className = 'list-label';
+    lbl.textContent = LIST_NAMES[li];
+    row.appendChild(lbl);
+
+    lst.forEach((val, ni) => {
+      const node = document.createElement('div');
+      node.className = 'node';
+      node.id = `node-${li}-${ni}`;
+      node.textContent = val;
+      row.appendChild(node);
+
+      if (ni < lst.length - 1) {
+        const arr = document.createElement('span');
+        arr.className = 'arrow';
+        arr.textContent = '→';
+        row.appendChild(arr);
+      }
+    });
+
+    const nullLbl = document.createElement('span');
+    nullLbl.className = 'null-label';
+    nullLbl.textContent = '→ null';
+    row.appendChild(nullLbl);
+
+    area.appendChild(row);
+  });
+}
+
+// ── Render ────────────────────────────────────────────────────────────────
+function render() {
+  if (cur < 0) {
+    // Reset all nodes
+    LISTS_INIT.forEach((lst, li) => {
+      lst.forEach((val, ni) => {
+        const el = document.getElementById(`node-${li}-${ni}`);
+        if (el) { el.className = 'node'; el.textContent = val; }
+      });
+    });
+    document.getElementById('heap-area').innerHTML = '<span class="heap-empty">heap = []</span>';
+    renderCtrl(-1, STEPS.length, '');
+    document.getElementById('loop-vars').innerHTML = `<span style="color:#aaa;">for i, list in enumerate(lists):</span>`;
+    document.getElementById('while-vars').innerHTML = `<span style="color:#aaa;">while len(heap) &gt; 0:</span>`;
+    document.getElementById('push-history-area').innerHTML = `<span style="color:#aaa;">（还没有 push）</span>`;
+    document.getElementById('var-inspector').style.visibility = 'hidden';
+    highlightLine(null);
+    return;
+  }
+
+  const s = STEPS[cur];
+
+  // Highlight code
+  highlightLine(s.line);
+  renderCtrl(cur, STEPS.length, s.info);
+
+  // For-loop variables display
+  const lvDiv = document.getElementById('loop-vars');
+  if (s.loopI !== null) {
+    const listStr = s.loopList.join(' → ') + ' → null';
+    const headVal = s.loopList[0];
+    lvDiv.innerHTML = `<span style="color:#007EA8;">(</span><span style="color:#9333C0;">list.val</span><span style="color:#007EA8;">,</span> <span style="color:#9333C0;">i</span><span style="color:#007EA8;">,</span> <span style="color:#9333C0;">list</span><span style="color:#007EA8;">)</span> <span style="color:#007EA8;">=</span> <span style="color:#007EA8;">(</span><span style="color:#C4501E;">${headVal}</span><span style="color:#007EA8;">,</span> <span style="color:#C4501E;">${s.loopI}</span><span style="color:#007EA8;">,</span> <span style="color:#333;">node</span><span style="color:#007EA8;">)</span>`;
+  } else {
+    lvDiv.innerHTML = `<span style="color:#aaa;">for i, list in enumerate(lists):</span>`;
+  }
+
+  // While-loop variables display
+  const wvDiv = document.getElementById('while-vars');
+  if (s.whileCurr !== null) {
+    const c = s.whileCurr;
+    wvDiv.innerHTML = `<span style="color:#9333C0;">curr</span> <span style="color:#007EA8;">=</span> <span style="color:#007EA8;">(</span><span style="color:#C4501E;">${c.val}</span><span style="color:#007EA8;">,</span> <span style="color:#C4501E;">${c.listIdx}</span><span style="color:#007EA8;">,</span> node<span style="color:#007EA8;">)</span>&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#9333C0;">node</span><span style="color:#007EA8;">.</span><span style="color:#9333C0;">val</span> <span style="color:#007EA8;">=</span> <span style="color:#C4501E;">${c.val}</span>`;
+  } else {
+    wvDiv.innerHTML = `<span style="color:#aaa;">while len(heap) &gt; 0:</span>`;
+  }
+
+  // Variable inspector — linked list diagram
+  const vi = document.getElementById('var-inspector');
+  if (s.svCreated) {
+    vi.style.visibility = 'visible';
+
+    // Build ordered list of positions in the result chain
+    const positions = [];
+
+    // dummy box
+    const dummyLabels = ['dummy'];
+    if (s.svTail === 'dummy') dummyLabels.push('tail');
+    positions.push({ val: '0', labels: dummyLabels, type: 'dummy' });
+
+    // result boxes
+    for (let i = 0; i < s.result.length; i++) {
+      const r = s.result[i];
+      const labels = [];
+      if (typeof s.svTail === 'number' && i === s.result.length - 1) labels.push('tail');
+      if (s.svNodeInResult && s.svNode !== null && i === s.result.length - 1) {
+        labels.push('node');
+        if (s.whileCurr) labels.push('curr');
+      }
+      positions.push({ val: String(r.val), labels, type: 'normal' });
+    }
+
+    // pending box: node popped but not yet added to result
+    if (s.svNode !== null && !s.svNodeInResult) {
+      const labels = [];
+      if (typeof s.svTail === 'number' && s.svTail === s.svNode) labels.push('tail');
+      labels.push('node');
+      if (s.whileCurr) labels.push('curr');
+      positions.push({ val: String(s.svNode), labels, type: 'pending' });
+    }
+
+    // Build HTML
+    const BOX_BG = { dummy: '#eeeeee', normal: '#f5f5f5', pending: 'rgba(249,203,66,0.18)' };
+    const BOX_COLOR = { dummy: '#888', normal: '#1a1a1a', pending: '#1a1a1a' };
+    const BOX_BORDER = { dummy: 'none', normal: 'none', pending: '1.5px dashed #FFCB6B' };
+
+    let html = '<div style="display:flex;align-items:flex-start;flex-wrap:wrap;row-gap:6px;">';
+
+    positions.forEach((pos, idx) => {
+      if (idx > 0) {
+        html += `<div style="display:flex;align-items:center;height:40px;padding:0 5px;font-size:15px;color:#555;">→</div>`;
+      }
+      const hasLabels = pos.labels.length > 0;
+      html += `<div style="display:flex;flex-direction:column;align-items:center;">`;
+      html += `<div style="width:40px;height:40px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;font-family:'SF Mono',monospace;background:${BOX_BG[pos.type]};color:${BOX_COLOR[pos.type]};border:${BOX_BORDER[pos.type]};">${pos.val}</div>`;
+      if (hasLabels) {
+        html += `<div style="font-size:12px;color:#9333C0;margin-top:2px;line-height:1;">↑</div>`;
+        html += `<div style="font-size:11px;color:#9333C0;text-align:center;line-height:1.5;">${pos.labels.join('<br>')}</div>`;
+      }
+      html += `</div>`;
+    });
+
+    // null terminator
+    html += `<div style="display:flex;align-items:center;height:40px;padding:0 5px;font-size:15px;color:#555;">→</div>`;
+    html += `<div style="display:flex;align-items:center;height:40px;font-size:13px;color:#aaa;font-family:'SF Mono',monospace;">null</div>`;
+
+    html += '</div>';
+    document.getElementById('var-inspector-diagram').innerHTML = html;
+  } else {
+    vi.style.visibility = 'hidden';
+  }
+  // Update node states
+  LISTS_INIT.forEach((lst, li) => {
+    lst.forEach((val, ni) => {
+      const el = document.getElementById(`node-${li}-${ni}`);
+      if (!el) return;
+      let cls = 'node';
+      if (s.consumed[li][ni]) {
+        cls += ' consumed';
+      } else if (s.poppingNode && s.poppingNode.listIdx === li && s.poppingNode.nodeIdx === ni) {
+        cls += ' current';
+      } else if (s.pushingNode && s.pushingNode.listIdx === li && s.pushingNode.nodeIdx === ni) {
+        cls += ' current';
+      } else if (s.heap.some(h => h.listIdx === li && h.nodeIdx === ni)) {
+        cls += ' in-heap';
+      }
+      el.className = cls;
+    });
+  });
+
+  // Update push history display
+  const phArea = document.getElementById('push-history-area');
+  if (!s.pushHistory || s.pushHistory.length === 0) {
+    phArea.innerHTML = `<span style="color:#aaa;">（还没有 push）</span>`;
+  } else {
+    phArea.innerHTML = '';
+    s.pushHistory.forEach((h, idx) => {
+      const isActive = s.pushingNode && s.pushingNode.listIdx === h.listIdx && s.pushingNode.nodeIdx === h.nodeIdx;
+      const row = document.createElement('div');
+      row.style.cssText = `padding:4px 10px; border-radius:6px; transition:background 0.2s; font-family:'SF Mono','Menlo',monospace; font-size:13px;` +
+        (isActive
+          ? `background:#9333C0; color:#fff;`
+          : `background:#f0eef8; color:#1a1a1a;`);
+      const valColor   = isActive ? '#fff' : '#C4501E';
+      const iColor     = isActive ? '#fff' : (LIST_COLORS[h.listIdx] || '#333');
+      const puncColor  = isActive ? 'rgba(255,255,255,0.7)' : '#007EA8';
+      const nodeColor  = isActive ? 'rgba(255,255,255,0.85)' : '#555';
+      // Build the list fragment starting from h.nodeIdx, e.g. "1→4→5→null"
+      const listFragment = LISTS_INIT[h.listIdx].slice(h.nodeIdx).join('→') + '→null';
+      row.innerHTML =
+        `<span style="color:${puncColor};">(</span>` +
+        `<span style="color:${valColor};">${h.val}</span>` +
+        `<span style="color:${puncColor};">,&nbsp;</span>` +
+        `<span style="color:${iColor};">${h.listIdx}</span>` +
+        `<span style="color:${puncColor};">,&nbsp;</span>` +
+        `<span style="color:${nodeColor}; font-size:12px;">${listFragment}</span>` +
+        `<span style="color:${puncColor};">)</span>`;
+      phArea.appendChild(row);
+    });
+  }
+
+  // Update heap display
+  const heapArea = document.getElementById('heap-area');
+  if (s.heap.length === 0) {
+    heapArea.innerHTML = '<span class="heap-empty">heap = []  （空）</span>';
+  } else {
+    heapArea.innerHTML = '';
+    s.heap.forEach((h, idx) => {
+      const slot = document.createElement('div');
+      slot.className = 'heap-slot';
+
+      const nd = document.createElement('div');
+      let ndCls = 'heap-node';
+      if (s.poppingNode && s.poppingNode.listIdx === h.listIdx && s.poppingNode.nodeIdx === h.nodeIdx) ndCls += ' popping';
+      else if (s.pushingNode && s.pushingNode.listIdx === h.listIdx && s.pushingNode.nodeIdx === h.nodeIdx) ndCls += ' pushing';
+      nd.className = ndCls;
+
+      const valEl = document.createElement('div');
+      valEl.className = 'heap-val';
+      valEl.textContent = h.val;
+
+      const metaEl = document.createElement('div');
+      metaEl.className = 'heap-meta';
+      metaEl.textContent = `L${h.listIdx}`;
+
+      nd.appendChild(valEl);
+      nd.appendChild(metaEl);
+      slot.appendChild(nd);
+
+      const lbl = document.createElement('div');
+      lbl.className = 'heap-label';
+      lbl.textContent = idx === 0 ? '堆顶(最小)' : `pos[${idx}]`;
+      slot.appendChild(lbl);
+
+      heapArea.appendChild(slot);
+    });
+  }
+
+}
+
+buildListsDOM();
+doReset();
+</script>
+</body>
+</html>

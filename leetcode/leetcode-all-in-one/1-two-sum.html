@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1. Two Sum</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  /* nums 数组：格子 + 下标行 + 指针行（跟 46-permutations 的 nums-row 一个
+     套路）。不需要递归树/调用链——twoSum 是单层 for 循环，没有调用栈。 */
+  .nums-row { display: flex; gap: 8px; }
+  .num-cell { width: 52px; height: 46px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+              font-family: var(--ink-mono); font-size: 17px; font-weight: 700; color: #1a1a1a;
+              background: #f5f5f5; border: 1px solid #c9c9c9; transition: background 0.2s, opacity 0.2s, transform 0.15s; }
+  .num-cell.current { background: rgba(249,203,66,0.55); border-color: rgba(200,160,30,0.6); transform: translateY(-2px); }
+  .num-cell.stored { background: rgba(120,160,225,0.3); border-color: rgba(90,130,200,0.5); }
+  .num-cell.hit { background: rgba(93,202,165,0.42); border-color: rgba(60,160,125,0.5); transform: translateY(-2px); }
+  .num-idx-row { display: flex; gap: 8px; margin-top: 4px; }
+  .num-idx { width: 52px; text-align: center; font-family: var(--ink-mono); font-size: 10.5px; color: #aaa; }
+  .num-ptr-row { display: flex; gap: 8px; margin-top: 3px; min-height: 18px; }
+  .num-ptr { width: 52px; height: 18px; line-height: 18px; text-align: center;
+             font-family: var(--ink-mono); font-size: 11px; font-weight: 700; white-space: nowrap; }
+  .num-ptr .p-i { color: #C4501E; }
+  .num-ptr .p-hit { color: #146c50; }
+
+  /* maps 卡：value → index 的条目列表，插入顺序排列 */
+  .map-list { display: flex; flex-direction: column; gap: 6px; min-height: 40px; }
+  .map-row { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 7px;
+             background: #f5f5f5; font-family: var(--ink-mono); font-size: 13px; color: #333;
+             transition: background 0.2s, transform 0.15s; }
+  .map-row.new { background: rgba(120,160,225,0.3); transform: scale(1.02); }
+  .map-row.hit { background: rgba(93,202,165,0.42); transform: scale(1.02); }
+  .map-key { font-weight: 750; color: #9333C0; min-width: 26px; text-align: center; }
+  .map-arrow { color: #007EA8; }
+  .map-idx { font-weight: 750; color: #C4501E; min-width: 18px; text-align: center; }
+  .map-meaning { color: #888; font-size: 11.5px; }
+  .map-empty { font-family: var(--ink-mono); font-size: 13px; color: #bbb; padding: 6px 10px; }
+
+  .answer-strip { min-height: 44px; border-radius: 8px; padding: 10px 14px;
+                  display: flex; align-items: center; justify-content: center; text-align: center;
+                  background: #f5f5f5; color: #aaa; font-family: var(--ink-mono); font-size: 13px; font-weight: 700; }
+  .answer-strip.found { background: rgba(93,202,165,0.18); color: #146c50; }
+
+  /* 颜色图例从页头搬到代码框下面 */
+  .legend-below { flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 0; max-width: none; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '1. Two Sum',
+  link: 'https://leetcode.com/problems/two-sum/',
+  legend: [
+    { color: 'rgba(249,203,66,0.55)', label: 'nums[i] — 当前正在处理的数字' },
+    { color: 'rgba(120,160,225,0.3)', label: '已经存进 maps 的数字' },
+    { color: 'rgba(93,202,165,0.42)', label: '命中 — 凑出 target 的那两个下标' },
+    { color: '#f5f5f5', extra: 'border:1px solid #c9c9c9;', label: '还没扫到' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+  <script>
+  renderCodeBox({
+    code: `
+class Solution:
+    def twoSum(self, nums: List[int], target: int) -> List[int]:
+        maps = {}
+        for i, num in enumerate(nums):
+            if target - num in maps:
+                return [maps.get(target - num), i]
+            else:
+                maps[num] = i`,
+  });
+  </script>
+
+  <!-- 步骤说明 + 颜色图例从页头搬到代码框下面（ANIMATION_GUIDE 硬性规则） -->
+  <script>
+  (function () {
+    const stack = document.querySelector('.code-stack');
+    stack.appendChild(document.getElementById('info'));
+    const legend = document.querySelector('.legend');
+    const legendRow = legend.parentElement;
+    legend.classList.add('legend-below');
+    stack.appendChild(legend);
+    legendRow.remove();
+  })();
+  </script>
+
+  <div class="viz-panel">
+    <div class="var-bar" id="var-bar"></div>
+
+    <div class="card">
+      <h3>nums — 从左到右扫一遍</h3>
+      <div class="nums-row" id="nums-row"></div>
+      <div class="num-idx-row" id="nums-idx-row"></div>
+      <div class="num-ptr-row" id="nums-ptr-row"></div>
+    </div>
+
+    <div class="card">
+      <h3>maps — 数字 → 下标</h3>
+      <div class="map-list" id="map-list"></div>
+    </div>
+
+    <div class="card">
+      <h3>Result</h3>
+      <div class="answer-strip" id="answer">still scanning</div>
+    </div>
+  </div>
+</div><!-- /.main -->
+</div><!-- /.content-wrapper -->
+
+<script>
+// ── 例子：LeetCode 1 官方 Example 1 ─────────────────────────────────────
+const NUMS = [2, 7, 11, 15];
+const TARGET = 9;
+
+// 行号表：正文从 1 开始（1 = class Solution:，不单独走一步——跟 46/78/79
+// 一致，函数从被调用那一刻的 def 行才开始计步）。
+const L = {
+  DEF:    2,   // def twoSum(self, nums, target)
+  MAPS:   3,   // maps = {}
+  FOR:    4,   // for i, num in enumerate(nums):
+  IF:     5,   // if target - num in maps:
+  RETURN: 6,   // return [maps.get(target - num), i]
+  STORE:  8,   // maps[num] = i   (else 分支；else: 本身不单独走一步，
+               // 跟 20-valid-parentheses 的写法一致——用 if 行的 False
+               // 分支说明"进入 else"，else: 这一行不产生新状态)
+};
+
+const fmtArr = (a) => '[' + a.join(', ') + ']';
+const fmtMapCompact = (entries) => entries.length
+  ? '{' + entries.map(([k, v]) => k + ': ' + v).join(', ') + '}'
+  : '{}';
+
+// ── 真跑一遍 Lyon 的解法生成步骤 ──────────────────────────────────────────
+function buildSteps() {
+  const steps = [];
+  const map = new Map();   // num -> index，Map 天然保留插入顺序，跟 Python dict 一致
+  let i = null, num = null, need = null;
+
+  function snap(line, extra, info) {
+    steps.push(Object.assign(
+      { line, info, i, num, need, map: Array.from(map.entries()) },
+      extra || {}
+    ));
+  }
+
+  snap(null, {}, '点击 Next 开始：在 nums 里找两个数，加起来正好等于 target，返回它们的下标。');
+  snap(L.DEF, {}, 'Line 2: 进入 twoSum(nums = ' + fmtArr(NUMS) + ', target = ' + TARGET + ')。');
+  snap(L.MAPS, {}, 'Line 3: maps = {} — 用来记录"见过的数字 → 下标"，方便之后 O(1) 查一个数字是不是出现过。');
+
+  for (let idx = 0; idx < NUMS.length; idx++) {
+    i = idx;
+    num = NUMS[idx];
+    need = null;
+    snap(L.FOR, {}, 'Line 4: for i, num in enumerate(nums) → i = ' + i + ', num = ' + num + '。');
+
+    need = TARGET - num;
+    if (map.has(need)) {
+      const partner = map.get(need);
+      snap(L.IF, { hitKey: need, hitIdx: partner },
+        'Line 5: target - num = ' + TARGET + ' - ' + num + ' = ' + need + '。' + need +
+        ' in maps → True — maps 里已经有 ' + need + '（下标 ' + partner + '），凑出 target 的另一半找到了。');
+      const answer = [partner, i];
+      snap(L.RETURN, { hitKey: need, hitIdx: partner, answer },
+        'Line 6: return [maps.get(' + need + '), ' + i + '] = ' + fmtArr(answer) +
+        ' — nums[' + partner + '] + nums[' + i + '] = ' + NUMS[partner] + ' + ' + num + ' = ' + TARGET + '，两个下标就是答案。');
+      i = null; num = null; need = null;
+      snap(null, { hitKey: need != null ? need : partner, hitIdx: partner, answer },
+        '✅ twoSum 返回 ' + fmtArr(answer) + ' — nums[' + partner + '] + nums[' + answer[1] + '] = ' +
+        NUMS[partner] + ' + ' + NUMS[answer[1]] + ' = ' + TARGET + '。');
+      return steps;
+    }
+
+    snap(L.IF, {},
+      'Line 5: target - num = ' + TARGET + ' - ' + num + ' = ' + need + '。' + need +
+      ' in maps → False — maps = ' + fmtMapCompact(Array.from(map.entries())) + ' 里没有 ' + need + '，进入 else 分支。');
+    map.set(num, i);
+    snap(L.STORE, { newKey: num },
+      'Line 8: maps[' + num + '] = ' + i + ' — 记住"数字 ' + num + ' 出现在下标 ' + i +
+      '"，以后遇到需要 ' + num + ' 当搭档的数字就能直接查到。');
+  }
+
+  // 题目保证恰好有一个解，正常不会走到这里。
+  return steps;
+}
+
+const STEPS = buildSteps();
+let cur = -1;
+
+// ── 渲染（只读快照，无副作用；Prev / Reset / lockStableSizes 干跑都靠这点）──
+function renderNums(s) {
+  const row = document.getElementById('nums-row');
+  const idxRow = document.getElementById('nums-idx-row');
+  const ptrRow = document.getElementById('nums-ptr-row');
+  const isHit = (k) => (s.answer && s.answer.indexOf(k) >= 0) || s.hitIdx === k;
+
+  row.innerHTML = NUMS.map((v, k) => {
+    let cls = 'num-cell';
+    if (isHit(k)) cls += ' hit';
+    else if (s.i === k) cls += ' current';
+    else if (s.map.some(([, idx2]) => idx2 === k)) cls += ' stored';
+    return '<div class="' + cls + '">' + v + '</div>';
+  }).join('');
+
+  idxRow.innerHTML = NUMS.map((v, k) => '<div class="num-idx">' + k + '</div>').join('');
+
+  ptrRow.innerHTML = NUMS.map((v, k) => {
+    if (s.i === k) return '<div class="num-ptr"><span class="p-i">↑ i</span></div>';
+    if (s.hitIdx === k && s.i !== k) return '<div class="num-ptr"><span class="p-hit">↑ 命中</span></div>';
+    return '<div class="num-ptr"></div>';
+  }).join('');
+}
+
+function renderMap(s) {
+  const host = document.getElementById('map-list');
+  if (!s.map.length) {
+    host.innerHTML = '<div class="map-empty">maps = {}</div>';
+    return;
+  }
+  host.innerHTML = s.map.map(([key, idx]) => {
+    const cls = key === s.newKey ? ' new' : (key === s.hitKey ? ' hit' : '');
+    return '<div class="map-row' + cls + '">' +
+      '<span class="map-key">' + key + '</span>' +
+      '<span class="map-arrow">→</span>' +
+      '<span class="map-idx">' + idx + '</span>' +
+      '<span class="map-meaning">下标 ' + idx + ' 处的数字是 ' + key + '</span>' +
+      '</div>';
+  }).join('');
+}
+
+function renderAnswer(s) {
+  const el = document.getElementById('answer');
+  if (s.answer) {
+    el.className = 'answer-strip found';
+    el.textContent = 'return ' + fmtArr(s.answer) + ' — nums[' + s.answer[0] + '] + nums[' + s.answer[1] + '] = ' + TARGET;
+  } else {
+    el.className = 'answer-strip';
+    el.textContent = 'still scanning';
+  }
+}
+
+function renderVars(s) {
+  const row = (name, val) => '<span class="var-row"><span class="var-name">' + name +
+    '</span><span class="var-eq"> = </span><span class="var-val">' + val + '</span></span>';
+  document.getElementById('var-bar').innerHTML =
+    row('nums', fmtArr(NUMS)) +
+    row('target', String(TARGET)) +
+    row('i', s.i == null ? '-' : s.i) +
+    row('num', s.num == null ? '-' : s.num) +
+    row('need', s.need == null ? '-' : s.need) +
+    row('maps', fmtMapCompact(s.map));
+}
+
+const EMPTY = { i: null, num: null, need: null, map: [], line: null };
+
+function renderAll() {
+  const step = cur >= 0 ? STEPS[cur] : null;
+  const s = step || EMPTY;
+
+  renderVars(s);
+  renderNums(s);
+  renderMap(s);
+  renderAnswer(s);
+  highlightLine(s.line);
+  renderCtrl(cur, STEPS.length, step ? step.info :
+    '点 Next 开始：nums = ' + fmtArr(NUMS) + '，target = ' + TARGET + '。');
+}
+
+var render = renderAll;
+doReset();
+</script>
+</body>
+</html>

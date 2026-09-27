@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>105. Construct Binary Tree from Preorder and Inorder Traversal</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  /* 分治：跟 78/46/79 的回溯不一样——这里没有"试了不行退回去"，
+     每次调用都真的会造出一个节点（或者确定这一支是 None），只往前建，不回头。
+     调用链约定照抄（同一时刻好几帧活着，分不清谁在跑）；树本身不是给定输入，
+     是被造出来的输出，所以节点按"造没造出来"三态渲染，不是照抄 104。 */
+
+  /* ── preorder / inorder：两行固定数组，当前帧的那一段区间高亮 ────────── */
+  /* 标签挪到数组左边、跟格子同一行（2026-08-12 从数组上方单独一行改过来），
+     固定宽度让 preorder / inorder 两行的格子列对齐；下面的下标/指针/括号
+     几行只跟着格子走，不受标签影响，所以套一层 .arr-cols 单独占右边。 */
+  .arr-block { margin-bottom: 14px; display: flex; align-items: flex-start; gap: 10px; }
+  .arr-name { font-family: var(--ink-mono); font-size: 11px; color: #aaa; flex: none; width: 58px; padding-top: 13px; }
+  .arr-cols { min-width: 0; }
+  .arr-row { display: flex; gap: 6px; }
+  .arr-cell {
+    width: 38px; height: 38px; border-radius: 7px; display: flex; align-items: center; justify-content: center;
+    font-family: var(--ink-mono); font-size: 15px; font-weight: 700;
+    background: #f5f5f5; border: 1px solid #c9c9c9; color: #1a1a1a;
+    transition: background 0.2s, border-color 0.2s, opacity 0.2s, transform 0.15s;
+  }
+  .arr-cell.out-of-slice { opacity: 0.28; }
+  .arr-cell.root-pick { transform: translateY(-3px); box-shadow: inset 0 0 0 2px #1a1a1a; }
+  .arr-idx-row { display: flex; gap: 6px; margin-top: 3px; }
+  .arr-idx { width: 38px; text-align: center; font-family: var(--ink-mono); font-size: 10px; color: #bbb; }
+  .arr-ptr { width: 38px; text-align: center; font-family: var(--ink-mono); font-size: 10.5px; font-weight: 700; color: #C4501E; white-space: nowrap; }
+  /* mid_idx 一定下来（Line 16 起，一直到这一帧函数返回）就常驻标出这一段
+     切成的左右两半——不再只在真正发起调用那一帧才闪一下、也不再只显示
+     其中一边。左右各占一条独立的带（band 0 / band 1），避免切片只有
+     一两个元素时两边的括号标签在中间撞在一起。括号用 └──┬──┘ 那种
+     方括起来 + 中间一竖指向标签的画法，跟用户笔记里手绘的一致。 */
+  .arr-bracket-row { position: relative; height: 70px; margin-top: 6px; }
+  .arr-bracket {
+    position: absolute; height: 11px;
+    border-left: 2px solid currentColor; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+    border-radius: 0 0 3px 3px;
+  }
+  .arr-bracket::after {
+    content: ''; position: absolute; left: 50%; bottom: -8px; width: 2px; height: 8px;
+    background: currentColor; margin-left: -1px;
+  }
+  .arr-bracket-label {
+    position: absolute; white-space: nowrap; text-align: center;
+    font-family: var(--ink-mono); font-size: 10px; font-weight: 700;
+  }
+
+  /* ── 递归树：位置写死成常量（例子固定，最终形状已知），
+     三态：pending(没造出来) / active(这次调用还没返回) / done(子树建完)。 ─── */
+  #tree-svg { display: block; width: 100%; max-height: 250px; }
+  .t-node-box { fill: #fafafa; stroke: #d8d8d8; stroke-width: 1.5; stroke-dasharray: 3 3; transition: fill 0.2s, stroke 0.2s; }
+  .t-node-box.active { stroke-dasharray: none; }
+  .t-node-box.current { stroke: #1a1a1a; stroke-width: 2.5; }
+  .t-node-box.done { fill: rgba(93,202,165,0.4); stroke: rgba(60,160,125,0.5); stroke-dasharray: none; }
+  .t-node-text { font-family: var(--ink-mono); font-size: 14px; font-weight: 700; fill: #1a1a1a; }
+  .t-node-text.pending { fill: transparent; }
+  .t-edge { stroke: #3A6FD4; stroke-width: 2.5; }
+
+  /* 四张卡拼成真正的 2x2 网格（不是两条各管各宽度的 flex 行）：两列等宽，
+     左列（var-bar / 数组卡）对齐左列，右列（调用链 / 树）对齐右列。 */
+  .viz-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+  .viz-grid .card, .viz-grid .var-bar { width: 100%; min-width: 0; }
+
+  .fn-note { margin-left: 8px; font-family: -apple-system, sans-serif; font-size: 11px; color: #aaa; }
+  .res-badge { font-family: var(--ink-mono); font-size: 13px; font-weight: 700; padding: 1px 9px; border-radius: 6px; background: #f5f5f5; color: #bbb; }
+  .res-badge.yes { background: rgba(93,202,165,0.45); color: #0d3a2c; }
+
+  .call-chain { display: flex; flex-direction: column; gap: 4px; min-height: 190px; }
+  .chain-row { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 10px;
+               border-radius: 7px; font-family: var(--ink-mono); font-size: 11.5px;
+               color: #1a1a1a; white-space: nowrap; align-self: flex-start;
+               transition: box-shadow 0.15s; }
+  .chain-row.top { box-shadow: 0 0 0 1.5px #1a1a1a; font-weight: 700; }
+  .chain-row.none-row { color: #999; font-weight: 400; }
+  .chain-empty { font-family: var(--ink-mono); font-size: 12px; color: #bbb; }
+  .chain-note { margin-top: 10px; max-width: 430px; font-size: 11.5px; line-height: 1.65; color: #8a8a8a; }
+  .chain-note b { color: #1a1a1a; font-weight: 700; }
+
+  /* 图例挪到全部动画下面单独一张卡、竖排一行一条——页头那条横向 legend 换行
+     换得参差不齐（这题条目本来就比别的页多），分行排列看着更清楚。 */
+  .legend-vert { display: flex; flex-direction: column; gap: 9px; margin-top: 4px; }
+  .legend-vert .leg-item { font-size: 12px; }
+
+  /* 静态参考例子 + 图例：挪进 .main 这同一个 grid 里当第二行，而不是各自
+     整行铺满——图例跟上面的 code box 一样窄（同一列），色例跟上面的
+     viz-panel 一样宽（同一列），左右两列宽度还是分别由 code-half /
+     viz-panel 的内容撑出来，这两张卡只是搭第二行的顺风车。 */
+  .legend-card { grid-column: 1; grid-row: 2; margin-top: 20px; align-self: start; }
+  .demo-card { grid-column: 2; grid-row: 2; margin-top: 20px; align-self: start; }
+  .demo-body { display: flex; gap: 32px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+  .demo-arrays { display: flex; flex-direction: column; gap: 18px; }
+  .demo-arrays .arr-cell { border-width: 2px; }
+  .demo-tree { flex: 1 1 320px; min-width: 260px; max-width: 460px; height: auto; display: block; }
+  .demo-edge { stroke: #c9c9c9; stroke-width: 2; }
+  .demo-node-box { stroke: #d8d8d8; stroke-width: 2; }
+  .demo-node-text { font-family: var(--ink-mono); font-size: 14px; font-weight: 700; fill: #1a1a1a; }
+
+  /* 页头钉住（只这一页）：共享头（notes.js 插的章行/标题/星标/箭头/Notes-
+     Animation 切换）+ 本页 Step/Prev/Next/Auto/Reset 那行，两段分属不同 DOM
+     父级（前者挂在 body 上，后者在 content-wrapper 里），高度又不固定
+     （标题、章名都是变长文本），所以后者的粘顶偏移量用下面那段脚本量出
+     共享头的实际高度写进 --lcn-head-h，不能硬编码像素。没有 notes.js/后端
+     没启动时 .lcn-shared-head 不存在，--lcn-head-h 落回 0，ctrl 行照样贴顶。 */
+  .lcn-shared-head { position: sticky; top: 0; z-index: 120; background: #f9f9f9; }
+  .page-header .header-row.ctrl {
+    position: sticky; top: var(--lcn-head-h, 0px); z-index: 110;
+    background: #f9f9f9; width: 100%; padding: 10px 0; margin: 0;
+    border-bottom: 1px solid #e5e5e5;
+  }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '105. Construct Binary Tree from Preorder and Inorder Traversal',
+  link: 'https://leetcode.com/problems/construct-binary-tree-from-preorder-and-inorder-traversal/',
+});
+</script>
+<div class="main layout-grid">
+  <script>
+  renderCodeBox({
+    prereq: `
+# Definition for a binary tree node.
+# class TreeNode:
+#     def __init__(self, val=0, left=None, right=None):
+#         self.val = val
+#         self.left = left
+#         self.right = right`,
+    code: `
+class Solution:
+    def buildTree(self, preorder: List[int], inorder: List[int]) -> Optional[TreeNode]:
+        if not (preorder and inorder):
+            return None
+
+        # 根据前序数组的第一个元素，就可以确定根节点
+        root = TreeNode(preorder[0])
+
+        # 用preorder[0]去中序数组中查找对应的元素
+        mid_idx = inorder.index(preorder[0])
+
+        # 递归的处理前序数组的左边部分和中序数组的左边部分
+        # 递归处理前序数组右边部分和中序数组右边部分
+        root.left = self.buildTree(preorder[1:mid_idx+1],inorder[:mid_idx])
+        root.right = self.buildTree(preorder[mid_idx+1:],inorder[mid_idx+1:])
+        return root`,
+  });
+  </script>
+
+  <div class="viz-panel">
+    <div class="viz-grid">
+      <div class="var-bar" id="var-bar"></div>
+
+      <div class="card">
+        <h3>调用链 — 现在这行代码是谁在跑</h3>
+        <div class="call-chain" id="call-chain"></div>
+      </div>
+
+      <div class="card">
+        <h3>preorder / inorder — 当前帧切的是哪一段</h3>
+        <div class="arr-block">
+          <div class="arr-name">preorder</div>
+          <div class="arr-cols">
+            <div class="arr-row" id="pre-row"></div>
+            <div class="arr-idx-row" id="pre-idx-row"></div>
+            <div class="arr-idx-row" id="pre-ptr-arrow-row"></div>
+            <div class="arr-idx-row" id="pre-ptr-label-row"></div>
+            <div class="arr-bracket-row" id="pre-bracket-row"></div>
+          </div>
+        </div>
+        <div class="arr-block">
+          <div class="arr-name">inorder</div>
+          <div class="arr-cols">
+            <div class="arr-row" id="in-row"></div>
+            <div class="arr-idx-row" id="in-idx-row"></div>
+            <div class="arr-idx-row" id="in-ptr-arrow-row"></div>
+            <div class="arr-idx-row" id="in-ptr-label-row"></div>
+            <div class="arr-bracket-row" id="in-bracket-row"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>正在造出来的树</h3>
+        <svg id="tree-svg" viewBox="0 0 360 250"></svg>
+      </div>
+    </div>
+  </div>
+
+  <div class="card legend-card">
+    <h3>图例</h3>
+    <div class="legend-vert">
+      <span class="leg-item"><span class="leg-box" style="background:#fafafa;border:1.5px dashed #d8d8d8;"></span>这个节点还没被造出来</span>
+      <span class="leg-item"><span class="leg-box" style="background:rgba(249,203,66,0.30);box-shadow:inset 0 0 0 2px #1a1a1a;"></span>黑框 = 正在执行这一行的那次调用（这个节点刚被造出来，子树还没建完）</span>
+      <span class="leg-item"><span class="leg-box" style="background:rgba(120,160,225,0.22);"></span>还在调用栈上的祖先帧 — 每次调用一种颜色，代码高亮行 / 调用链 / 数组区间 / 树节点同色</span>
+      <span class="leg-item"><span class="leg-box" style="background:rgba(93,202,165,0.4);"></span>子树建完了 — root.left / root.right 都已经接好，函数已返回</span>
+      <span class="leg-item"><span class="leg-box" style="background:#3A6FD4;border-radius:2px;width:14px;height:3px;"></span>root.left / root.right 刚接上的边</span>
+      <span class="leg-item"><span class="leg-box" style="background:#f5f5f5;opacity:0.28;border:1px solid #c9c9c9;"></span>数组里不属于当前这一段 [lo, hi) 的元素</span>
+      <span class="leg-item"><span class="leg-box" style="background:transparent;border-bottom:2.5px solid #3A6FD4;"></span>蓝色括号 = 这一段切给左子树（preorder[1:mid_idx+1] 配 inorder[:mid_idx]）</span>
+      <span class="leg-item"><span class="leg-box" style="background:transparent;border-bottom:2.5px solid #C4694B;"></span>橙色括号 = 这一段切给右子树（preorder[mid_idx+1:] 配 inorder[mid_idx+1:]），mid_idx 一确定就常驻显示，不再只在真正发起调用那一帧才闪一下</span>
+    </div>
+  </div>
+
+  <div class="card demo-card">
+    <h3>另一个例子（9 个节点）— preorder / inorder 里的每个数，颜色对应树上的哪个节点</h3>
+    <div class="demo-body">
+      <div class="demo-arrays">
+        <div class="arr-block">
+          <div class="arr-name">preorder</div>
+          <div class="arr-cols">
+            <div class="arr-row" id="demo-pre-row"></div>
+            <div class="arr-idx-row" id="demo-pre-idx-row"></div>
+          </div>
+        </div>
+        <div class="arr-block">
+          <div class="arr-name">inorder</div>
+          <div class="arr-cols">
+            <div class="arr-row" id="demo-in-row"></div>
+            <div class="arr-idx-row" id="demo-in-idx-row"></div>
+          </div>
+        </div>
+      </div>
+      <svg id="demo-tree-svg" class="demo-tree" viewBox="0 0 460 260"></svg>
+    </div>
+  </div>
+</div><!-- /.main -->
+</div><!-- /.content-wrapper -->
+
+<script>
+// ── 例子：LeetCode 105 官方 Example 1 ──────────────────────────────────────
+//   preorder = [3,9,20,15,7], inorder = [9,3,15,20,7]
+//   造出来的树：
+//         3
+//        / \
+//       9   20
+//          /  \
+//         15   7
+const PREORDER = [3, 9, 20, 15, 7];
+const INORDER  = [9, 3, 15, 20, 7];
+
+const POS = {
+  3:  { x: 180, y: 36 },
+  9:  { x: 100, y: 116 },
+  20: { x: 260, y: 116 },
+  15: { x: 220, y: 196 },
+  7:  { x: 300, y: 196 },
+};
+
+/* 行号表：prereq 占 1-6，正文从 7 开始连续编，空行（11/14/17）和注释行
+   （12/15/18/19）也占号但不执行，不用停。按 ANIMATION_GUIDE：if 头
+   True/False 都停，函数调用行（20/21）走两遍（发起 + 返回）。 */
+const L = {
+  BUILDTREE: 8,   // def buildTree(self, preorder, inorder)
+  GUARD:     9,   // if not (preorder and inorder):
+  GUARD_RET: 10,  // return None
+  ROOT:      13,  // root = TreeNode(preorder[0])
+  MID:       16,  // mid_idx = inorder.index(preorder[0])
+  LEFT:      20,  // root.left = self.buildTree(...)   调用 + 返回各一次
+  RIGHT:     21,  // root.right = self.buildTree(...)  调用 + 返回各一次
+  RETURN:    22,  // return root
+};
+
+const fmt = (a) => '[' + a.join(', ') + ']';
+
+// ── 真跑一遍 Lyon 的解法（真实数组切片，不是手写下标），边跑边生成步骤 ──────
+function buildSteps() {
+  const steps = [];
+  let stack = [];        // frames: { id, pre, in, preLo, preHi, inLo, inHi, rootVal, midIdx }
+  let createdVals = [];  // TreeNode(val) 已经造出来的（累加，不会撤销）
+  let doneVals = [];     // 子树已经建完、函数已返回的
+  let edgesBuilt = [];   // [parentVal, childVal] 已经接上的边
+  let nodeSeq = 0;
+  let fn = 'buildTree';
+
+  function snap(line, info) {
+    steps.push({
+      line, info, fn,
+      stack: stack.map(f => ({ ...f })),
+      createdVals: [...createdVals],
+      doneVals: [...doneVals],
+      edgesBuilt: edgesBuilt.map(e => [...e]),
+    });
+  }
+
+  // 切片内容映射回原始数组的绝对下标区间，只给画面用——105 保证节点值互不相同，
+  // indexOf 找得准；真正参与递归、决定行为的还是下面 bt() 里的真实数组切片。
+  function absBounds(preSlice, inSlice) {
+    const preLo = preSlice.length ? PREORDER.indexOf(preSlice[0]) : null;
+    const inLo = inSlice.length ? INORDER.indexOf(inSlice[0]) : null;
+    return {
+      preLo, preHi: preLo == null ? null : preLo + preSlice.length,
+      inLo, inHi: inLo == null ? null : inLo + inSlice.length,
+    };
+  }
+
+  snap(null, 'buildTree 用分治：preorder 的第一个元素永远是这一段的根，用它去 inorder 里一分为二，' +
+    '左边是左子树的中序、右边是右子树的中序，递归造好两半再接到 root 上——不回溯，只往前建。');
+
+  function bt(preSlice, inSlice) {
+    const id = nodeSeq++;
+    const frame = { id, pre: preSlice, in: inSlice, ...absBounds(preSlice, inSlice), rootVal: null, midIdx: null };
+    stack.push(frame);
+    fn = 'buildTree';
+    snap(L.BUILDTREE, `Line 8: 进入 buildTree(preorder=${fmt(preSlice)}, inorder=${fmt(inSlice)})。`);
+
+    const empty = !(preSlice.length && inSlice.length);
+    snap(L.GUARD, `Line 9: not (preorder and inorder) → ${empty ? 'True（切出来的这一段是空数组）' : 'False（两个数组都非空，往下走）'}。`);
+    if (empty) {
+      snap(L.GUARD_RET, 'Line 10: return None — 这一支没有节点。');
+      stack.pop();
+      return null;
+    }
+
+    const rootVal = preSlice[0];
+    frame.rootVal = rootVal;
+    createdVals.push(rootVal);
+    snap(L.ROOT, `Line 13: root = TreeNode(${rootVal}) — preorder 切片的第一个元素永远是这一段的根，节点 ${rootVal} 造出来了。`);
+
+    const midIdx = inSlice.indexOf(rootVal);
+    frame.midIdx = midIdx;
+    snap(L.MID, `Line 16: mid_idx = inorder.index(${rootVal}) = ${midIdx} — 在 inorder 切片里定位到根：` +
+      `它左边 ${midIdx} 个属于左子树，右边 ${inSlice.length - midIdx - 1} 个属于右子树。`);
+
+    const leftPre = preSlice.slice(1, midIdx + 1), leftIn = inSlice.slice(0, midIdx);
+    snap(L.LEFT, `Line 20: root.left = self.buildTree(preorder[1:${midIdx + 1}], inorder[:${midIdx}]) — 调用，` +
+      `preorder[1:${midIdx + 1}]=${fmt(leftPre)} 配上 inorder[:${midIdx}]=${fmt(leftIn)}，去造 ${rootVal} 的左子树。`);
+    const leftVal = bt(leftPre, leftIn);
+    fn = 'buildTree';
+    if (leftVal != null) edgesBuilt.push([rootVal, leftVal]);
+    snap(L.LEFT, `Line 20: buildTree 返回 — root.left = ${leftVal == null ? 'None' : leftVal}。`);
+
+    const rightPre = preSlice.slice(midIdx + 1), rightIn = inSlice.slice(midIdx + 1);
+    snap(L.RIGHT, `Line 21: root.right = self.buildTree(preorder[${midIdx + 1}:], inorder[${midIdx + 1}:]) — 调用，` +
+      `preorder[${midIdx + 1}:]=${fmt(rightPre)} 配上 inorder[${midIdx + 1}:]=${fmt(rightIn)}，去造 ${rootVal} 的右子树。`);
+    const rightVal = bt(rightPre, rightIn);
+    fn = 'buildTree';
+    if (rightVal != null) edgesBuilt.push([rootVal, rightVal]);
+    snap(L.RIGHT, `Line 21: buildTree 返回 — root.right = ${rightVal == null ? 'None' : rightVal}。`);
+
+    doneVals.push(rootVal);
+    snap(L.RETURN, `Line 22: return root — 节点 ${rootVal} 连同它整棵子树都建完了，交回给上一层。`);
+    stack.pop();
+    return rootVal;
+  }
+
+  const answer = bt(PREORDER, INORDER);
+  fn = null;
+  snap(null, `✅ buildTree 返回以 ${answer} 为根的树，共调用了 ${nodeSeq} 次 buildTree（5 个真实节点 + 6 次切出空数组直接返回 None）。`);
+
+  return steps;
+}
+
+const STEPS = buildSteps();
+let cur = -1;
+
+// ── 渲染（只读快照，无副作用） ─────────────────────────────────────────
+const CALL_TINT = [
+  'rgba(126,158,221,0.24)', 'rgba(117,209,163,0.26)', 'rgba(227,192,109,0.30)', 'rgba(216,143,121,0.26)',
+  'rgba(180,131,216,0.26)', 'rgba(127,196,210,0.28)', 'rgba(209,166,117,0.30)', 'rgba(219,148,184,0.24)',
+  'rgba(152,121,216,0.24)', 'rgba(161,210,137,0.26)', 'rgba(216,208,121,0.30)',
+];
+const tintOf = (id) => CALL_TINT[id % CALL_TINT.length];
+
+// 描边用的实色版（跟 CALL_TINT 同色系但更饱和），给下面静态参考例子的
+// 节点描边用——CALL_TINT 本身太淡，直接拿来做描边看不清楚。
+const CALL_STROKE = [
+  '#5E86D9', '#3FAE7B', '#C9A227', '#C4694B',
+  '#8A5FC4', '#3F9DB0', '#B98136', '#C05C8C',
+  '#6E4FC4', '#5FA23F', '#B8A93F',
+];
+const strokeOf = (id) => CALL_STROKE[id % CALL_STROKE.length];
+
+// 左右两半括号固定用这两种颜色：跟调用链/树里"这个子调用将来会是第几帧"
+// 的颜色脱钩——那个颜色要等左子树整棵递归完才知道右子树会分到第几号，
+// 没法在 mid_idx 刚定下来那一刻就预知，索性左右各自固定一色，跟色卡里
+// 别的"第 N 次调用"配色分开一套，含义更直白。
+const LEFT_SPLIT_COLOR = '#3A6FD4';
+const RIGHT_SPLIT_COLOR = '#C4694B';
+
+function renderArrays(s) {
+  const top = s.stack.length ? s.stack[s.stack.length - 1] : null;
+  const tint = top ? tintOf(top.id) : null;
+
+  function row(arr, lo, hi, rootVal, elId, idxElId) {
+    const cells = arr.map((v, k) => {
+      const inSlice = lo != null && k >= lo && k < hi;
+      const cls = ['arr-cell'];
+      let style = '';
+      if (!inSlice) cls.push('out-of-slice');
+      else if (v === rootVal) cls.push('root-pick');
+      if (inSlice && tint) style += `background:${tint};border-color:transparent;`;
+      return `<div class="${cls.join(' ')}"${style ? ` style="${style}"` : ''}>${v}</div>`;
+    }).join('');
+    document.getElementById(elId).innerHTML = cells;
+    document.getElementById(idxElId).innerHTML = arr.map((_, k) => `<div class="arr-idx">${k}</div>`).join('');
+  }
+
+  row(PREORDER, top ? top.preLo : null, top ? top.preHi : null, top ? top.rootVal : null, 'pre-row', 'pre-idx-row');
+  row(INORDER, top ? top.inLo : null, top ? top.inHi : null, top ? top.rootVal : null, 'in-row', 'in-idx-row');
+
+  // 左右两个括号各占一条独立的带（band 0 / band 1），不挤在同一条线上——
+  // 切片只剩一两个元素时，两边标签要是共用一行会在中间撞在一起。
+  function bracketRow(rowElId, ranges) {
+    document.getElementById(rowElId).innerHTML = ranges.map((r, band) => {
+      if (r.lo == null || r.hi == null || r.hi <= r.lo) return '';
+      const left = r.lo * 44, width = (r.hi - r.lo) * 44 - 6, top2 = band * 34;
+      return `<div class="arr-bracket" style="left:${left}px;width:${width}px;top:${top2}px;color:${r.color}"></div>` +
+        `<div class="arr-bracket-label" style="left:${left}px;width:${width}px;top:${top2 + 21}px;color:${r.color}">${r.label}</div>`;
+    }).join('');
+  }
+
+  // mid_idx 一旦定下来（Line 16 起）就常驻标出这一段切成的左右两半，一直
+  // 显示到这一帧函数返回（不再只在真正发起 root.left / root.right 调用的
+  // 那一帧才闪一下、也不再只显示其中一边）。
+  if (top && top.midIdx != null) {
+    const m = top.midIdx;
+    bracketRow('pre-bracket-row', [
+      { lo: top.preLo + 1, hi: top.preLo + 1 + m, color: LEFT_SPLIT_COLOR, label: 'preorder[1:mid_idx+1]' },
+      { lo: top.preLo + 1 + m, hi: top.preHi, color: RIGHT_SPLIT_COLOR, label: 'preorder[mid_idx+1:]' },
+    ]);
+    bracketRow('in-bracket-row', [
+      { lo: top.inLo, hi: top.inLo + m, color: LEFT_SPLIT_COLOR, label: 'inorder[:mid_idx]' },
+      { lo: top.inLo + m + 1, hi: top.inHi, color: RIGHT_SPLIT_COLOR, label: 'inorder[mid_idx+1:]' },
+    ]);
+  } else {
+    document.getElementById('pre-bracket-row').innerHTML = '';
+    document.getElementById('in-bracket-row').innerHTML = '';
+  }
+
+  // 箭头 + 文字紧贴在数组下面（0..n-1 的普通下标行挪到最后），两行都只在
+  // 命中的那一格写内容，其余格子留空占位，保持跟数组同宽对齐。
+  function ptrRow(arr, atPos, label, arrowElId, labelElId) {
+    document.getElementById(arrowElId).innerHTML = arr.map((_, k) =>
+      `<div class="arr-ptr">${k === atPos ? '↑' : ''}</div>`).join('');
+    document.getElementById(labelElId).innerHTML = arr.map((_, k) =>
+      `<div class="arr-ptr">${k === atPos ? label : ''}</div>`).join('');
+  }
+
+  // preorder[0] 永远是根——它在原始数组里的绝对下标就是这一帧切片的起点 preLo
+  const rootAbs = top && top.rootVal != null ? top.preLo : null;
+  ptrRow(PREORDER, rootAbs, 'root', 'pre-ptr-arrow-row', 'pre-ptr-label-row');
+
+  // mid_idx 是切片内的相对下标（inSlice.indexOf(rootVal)），换算成 inorder
+  // 绝对下标才能跟画面上这一整排 inorder 格子对上：mid_idx + inLo
+  const midAbs = top && top.midIdx != null ? top.inLo + top.midIdx : null;
+  ptrRow(INORDER, midAbs, top && top.midIdx != null ? `mid_idx = ${top.midIdx}` : '', 'in-ptr-arrow-row', 'in-ptr-label-row');
+}
+
+function renderTree(s) {
+  const parts = [];
+  s.edgesBuilt.forEach(([a, b]) => {
+    const pa = POS[a], pb = POS[b];
+    parts.push(`<line class="t-edge" x1="${pa.x}" y1="${pa.y + 20}" x2="${pb.x}" y2="${pb.y - 20}"/>`);
+  });
+
+  const stackByVal = {};
+  s.stack.forEach((f, k) => { if (f.rootVal != null) stackByVal[f.rootVal] = { id: f.id, top: k === s.stack.length - 1 }; });
+
+  Object.keys(POS).forEach(k => {
+    const val = Number(k);
+    const p = POS[val];
+    const onStack = stackByVal[val];
+    const isDone = s.doneVals.indexOf(val) >= 0;
+    const isCreated = s.createdVals.indexOf(val) >= 0;
+    let cls = ['t-node-box'], style = '', textCls = 'pending';
+    if (isDone) {
+      cls.push('done'); textCls = '';
+    } else if (onStack) {
+      cls.push('active');
+      if (onStack.top) cls.push('current');
+      style = ` style="fill:${tintOf(onStack.id)}"`;
+      textCls = '';
+    } else if (isCreated) {
+      // 造出来了但既不在 stack 也没 done：不会发生（造出来立刻 push），留个兜底
+      textCls = '';
+    }
+    parts.push(`<g><rect class="${cls.join(' ')}"${style} x="${p.x - 22}" y="${p.y - 20}" width="44" height="40" rx="9"/>` +
+      `<text class="t-node-text ${textCls}" x="${p.x}" y="${p.y + 5}" text-anchor="middle">${val}</text></g>`);
+  });
+  document.getElementById('tree-svg').innerHTML = parts.join('');
+}
+
+function renderVars(s) {
+  const top = s.stack.length ? s.stack[s.stack.length - 1] : null;
+  const row = (name, val) => `<span class="var-row"><span class="var-name">${name}</span><span class="var-eq"> = </span><span class="var-val">${val}</span></span>`;
+  document.getElementById('var-bar').innerHTML =
+    `<span class="var-row"><span class="fn-tag">${s.fn ? s.fn + '()' : '—'}</span></span>` +
+    row('preorder', top ? fmt(top.pre) : '-') +
+    row('inorder', top ? fmt(top.in) : '-') +
+    row('root', top && top.rootVal != null ? top.rootVal : '-') +
+    row('mid_idx', top && top.midIdx != null ? top.midIdx : '-') +
+    `<span class="var-row"><span class="var-name">已建好的节点</span><span class="var-eq"> = </span>` +
+    `<span class="res-badge${s.doneVals.length === 5 ? ' yes' : ''}">${s.doneVals.length}/5</span></span>`;
+}
+
+/* 调用链：跟 78/46/79 不同——这题没有独立的外层入口函数，buildTree 自己既是
+   起点也是递归体，所以链条只列 buildTree 帧，不需要一个额外的根行。
+   preorder/inorder 是每层各自切出来的新数组（不是共用对象），所以链条上
+   直接写出这两个数组的值，而不是像 46/79 那样只写共用对象的名字。 */
+function renderChain(s) {
+  const host = document.getElementById('call-chain');
+  if (!s.stack.length) {
+    host.innerHTML = '<span class="chain-empty">还没开始 / 已经全部返回</span>';
+    return;
+  }
+  host.innerHTML = s.stack.map((f, k) => {
+    const top = k === s.stack.length - 1;
+    const isNone = f.rootVal == null && f.pre.length === 0;
+    const text = `buildTree(${fmt(f.pre)}, ${fmt(f.in)})` + (f.rootVal != null ? ` → root=${f.rootVal}` : '');
+    return `<div class="chain-row${top ? ' top' : ''}${isNone ? ' none-row' : ''}" style="background:${tintOf(f.id)};margin-left:${k * 16}px">` +
+      `<span>${text}</span></div>`;
+  }).join('');
+}
+
+const EMPTY = { line: null, fn: null, stack: [], createdVals: [], doneVals: [], edgesBuilt: [] };
+
+function renderAll() {
+  const step = cur >= 0 ? STEPS[cur] : null;
+  const s = step || EMPTY;
+
+  renderChain(s);
+  renderArrays(s);
+  renderTree(s);
+  renderVars(s);
+  highlightLine(s.line);
+  renderCtrl(cur, STEPS.length, step ? step.info :
+    `点 Next 开始：preorder = ${fmt(PREORDER)}, inorder = ${fmt(INORDER)}，把原来的二叉树重建出来。`);
+}
+
+var render = renderAll;
+doReset();
+
+// ── 静态参考例子（不接 Step 动画，只渲染一次）：preorder/inorder 更长
+// （9 个节点），每个数固定一种颜色，preorder 格子 / inorder 格子 / 树节点
+// 三处同色——用颜色而不是位置去记"这个数是树上的哪个节点"，例子比正文动画
+// 的 5 节点例子大，能看出颜色对应关系不是巧合。inorder 正好是排好序的
+// 10..90，方便肉眼核对：树本身仍是由 preorder[0] 当根、mid_idx 切两半递归
+// 得到的（跟正文动画同一套算法），不是另起一套构造逻辑。
+const DEMO_PREORDER = [50, 30, 20, 10, 40, 70, 60, 80, 90];
+const DEMO_INORDER  = [10, 20, 30, 40, 50, 60, 70, 80, 90];
+const DEMO_POS = {
+  50: { x: 230, y: 30 },
+  30: { x: 140, y: 95 },  70: { x: 320, y: 95 },
+  20: { x: 100, y: 160 }, 40: { x: 180, y: 160 }, 60: { x: 280, y: 160 }, 80: { x: 360, y: 160 },
+  10: { x: 100, y: 225 }, 90: { x: 360, y: 225 },
+};
+const DEMO_EDGES = [[50, 30], [50, 70], [30, 20], [30, 40], [70, 60], [70, 80], [20, 10], [80, 90]];
+const demoColorOf = (v) => {
+  const i = DEMO_PREORDER.indexOf(v);
+  return { fill: tintOf(i), stroke: strokeOf(i) };
+};
+
+function renderDemo() {
+  function row(arr, elId, idxElId) {
+    document.getElementById(elId).innerHTML = arr.map(v => {
+      const c = demoColorOf(v);
+      return `<div class="arr-cell" style="background:${c.fill};">${v}</div>`;
+    }).join('');
+    document.getElementById(idxElId).innerHTML = arr.map((_, k) => `<div class="arr-idx">${k}</div>`).join('');
+  }
+  row(DEMO_PREORDER, 'demo-pre-row', 'demo-pre-idx-row');
+  row(DEMO_INORDER, 'demo-in-row', 'demo-in-idx-row');
+
+  const parts = DEMO_EDGES.map(([a, b]) => {
+    const pa = DEMO_POS[a], pb = DEMO_POS[b];
+    return `<line class="demo-edge" x1="${pa.x}" y1="${pa.y + 20}" x2="${pb.x}" y2="${pb.y - 20}"/>`;
+  });
+  Object.keys(DEMO_POS).forEach(k => {
+    const v = Number(k);
+    const p = DEMO_POS[v];
+    const c = demoColorOf(v);
+    parts.push(`<g><rect class="demo-node-box" fill="${c.fill}" x="${p.x - 22}" y="${p.y - 20}" width="44" height="40" rx="9"/>` +
+      `<text class="demo-node-text" x="${p.x}" y="${p.y + 5}" text-anchor="middle">${v}</text></g>`);
+  });
+  document.getElementById('demo-tree-svg').innerHTML = parts.join('');
+}
+renderDemo();
+
+// ── 页头钉住：notes.js 异步插入的 .lcn-shared-head 高度不固定（标题/章名
+// 长度不定），用 ResizeObserver 量出实际高度写进 --lcn-head-h，下面 Step
+// 那一行的粘顶偏移就跟着它走，不用猜像素。head 还没插进来（后端没起、
+// notes.js 没加载）就用 MutationObserver 等它出现。 */
+(function () {
+  function setHeadVar(px) { document.documentElement.style.setProperty('--lcn-head-h', px + 'px'); }
+  function watch(head) {
+    setHeadVar(head.getBoundingClientRect().height);
+    if (window.ResizeObserver) {
+      new ResizeObserver(entries => setHeadVar(entries[0].contentRect.height)).observe(head);
+    }
+  }
+  const existing = document.querySelector('.lcn-shared-head');
+  if (existing) {
+    watch(existing);
+  } else {
+    const mo = new MutationObserver(() => {
+      const head = document.querySelector('.lcn-shared-head');
+      if (head) { mo.disconnect(); watch(head); }
+    });
+    mo.observe(document.body, { childList: true });
+  }
+})();
+</script>
+</body>
+</html>

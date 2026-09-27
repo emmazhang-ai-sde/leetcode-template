@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>79. Word Search</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  /* 这题不在 CH4_DFS_ANIMATION_SPEC 的范围内（它明确把 79/733/212 划出去，
+     "不是选或不选的组合树，另开一份"）。这一页是把两套已有约定接在一起：
+     调用链/调用身份配色抄 78/46（递归，同一时刻好几帧活着，分不清谁在跑）；
+     格子board+候选探针抄 200-number-of-islands（网格 DFS/BFS 的通用画法）。 */
+
+  /* ── board：4 列 × 3 行，外加一圈行/列下标 ────────────────────────── */
+  .ws-wrap {
+    display: grid;
+    grid-template-columns: 20px repeat(4, 52px);
+    grid-template-rows: 20px repeat(3, 52px);
+    gap: 6px;
+  }
+  .ws-pad {}
+  .ws-idx { display: flex; align-items: center; justify-content: center; font-family: var(--ink-mono); font-size: 11px; color: #bbb; font-weight: 700; }
+  .ws-cell {
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 8px; font-family: var(--ink-mono); font-size: 19px; font-weight: 700;
+    background: #ffffff; border: 1.5px solid #c9c9c9; color: #1a1a1a;
+    transition: background 0.2s, border-color 0.2s, box-shadow 0.15s, transform 0.15s;
+  }
+  /* 还在 stack 上的帧（祖先 + 当前）：底色 = 这次调用自己的颜色，
+     跟代码高亮行、调用链里那一行、递归树上对应节点完全同色。 */
+  .ws-cell.on-stack { transform: translateY(-1px); }
+  .ws-cell.top { box-shadow: inset 0 0 0 2px #1a1a1a; }
+  /* 最终确认找到之后，整条成功路径常驻高亮（stack 会一路弹空，
+     所以这个状态不依赖 stack，单独用 successCells 记） */
+  .ws-cell.success { background: rgba(93,202,165,0.45); border-color: #1D9E75; color: #0d3a2c; }
+  /* 候选邻居 (newi, newj)：先亮紫框在查越界/查 visited，查完变绿/变灰框 */
+  .ws-cell.probe-pending { box-shadow: 0 0 0 3px #9333C0; }
+  .ws-cell.probe-oob     { box-shadow: 0 0 0 3px #C4501E; opacity: 0.5; }
+  .ws-cell.probe-visited { box-shadow: 0 0 0 3px #aaa; opacity: 0.5; }
+  .ws-cell.probe-true    { box-shadow: 0 0 0 3px #1D9E75; }
+  .ws-cell.probe-false   { box-shadow: 0 0 0 3px #C4501E; }
+
+  /* ── word 进度条：跟 nums-row 是同一件事，只是元素换成字符 ─────────── */
+  .word-row { display: flex; gap: 6px; }
+  .word-cell {
+    width: 34px; height: 40px; border-radius: 7px; display: flex; align-items: center; justify-content: center;
+    font-family: var(--ink-mono); font-size: 17px; font-weight: 700;
+    background: #f5f5f5; border: 1px solid #c9c9c9; color: #bbb;
+    transition: background 0.2s, border-color 0.2s, color 0.2s, transform 0.15s;
+  }
+  .word-cell.matched { background: rgba(93,202,165,0.35); border-color: #1D9E75; color: #1a1a1a; }
+  .word-cell.trying  { background: rgba(249,203,66,0.55); border-color: #d4a800; color: #1a1a1a; transform: translateY(-2px); }
+  .word-idx-row { display: flex; gap: 6px; margin-top: 4px; }
+  .word-idx { width: 34px; text-align: center; font-family: var(--ink-mono); font-size: 10.5px; color: #aaa; }
+
+  /* ── 递归树：形状不像组合/排列那样能提前枚举，运行时real跑一遍再
+     算布局（叶子从左到右挨个分配格子，内部节点取子节点中点）。 ──────── */
+  #tree-svg { display: block; width: 380px; height: 320px; }
+  .edge { stroke: #d5d5d5; stroke-width: 2; }
+  .edge.on-path { stroke: #3A6FD4; stroke-width: 3; }
+  .node-box { fill: #f5f5f5; stroke: #c9c9c9; stroke-width: 1; transition: fill 0.2s; }
+  .node-box.n-current { stroke: #1a1a1a; stroke-width: 2.5; }
+  .node-box.n-stack   { stroke: rgba(90,130,200,0.55); }
+  .node-box.n-done    { fill: rgba(93,202,165,0.4); stroke: rgba(60,160,125,0.5); }
+  .node-box.n-dead    { fill: rgba(196,80,30,0.14); stroke: rgba(196,80,30,0.4); }
+  .node-text { font-family: var(--ink-mono); font-size: 11px; font-weight: 700; fill: #1a1a1a; }
+  .node-text.dim { fill: #b5b5b5; }
+
+  .chain-word-row { display: flex; gap: 16px; align-items: flex-start; }
+  .grid-tree-row { display: flex; gap: 16px; align-items: flex-start; }
+
+  .fn-tag { display: inline-block; padding: 1px 8px; border-radius: 5px; background: rgba(199,146,234,0.18);
+            color: #6b3fa0; font-family: var(--ink-mono); font-size: 12px; font-weight: 700; }
+  .fn-note { margin-left: 8px; font-family: -apple-system, sans-serif; font-size: 11px; color: #aaa; }
+  .var-row.var-visited { white-space: normal; max-width: 300px; line-height: 1.6; }
+  .res-badge { font-family: var(--ink-mono); font-size: 13px; font-weight: 700; padding: 1px 9px; border-radius: 6px; background: #f5f5f5; color: #bbb; }
+  .res-badge.yes { background: rgba(93,202,165,0.45); color: #0d3a2c; }
+  .res-badge.no  { background: rgba(196,80,30,0.14); color: #C4501E; }
+
+  .call-chain { display: flex; flex-direction: column; gap: 4px; min-height: 160px; }
+  .chain-row { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 10px;
+               border-radius: 7px; font-family: var(--ink-mono); font-size: 12px;
+               color: #1a1a1a; white-space: nowrap; align-self: flex-start;
+               transition: box-shadow 0.15s; }
+  .chain-row.top { box-shadow: 0 0 0 1.5px #1a1a1a; font-weight: 700; }
+  .chain-dim { color: #8a8a8a; font-weight: 400; }
+  .chain-empty { font-family: var(--ink-mono); font-size: 12px; color: #bbb; }
+  .chain-note { margin-top: 10px; max-width: 430px; font-size: 11.5px; line-height: 1.65; color: #8a8a8a; }
+  .chain-note b { color: #1a1a1a; font-weight: 700; }
+  /* var-bar 挪进 board 卡片里（2026-08-11，原来是代码框下面单独一块）——
+     卡片内没有子元素间距规则，手动跟网格拉开一点 */
+  #ws-grid + .var-bar { margin-top: 14px; }
+
+  /* 颜色图例从页头搬到代码框下面（跟 step-info 一起塞进 .code-stack），
+     一行一条，跟页头那种居中横排 flex-wrap 分开来 */
+  .legend-below { flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 0; max-width: none; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '79. Word Search',
+  link: 'https://leetcode.com/problems/word-search/',
+  legend: [
+    { color: 'rgba(249,203,66,0.30)', extra: 'box-shadow:inset 0 0 0 2px #1a1a1a;', label: '黑框 = 正在执行这一行的那次调用（board 上对应那个格子）' },
+    { color: 'rgba(120,160,225,0.22)', label: '还在调用栈上的祖先帧 — 每次调用一种颜色，代码高亮行 / 调用链 / 树节点 / 格子同色' },
+    { color: 'rgba(93,202,165,0.45)', label: '找到完整单词后，成功路径常驻高亮（这几格 dfs 已经返回，但 stack 会弹空，靠这个记住走过哪' },
+    { color: '#ffffff', extra: 'border:1.5px solid #c9c9c9;', label: '还没访问 / 已经回溯掉（visited.remove 之后）' },
+    { color: '#ffffff', extra: 'box-shadow:0 0 0 3px #9333C0;', label: '正在检查越界 / 是否已访问的候选邻居 (newi, newj)' },
+    { color: '#ffffff', extra: 'box-shadow:0 0 0 3px #1D9E75;', label: '这个候选递归成功（或字符匹配）' },
+    { color: '#ffffff', extra: 'box-shadow:0 0 0 3px #C4501E;', label: '这个候选越界 / 字符不匹配' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+  <script>
+  renderCodeBox({
+    code: `
+class Solution:
+    def exist(self, board: List[List[str]], word: str) -> bool:
+        if not board or not board[0]:
+            return False
+
+        visited = set()
+
+        for i in range(len(board)):
+            for j in range(len(board[0])):
+                if self.dfs(i, j, board, 0, word, visited):
+                    return True
+        return False
+
+    def dfs(self, i, j, board, index, word, visited):
+
+        if index < len(word) and word[index] != board[i][j]:
+            return False
+
+        if index == len(word) - 1:
+            return True
+
+        visited.add((i,j))
+
+        for (di, dj) in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+            newi = i + di
+            newj = j + dj
+            if not ( 0<=newi<len(board) and 0<=newj<len(board[0])):
+                continue
+            if (newi,newj) in visited:
+                continue
+            if self.dfs(newi, newj, board, index + 1, word, visited):
+                return True
+
+        visited.remove((i,j))`,
+  });
+  </script>
+
+  <!-- 步骤说明 + 颜色图例从页头搬到代码框下面：先搬 #info（保持在 code-panel
+       下面），再搬页头的 .legend（顺序排在 info 后面），最后把页头里现在空掉的
+       那行 .header-row 删掉，别留一条空的居中 flex 行占位置 -->
+  <script>
+  (function () {
+    const stack = document.querySelector('.code-stack');
+    stack.appendChild(document.getElementById('info'));
+    const legend = document.querySelector('.legend');
+    const legendRow = legend.parentElement;
+    legend.classList.add('legend-below');
+    stack.appendChild(legend);
+    legendRow.remove();
+  })();
+  </script>
+
+  <div class="viz-panel">
+    <div class="chain-word-row">
+      <div class="card">
+        <h3>调用链 — 现在这行代码是谁在跑</h3>
+        <div class="call-chain" id="call-chain"></div>
+      </div>
+
+      <div class="card">
+        <h3>word — 匹配到第几个字符了</h3>
+        <div class="word-row" id="word-row"></div>
+        <div class="word-idx-row" id="word-idx-row"></div>
+      </div>
+    </div>
+
+    <div class="grid-tree-row">
+      <div class="card">
+        <h3>board · 3 × 4（Example 1）</h3>
+        <div class="ws-wrap" id="ws-grid"></div>
+        <div class="var-bar" id="var-bar"></div>
+      </div>
+      <div class="card">
+        <h3>递归树 — 每个节点是一次 dfs 调用</h3>
+        <svg id="tree-svg" viewBox="0 0 380 320"></svg>
+      </div>
+    </div>
+  </div>
+</div><!-- /.main -->
+</div><!-- /.content-wrapper -->
+
+<script>
+// ── 例子：LeetCode 79 官方 Example 1，答案 = true ─────────────────────────
+const BOARD = [
+  ['A', 'B', 'C', 'E'],
+  ['S', 'F', 'C', 'S'],
+  ['A', 'D', 'E', 'E'],
+];
+const WORD = 'ABCCED';
+const R = BOARD.length, C = BOARD[0].length;
+const DIRS = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+
+/* 行号表：正文从 1 开始，空行也占号（5/7/13/15/18/21/23/33 是空行）。
+   按 ANIMATION_GUIDE：每行可执行代码 ≥ 1 步，if/for 头每轮都停（True/False 都停），
+   函数调用行走两遍（发起 + 返回）。 */
+const L = {
+  EXIST:        2,   // def exist(self, board, word)
+  GUARD:        3,   // if not board or not board[0]
+  GUARD_RET:    4,   // return False
+  VISITED:      6,   // visited = set()
+  FOR_I:        8,   // for i in range(len(board))        每轮 + 取空各一次
+  FOR_J:        9,   // for j in range(len(board[0]))      每轮 + 取空各一次
+  CALL_DFS:    10,   // if self.dfs(i, j, board, 0, word, visited):   调用 + 返回各一次
+  RETURN_TRUE: 11,   // return True
+  RETURN_FALSE:12,   // return False
+  DFS:         14,   // def dfs(self, i, j, board, index, word, visited)
+  MISMATCH_IF: 16,   // if index < len(word) and word[index] != board[i][j]:
+  MISMATCH_RET:17,   // return False
+  DONE_IF:     19,   // if index == len(word) - 1:
+  DONE_RET:    20,   // return True
+  ADD_VISITED: 22,   // visited.add((i,j))
+  FOR_DIR:     24,   // for (di, dj) in [...]              每轮 + 取空各一次
+  NEWI:        25,   // newi = i + di
+  NEWJ:        26,   // newj = j + dj
+  BOUNDS_IF:   27,   // if not (0<=newi<len(board) and 0<=newj<len(board[0])):
+  BOUNDS_CONT: 28,   // continue
+  VISITED_IF:  29,   // if (newi,newj) in visited:
+  VISITED_CONT:30,   // continue
+  RECURSE_IF:  31,   // if self.dfs(newi, newj, board, index + 1, word, visited):   调用 + 返回各一次
+  RECURSE_RET: 32,   // return True
+  REMOVE:      34,   // visited.remove((i,j))
+};
+
+const key = (i, j) => i + ',' + j;
+
+// ── 真跑一遍 Lyon 的解法，边跑边记录调用树，生成步骤 ───────────────────────
+function buildSteps() {
+  const steps = [];
+  let visited = new Set();
+  let stack = [];          // [{ id, i, j, index, dir }]
+  let done = [];           // 已经返回的帧 id（子树走完）
+  let probe = null;        // 正在检查/正在等结果的候选邻居 { x, y, phase }
+  let successCells = null; // 找到单词后，成功路径的 (i,j) 列表——不依赖 stack
+  let fn = null;
+  let res = null;
+
+  const NODES = [];
+  let nodeSeq = 0;
+
+  function snap(line, info) {
+    const top = stack.length ? stack[stack.length - 1] : null;
+    steps.push({
+      line, info, fn, res,
+      visited: [...visited],
+      stack: stack.map(f => ({ id: f.id, i: f.i, j: f.j, index: f.index })),
+      done: [...done],
+      probe: probe ? { ...probe } : null,
+      successCells: successCells ? successCells.map(c => [...c]) : null,
+      i: top ? top.i : null, j: top ? top.j : null, index: top ? top.index : null,
+    });
+  }
+
+  snap(null, `DFS 从棋盘上每一格出发试着匹配 word="${WORD}"：字符对不上或者格子已经用过就退回去换个方向，` +
+    `凑齐 word 的全部 ${WORD.length} 个字符就算找到。`);
+  fn = 'exist';
+  snap(L.EXIST, `Line 2: 进入 exist(board, word="${WORD}") — board 是 ${R} 行 ${C} 列的字符矩阵。`);
+
+  const guardBad = !BOARD.length || !BOARD[0].length;
+  snap(L.GUARD, `Line 3: not board or not board[0] → ${guardBad ? 'True' : 'False'}（board 不是空矩阵，正常往下走）。`);
+  // guardBad 恒为 False（board 写死非空），Line 4 的 return False 这条分支这个例子走不到，
+  // 但它仍然是真实代码的一部分——如果换个空 board 的例子它会被触发。
+
+  visited = new Set();
+  snap(L.VISITED, 'Line 6: visited = set() — 记录当前这条路径上用过哪些格子；全程只有一份，四个形参之外唯一会被增删的东西。');
+
+  function dfs(i, j, index, parentId, depth) {
+    const id = nodeSeq++;
+    const node = { id, i, j, index, parentId, depth, outcome: null };
+    NODES.push(node);
+    const frame = { id, i, j, index, dir: null };
+    stack.push(frame);
+    fn = 'dfs';
+    probe = null;
+    snap(L.DFS, `Line 14: 进入 dfs(i=${i}, j=${j}, index=${index}) — 检查格子 (${i}, ${j}) = "${BOARD[i][j]}" 能不能接上 word[${index}]。`);
+
+    const mismatch = index < WORD.length && WORD[index] !== BOARD[i][j];
+    snap(L.MISMATCH_IF, `Line 16: index < len(word) and word[${index}] != board[${i}][${j}] → ` +
+      (mismatch
+        ? `True（word[${index}]="${WORD[index]}"，但这格是 "${BOARD[i][j]}"，对不上）。`
+        : `False（board[${i}][${j}]="${BOARD[i][j]}" 正好等于 word[${index}]="${WORD[index] ?? ''}"，可以接着往下走）。`));
+    if (mismatch) {
+      snap(L.MISMATCH_RET, `Line 17: return False — 这格用不上，dfs(${i}, ${j}) 直接结束，不会执行下面的 visited.add，不会往任何方向扩散。`);
+      node.outcome = 'mismatch';
+      stack.pop();
+      return false;
+    }
+
+    const complete = index === WORD.length - 1;
+    snap(L.DONE_IF, `Line 19: index == len(word) - 1 → ${complete ? 'True' : 'False'}` +
+      (complete ? `（index=${index} 正是最后一个下标，word 的 ${WORD.length} 个字符全部接上了）。` : `（还没到最后一个字符）。`));
+    if (complete) {
+      snap(L.DONE_RET, `Line 20: return True — 找到了！(${i}, ${j}) 就是匹配 word 最后一个字符 "${WORD[index]}" 的格子。`);
+      node.outcome = 'match';
+      stack.pop();
+      return true;
+    }
+
+    visited.add(key(i, j));
+    snap(L.ADD_VISITED, `Line 22: visited.add((${i}, ${j})) — 标记这格用过了，防止接下来往回走踩到自己。`);
+
+    let result = false;
+    for (const [di, dj] of DIRS) {
+      frame.dir = [di, dj];
+      snap(L.FOR_DIR, `Line 24: for (di, dj) in [(0,1),(0,-1),(1,0),(-1,0)] → (${di}, ${dj}) — 从 (${i}, ${j}) 往这个方向探。`);
+
+      const newi = i + di;
+      snap(L.NEWI, `Line 25: newi = i + di = ${i} + ${di} = ${newi}。`);
+      const newj = j + dj;
+      snap(L.NEWJ, `Line 26: newj = j + dj = ${j} + ${dj} = ${newj} — 候选格子 (${newi}, ${newj})。`);
+
+      probe = { x: newi, y: newj, phase: 'pending' };
+      const oob = !(newi >= 0 && newi < R && newj >= 0 && newj < C);
+      snap(L.BOUNDS_IF, `Line 27: not (0<=newi<${R} and 0<=newj<${C}) → ${oob ? 'True（越界）' : 'False（在棋盘内）'}。`);
+      if (oob) {
+        probe.phase = 'oob';
+        snap(L.BOUNDS_CONT, `Line 28: continue — (${newi}, ${newj}) 越界，跳过，试下一个方向。`);
+        probe = null;
+        continue;
+      }
+
+      const already = visited.has(key(newi, newj));
+      snap(L.VISITED_IF, `Line 29: (${newi}, ${newj}) in visited → ${already ? 'True' : 'False'}` +
+        (already ? '（这格已经在当前路径上了，再走过去就是重复用同一个字母）。' : '（这格还没用过）。'));
+      if (already) {
+        probe.phase = 'visited';
+        snap(L.VISITED_CONT, `Line 30: continue — (${newi}, ${newj}) 已经用过，跳过，试下一个方向。`);
+        probe = null;
+        continue;
+      }
+
+      probe = null;
+      snap(L.RECURSE_IF, `Line 31: if self.dfs(${newi}, ${newj}, board, ${index + 1}, word, visited) — 调用，去检查 (${newi}, ${newj}) 能不能接上 word[${index + 1}]。`);
+      const r = dfs(newi, newj, index + 1, id, depth + 1);
+      fn = 'dfs';
+      probe = { x: newi, y: newj, phase: r ? 'true' : 'false' };
+      if (r) {
+        snap(L.RECURSE_IF, `Line 31: dfs(${newi}, ${newj}) 返回 True — 那个方向一路找到底了，(${i}, ${j}) 这一层也直接返回 True，不用再试剩下的方向。`);
+        snap(L.RECURSE_RET, `Line 32: return True — 把成功一路传回上一层。`);
+        node.outcome = 'success-path';
+        probe = null;
+        stack.pop();
+        return true;
+      }
+      snap(L.RECURSE_IF, `Line 31: dfs(${newi}, ${newj}) 返回 False — 那个方向走不通，回到 (${i}, ${j})，试下一个方向。`);
+      probe = null;
+    }
+
+    frame.dir = null;
+    snap(L.FOR_DIR, `Line 24: 四个方向都试过了，没有一个能接上 word[${index + 1}] — dfs(${i}, ${j}) 这一层没有出路。`);
+
+    visited.delete(key(i, j));
+    snap(L.REMOVE, `Line 34: visited.remove((${i}, ${j})) — 回溯：这格退回"没用过"，交还给别的路径。add → 四个方向 → remove，退回原样后上一层才能去试它自己的下一个方向。`);
+    node.outcome = 'dead';
+    done.push(id);
+    stack.pop();
+    return false;
+  }
+
+  let found = false;
+  outer:
+  for (let i = 0; i < R; i++) {
+    snap(L.FOR_I, `Line 8: for i in range(len(board)) → i = ${i} — 扫第 ${i} 行。`);
+    for (let j = 0; j < C; j++) {
+      snap(L.FOR_J, `Line 9: for j in range(len(board[0])) → j = ${j} — 以 (${i}, ${j}) = "${BOARD[i][j]}" 为起点试一次。`);
+      snap(L.CALL_DFS, `Line 10: if self.dfs(${i}, ${j}, board, 0, word, visited) — 调用，从 (${i}, ${j}) 出发看能不能拼出整个 "${WORD}"。`);
+      const r = dfs(i, j, 0, null, 0);
+      fn = 'exist';
+      if (r) {
+        snap(L.CALL_DFS, `Line 10: dfs(${i}, ${j}) 返回 True — 从这一格出发真的拼出了 "${WORD}"。`);
+        res = true;
+        successCells = NODES.filter(n => n.outcome === 'match' || n.outcome === 'success-path')
+          .sort((a, b) => a.index - b.index).map(n => [n.i, n.j]);
+        snap(L.RETURN_TRUE, `Line 11: return True — 不用再试其它起点了，整个 exist 到此结束。`);
+        found = true;
+        break outer;
+      }
+      snap(L.CALL_DFS, `Line 10: dfs(${i}, ${j}) 返回 False — 从这一格出发拼不出 "${WORD}"，试下一个起点。`);
+    }
+    snap(L.FOR_J, `Line 9: col 已经走完 0..${C - 1} — 第 ${i} 行都试过了，回到外层 row 循环。`);
+  }
+
+  if (!found) {
+    snap(L.FOR_I, `Line 8: row 已经走完 0..${R - 1} — 所有起点都试过了，没有一个能拼出 "${WORD}"。`);
+    res = false;
+    snap(L.RETURN_FALSE, 'Line 12: return False。');
+  }
+
+  fn = null;
+  snap(null, res
+    ? `✅ exist 返回 True — 从 (${successCells[0][0]}, ${successCells[0][1]}) 出发，沿着 ` +
+      successCells.map(c => `(${c[0]},${c[1]})`).join(' → ') + ` 这条路径正好拼出 "${WORD}"，共尝试了 ${NODES.length} 次 dfs 调用。`
+    : `❌ exist 返回 False — 棋盘上找不出一条路径能拼出 "${WORD}"。`);
+
+  return { steps, NODES };
+}
+
+const BUILD = buildSteps();
+const STEPS = BUILD.steps;
+const NODES = BUILD.NODES;
+const NODE_BY_ID = {};
+NODES.forEach(n => { NODE_BY_ID[n.id] = n; });
+
+/* 树的形状是真跑出来的，没法像 46/78 那样提前手写坐标：叶子（没有孩子的
+   节点）按出现顺序从左到右分配格子，内部节点取自己孩子的首尾中点，
+   跟 46/78 的坐标规则完全一样，只是这里用代码算而不是手抄。 */
+const SLOT = 68, X0 = 36, Y0 = 26, DY = 50, NODE_W = 58, NODE_H = 26;
+(function layoutTree() {
+  const byParent = {};
+  NODES.forEach(n => { const k = n.parentId; (byParent[k] = byParent[k] || []).push(n); });
+  let nextSlot = 0;
+  function assign(n) {
+    const kids = byParent[n.id] || [];
+    if (!kids.length) {
+      n.slot = nextSlot++;
+    } else {
+      kids.forEach(assign);
+      n.slot = (kids[0].slot + kids[kids.length - 1].slot) / 2;
+    }
+  }
+  (byParent[null] || []).forEach(assign);
+  NODES.forEach(n => { n.x = X0 + n.slot * SLOT; n.y = Y0 + n.depth * DY; });
+})();
+
+/* 16 种够用了（这题最多也就一次 dfs 调用一种色），复用 46 页同一套生成方式
+   拉开色相；索引直接等于 nodeSeq，创建顺序就是 NODES 数组下标。 */
+const CALL_TINT = [
+  'rgba(126,158,221,0.24)', 'rgba(117,209,163,0.26)', 'rgba(227,192,109,0.30)', 'rgba(216,143,121,0.26)',
+  'rgba(180,131,216,0.26)', 'rgba(127,196,210,0.28)', 'rgba(209,166,117,0.30)', 'rgba(219,148,184,0.24)',
+  'rgba(152,121,216,0.24)', 'rgba(161,210,137,0.26)', 'rgba(216,208,121,0.30)', 'rgba(224,133,133,0.24)',
+  'rgba(217,140,217,0.24)', 'rgba(117,209,186,0.28)', 'rgba(182,218,108,0.28)', 'rgba(216,151,173,0.24)',
+];
+const EXIST_TINT = 'rgba(150,150,150,0.18)';
+const tintOf = (id) => (id == null ? EXIST_TINT : CALL_TINT[id % CALL_TINT.length]);
+
+let cur = -1;
+
+// ── 渲染（只读快照，无副作用） ─────────────────────────────────────────
+function renderGrid(s) {
+  const stackByCell = {};
+  s.stack.forEach((f, k) => { stackByCell[key(f.i, f.j)] = { id: f.id, top: k === s.stack.length - 1 }; });
+  const successSet = new Set((s.successCells || []).map(c => key(c[0], c[1])));
+
+  const out = [];
+  for (let r = -1; r < R; r++) {
+    for (let c = -1; c < C; c++) {
+      if (r === -1 || c === -1) {
+        if (r === -1 && c >= 0 && c < C)      out.push(`<div class="ws-idx">${c}</div>`);
+        else if (c === -1 && r >= 0 && r < R) out.push(`<div class="ws-idx">${r}</div>`);
+        else                                   out.push('<div class="ws-pad"></div>');
+        continue;
+      }
+      const onStack = stackByCell[key(r, c)];
+      const cls = ['ws-cell'];
+      let style = '';
+      if (onStack) {
+        cls.push('on-stack');
+        if (onStack.top) cls.push('top');
+        style = ' style="background:' + tintOf(onStack.id) + ';border-color:transparent;"';
+      } else if (successSet.has(key(r, c))) {
+        cls.push('success');
+      }
+      if (s.probe && s.probe.x === r && s.probe.y === c) cls.push('probe-' + s.probe.phase);
+      out.push(`<div class="${cls.join(' ')}"${style}>${BOARD[r][c]}</div>`);
+    }
+  }
+  document.getElementById('ws-grid').innerHTML = out.join('');
+}
+
+function renderWord(s) {
+  const idx = s.index;
+  const row = WORD.split('').map((ch, k) => {
+    let cls = 'word-cell';
+    if (idx != null && k < idx) cls += ' matched';
+    else if (idx != null && k === idx) cls += ' trying';
+    return `<div class="${cls}">${ch}</div>`;
+  }).join('');
+  document.getElementById('word-row').innerHTML = row;
+  document.getElementById('word-idx-row').innerHTML =
+    WORD.split('').map((_, k) => `<div class="word-idx">${k}</div>`).join('');
+}
+
+function nodeState(s, id) {
+  if (s.done.indexOf(id) >= 0) return NODE_BY_ID[id].outcome === 'dead' ? 'n-dead' : 'n-done';
+  const at = s.stack.findIndex(f => f.id === id);
+  if (at >= 0) return at === s.stack.length - 1 ? 'n-current' : 'n-stack';
+  if (NODE_BY_ID[id].outcome === 'match' || NODE_BY_ID[id].outcome === 'success-path') return 'n-done';
+  if (NODE_BY_ID[id].outcome === 'mismatch') return 'n-dead';
+  return '';
+}
+
+function renderTree(s) {
+  const parts = [];
+  const stackIds = s.stack.map(f => f.id);
+  NODES.forEach(n => {
+    if (n.parentId == null) return;
+    const p = NODE_BY_ID[n.parentId];
+    const onPath = stackIds.indexOf(n.id) >= 0 && stackIds.indexOf(n.parentId) >= 0;
+    const x1 = p.x, y1 = p.y + NODE_H / 2, x2 = n.x, y2 = n.y - NODE_H / 2;
+    parts.push(`<line class="edge${onPath ? ' on-path' : ''}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`);
+  });
+  NODES.forEach(n => {
+    const st = nodeState(s, n.id);
+    const onStack = st === 'n-current' || st === 'n-stack';
+    const fill = onStack ? ` style="fill:${tintOf(n.id)}"` : '';
+    const label = BOARD[n.i][n.j] + '(' + n.i + ',' + n.j + ')';
+    parts.push(`<g><rect class="node-box ${st}"${fill} x="${n.x - NODE_W / 2}" y="${n.y - NODE_H / 2}" width="${NODE_W}" height="${NODE_H}" rx="6"/>` +
+      `<text class="node-text${st ? '' : ' dim'}" x="${n.x}" y="${n.y + 4}" text-anchor="middle">${label}</text></g>`);
+  });
+  document.getElementById('tree-svg').innerHTML = parts.join('');
+}
+
+function renderVars(s) {
+  const row = (name, val) => `<span class="var-row"><span class="var-name">${name}</span><span class="var-eq"> = </span><span class="var-val">${val}</span></span>`;
+  const resHtml = s.res == null ? '<span class="res-badge">—</span>' : s.res ? '<span class="res-badge yes">True</span>' : '<span class="res-badge no">False</span>';
+  document.getElementById('var-bar').innerHTML =
+    `<span class="var-row"><span class="fn-tag">${s.fn ? s.fn + '()' : '—'}</span><span class="fn-note">当前所在函数</span></span>` +
+    row('word', '"' + WORD + '"') +
+    row('(i, j)', s.i == null ? '-' : `(${s.i}, ${s.j})`) +
+    row('index', s.index == null ? '-' : s.index) +
+    `<span class="var-row var-visited">${row('visited', '{' + s.visited.map(v => '(' + v.replace(',', ', ') + ')').join(', ') + '}')}</span>` +
+    `<span class="var-row"><span class="var-name">exist(...) →</span> ${resHtml}</span>`;
+}
+
+/* 调用链：从最外层往里一层一层列，缩进 = 递归深度。跟 46 一样——board/word/
+   visited 三个共用对象只写名字，i/j/index 是每层各自的实参，写具体值。 */
+function renderChain(s) {
+  const host = document.getElementById('call-chain');
+  if (!s.fn) {
+    host.innerHTML = '<span class="chain-empty">还没开始 / 已经全部返回</span>';
+    return;
+  }
+  const rows = [{ id: null, text: 'exist(board, word)', depth: 0, top: !s.stack.length }];
+  s.stack.forEach((f, k) => {
+    rows.push({
+      id: f.id, depth: k + 1, top: k === s.stack.length - 1,
+      text: `dfs(i=${f.i}, j=${f.j}, index=${f.index})`,
+    });
+  });
+  host.innerHTML = rows.map(r =>
+    `<div class="chain-row${r.top ? ' top' : ''}" style="background:${tintOf(r.id)};margin-left:${r.depth * 18}px">` +
+      `<span>${r.text}</span></div>`).join('');
+}
+
+const EMPTY = { line: null, fn: null, res: null, visited: [], stack: [], done: [], probe: null,
+                successCells: null, i: null, j: null, index: null };
+
+function renderAll() {
+  const step = cur >= 0 ? STEPS[cur] : null;
+  const s = step || EMPTY;
+
+  renderChain(s);
+  renderWord(s);
+  renderGrid(s);
+  renderTree(s);
+  renderVars(s);
+  highlightLine(s.line);
+  renderCtrl(cur, STEPS.length, step ? step.info :
+    `点 Next 开始：在 3×4 的字母棋盘里找一条四连通路径拼出 "${WORD}"。`);
+}
+
+var render = renderAll;
+doReset();
+</script>
+</body>
+</html>

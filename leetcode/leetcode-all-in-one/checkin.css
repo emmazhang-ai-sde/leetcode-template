@@ -1,0 +1,183 @@
+/* =========================================================================
+   checkin.css — checkin.html 的页面专属样式（2026-08-07 从该页内联 <style>
+   原样搬出，规则一条没改）。
+
+   为什么单独成文件：拆之前 checkin.html 一个文件 983 行（234 行样式 +
+   633 行脚本 + 约 110 行 markup），跟同目录 notes.css / notes.js 和
+   cards/ 的 html+css+js 三件套不一致，也没法被浏览器单独缓存。
+
+   分工：本文件只放 lch- 前缀的**本页布局**（两栏、日历、列表行网格）；
+   卡片/按钮/输入框等组件类一律复用 notes.css 的 lcn-*，颜色/边框/阴影
+   一律用 ink.css 的 var(--ink-*)，不写字面值。
+   ========================================================================= */
+
+/* 版心改流式（2026-08-05）：wrap 本身不设上限，跟着 .content-wrapper 的
+   可用宽度走——动画站 sidebar 展开时它的 margin-left 会挤压 content-wrapper，
+   页面内容自动收缩让位。页头和四张卡都封顶 1420 居中、同宽。 */
+.lch-wrap { margin: 0 auto; padding: 8px 0 80px; }
+.lch-head { max-width: 1420px; margin-left: auto; margin-right: auto; }
+
+/* ── 页头：只剩居中标题 ── */
+.lch-head { text-align: center; margin: 22px auto; }
+.lch-title { font-size: 30px; font-weight: 800; letter-spacing: -0.015em; margin: 0; }
+
+/* 四张卡一样宽：整列封顶 1420 居中，跟页头对齐（2026-09-03 用户要求
+   Due for Review / All Items 跟 Check-in Calendar 同宽——之前只有两张
+   Calendar 卡封顶 1420，下面两张列表卡吃满整个可用宽度）。 */
+.lch-wide-blocks {
+  display: flex; flex-direction: column; gap: 18px;
+  width: 100%; max-width: 1420px; margin: 18px auto 0; min-width: 0;
+}
+.lch-wide-blocks > .lcn-card { width: 100%; min-width: 0; }
+
+.lch-scroll { overflow-y: auto; }
+.lch-due-scroll { max-height: none; overflow-y: visible; }
+.lch-items-scroll { max-height: 340px; }
+
+/* ── 通用小徽标（列表里的分数块 / 格式 / 到期状态） ── */
+.lch-score-chip {
+  width: 22px; height: 22px; border-radius: 6px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 800; color: var(--ink-soft);
+}
+/* 格式用 icon 表示（📝💻🗣️🤖，label 收进 title 悬停提示——[Speak with
+   Myself] 这种长文字横向太占地方）；来源按用户要求显示文字 [Practice]/[Class] */
+.lch-mode-chip { font-size: 14px; margin-left: 2px; white-space: nowrap; cursor: default; }
+.lch-src-chip { font-size: 12px; font-weight: 600; color: var(--ink-muted); margin-left: 3px; white-space: nowrap; }
+.lch-badge {
+  font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 6px; white-space: nowrap;
+}
+.lch-badge.overdue { background: rgba(224,110,140,0.25); color: #C0392B; }
+.lch-badge.today   { background: var(--ink-hl); color: var(--ink); }
+.lch-badge.soon    { background: #f0f0f0; color: #666; }
+
+/* ── 到期复习 ── */
+/* score 右边的列全部定宽——details（格式 icon + [Practice]/[Class]）不再
+   按内容自宽，否则 1fr 的题名列每行被挤的宽度不同，score 就不在一条竖线上 */
+.lch-due-row {
+  display: grid; grid-template-columns: 42px minmax(0, 1fr) 34px 110px 92px max-content;
+  align-items: center; gap: 8px; padding: 6px 8px;
+  border-radius: 8px; font-size: 13.5px;
+}
+.lch-due-row:hover { background: var(--ink-panel); }
+.lch-due-row.dim { opacity: 0.6; }
+/* Ch 标签和题号之间多空一截（约两个字符），别挤在一起 */
+.lch-due-name { min-width: 0; padding-left: 12px; color: inherit; text-decoration: none; }
+a.lch-due-name:hover { text-decoration: underline; }
+.lch-row-score { width: 34px; display: flex; justify-content: center; }
+.lch-row-details { min-width: 0; display: flex; align-items: center; gap: 3px; white-space: nowrap; }
+.lch-sub-h {
+  font-family: var(--ink-mono); font-size: 11px; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--ink-muted); font-weight: 700; margin: 14px 0 6px;
+}
+
+/* ── Check-in Calendar：Monthly（Bars）卡 + Biweekly（Agenda）卡，上下两张
+   （2026-09-02 拆开，原来一张卡切换）。卡头 = 标题 + 各自的 ‹ › ── */
+.lch-cal-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.lch-cal-head h3 { margin-bottom: 0; }
+.lch-cal-nav { display: inline-flex; align-items: center; gap: 8px; }
+.lch-cal-nav button {
+  width: 24px; height: 24px; border: var(--ink-border); border-radius: 6px; background: #fff;
+  font-size: 14px; line-height: 1; cursor: pointer;
+}
+.lch-cal-nav button:hover { background: var(--ink); color: var(--ink-hl); }
+.lch-cal-lab { font-family: var(--ink-mono); font-size: 12px; font-weight: 700; min-width: 100px; text-align: center; }
+/* Biweekly · Agenda（V2 Full Names 定稿，见 checkin-agenda-mockup.html）：
+   两周上下摞（2026-09-02 用户要求，原来是横排两列）——上一周在上、本周在下，
+   每周一个 .lch-ag-col（周标签 + 7 天竖排），两周之间一条淡分隔线。
+   日期是小节头（带当日次数），每道题独占一行——分数 + 题号 + 完整题名 +
+   格式 icon（2026-08-11 撤下打卡表单后，行不再可点回填，纯展示） */
+.lch-ag-cols { display: flex; flex-direction: column; gap: 18px; align-items: stretch; }
+.lch-ag-col { min-width: 0; }
+.lch-ag-col + .lch-ag-col { border-top: 1px solid rgba(17,17,17,0.12); padding-top: 16px; }
+.lch-ag-col-lab {
+  font-family: var(--ink-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--ink-muted); margin-bottom: 4px;
+}
+.lch-ag-day { padding: 7px 4px 9px; border-radius: 8px; }
+.lch-ag-day + .lch-ag-day { border-top: 1px solid rgba(17,17,17,0.08); }
+.lch-ag-day.today { background: #FFF7DC; box-shadow: 0 0 0 1.5px var(--ink) inset; border-top: none; }
+.lch-ag-day.today + .lch-ag-day { border-top: none; }
+.lch-ag-head { display: flex; align-items: baseline; gap: 6px; margin-bottom: 3px; }
+.lch-ag-dow { font-family: var(--ink-mono); font-size: 10.5px; font-weight: 700; color: var(--ink-muted); }
+.lch-ag-date { font-size: 14px; font-weight: 800; }
+.lch-ag-n { font-family: var(--ink-mono); font-size: 10.5px; color: var(--ink-muted); margin-left: 4px; }
+.lch-ag-line {
+  display: flex; align-items: center; gap: 7px; width: 100%;
+  padding: 3px 4px 3px 84px; font-size: 13px; text-align: left;
+  color: var(--ink); border-radius: 6px;
+}
+.lch-ag-sc {
+  font-style: normal; min-width: 16px; height: 16px; padding: 0 3px; border-radius: 5px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: var(--ink-mono); font-size: 11px; font-weight: 800; color: var(--ink); flex: none;
+}
+.lch-ag-num { font-family: var(--ink-mono); font-size: 12px; font-weight: 700; color: var(--ink-muted); flex: 0 0 38px; text-align: right; }
+.lch-ag-name { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lch-ag-none { padding: 1px 0 1px 84px; font-size: 12px; color: var(--ink-ghost); }
+/* Monthly · Bars：柱高 = 次数（按当月最大值归一），今天黄柱 + 统计块 */
+.lch-bar-wrap { display: flex; align-items: flex-end; gap: 3px; height: 84px; padding-top: 4px; }
+.lch-bar { flex: 1 1 0; min-width: 6px; border-radius: 3px 3px 0 0; background: #6F9E6C; }
+.lch-bar.zero { background: rgba(17,17,17,0.10); border-radius: 2px; }
+.lch-bar.today { outline: var(--ink-border); outline-offset: -1px; background: var(--ink-hl); }
+.lch-bar-axis {
+  display: flex; justify-content: space-between; margin-top: 5px;
+  font-family: var(--ink-mono); font-size: 10px; color: var(--ink-muted);
+}
+/* 统计块两个视图共用，整排居右 */
+.lch-bar-stats { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; justify-content: flex-end; }
+.lch-bar-stat {
+  border: var(--ink-border); border-radius: 8px; padding: 5px 10px;
+  font-family: var(--ink-mono); font-size: 11px; color: #666;
+}
+.lch-bar-stat b { font-size: 14px; color: var(--ink); margin-right: 3px; }
+
+/* ── 全部条目 ──
+   题名列独占全部弹性空间（超长省略号、永不换行）；右侧列全部定宽，
+   跟 Due for Review 同构：日期 | score | 格式 icon | 徽章 | 按钮——
+   score 在整个 block 里竖着一条线 */
+.lch-item-row {
+  display: grid; grid-template-columns: 42px minmax(0, 1fr) 78px 34px 56px 92px max-content;
+  gap: 8px; align-items: center; padding: 6px 8px; border-radius: 8px;
+  font-size: 13.5px; cursor: pointer;
+}
+.lch-item-row:hover { background: var(--ink-panel); }
+.lch-item-name {
+  font-weight: 600; min-width: 0; padding-left: 12px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.lch-item-meta { display: contents; }
+.lch-item-last { font-size: 12px; color: #666; white-space: nowrap; text-align: right; }
+.lch-item-score { width: 34px; display: flex; justify-content: center; }
+.lch-item-fmt { display: flex; align-items: center; gap: 3px; white-space: nowrap; }
+.lch-item-actions { display: flex; gap: 5px; }
+.lch-chapter {
+  width: 42px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center;
+  padding: 3px 5px; border-radius: 5px; background: var(--ink); color: #fff;
+  font-size: 11.5px; font-weight: 800; line-height: 1; white-space: nowrap;
+}
+.lch-item-hist { margin: 0 8px 6px; padding: 7px 11px; background: var(--ink-panel); border-radius: 8px; }
+.lch-hist { display: flex; align-items: flex-start; gap: 10px; padding: 4px 0; font-size: 13px; }
+.lch-hist-ts { font-family: var(--ink-mono); font-size: 11.5px; color: #666; white-space: nowrap; padding-top: 3px; }
+.lch-hist-note { color: var(--ink); line-height: 1.5; padding-top: 2px; overflow-wrap: anywhere; }
+.lch-hist-note i { color: var(--ink-muted); }
+
+/* ── 后端不在时的整页降级提示 ── */
+.lch-offline { max-width: 560px; margin: 40px auto; text-align: center; padding: 28px 26px; }
+.lch-offline h3 { justify-content: center; }
+.lch-offline p { font-size: 14px; color: #666; line-height: 1.7; }
+.lch-offline code { color: var(--ink); }
+
+/* ── Toast ── */
+.lch-toast {
+  position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%);
+  background: var(--ink); color: #fff; border-radius: 999px;
+  padding: 9px 20px; font-size: 14px;
+  opacity: 0; transition: opacity .25s; z-index: 600; pointer-events: none; max-width: 80vw;
+}
+.lch-toast.show { opacity: 0.96; }
+
+@media (max-width: 900px) {
+  .lch-ag-col { flex: 1 1 100%; }
+  .lch-ag-col + .lch-ag-col { border-left: 0; padding-left: 0; margin-top: 10px; }
+}

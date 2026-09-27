@@ -1,0 +1,22 @@
+<p>Given an <code>n x n</code> binary matrix <code>grid</code>, return <em>the length of the shortest <strong>clear path</strong> in the matrix</em>. If there is no clear path, return <code>-1</code>.</p>
+<p>A <strong>clear path</strong> in a binary matrix is a path from the <strong>top-left</strong> cell (i.e., <code>(0, 0)</code>) to the <strong>bottom-right</strong> cell (i.e., <code>(n - 1, n - 1)</code>) such that:</p>
+<ul>
+<li>All the visited cells of the path are <code>0</code>.</li>
+<li>All the adjacent cells of the path are <strong>8-directionally</strong> connected (i.e., they are different and they share an edge or a corner).</li>
+</ul>
+<p>The <strong>length of a clear path</strong> is the number of visited cells of this path.</p>
+<h3>Example 1</h3>
+<p><img src="https://assets.leetcode.com/uploads/2021/02/18/example1_1.png" alt=""></p>
+<p><strong>Input:</strong> <code>grid = [[0,1],[1,0]]</code><br><strong>Output:</strong> <code>2</code></p>
+<h3>Example 2</h3>
+<p><img src="https://assets.leetcode.com/uploads/2021/02/18/example2_1.png" alt=""></p>
+<p><strong>Input:</strong> <code>grid = [[0,0,0],[1,1,0],[1,1,0]]</code><br><strong>Output:</strong> <code>4</code></p>
+<h3>Example 3</h3>
+<p><strong>Input:</strong> <code>grid = [[1,0,0],[1,1,0],[1,1,0]]</code><br><strong>Output:</strong> <code>-1</code></p>
+<h3>Constraints</h3>
+<ul>
+<li><code>n == grid.length</code></li>
+<li><code>n == grid[i].length</code></li>
+<li><code>1 &lt;= n &lt;= 100</code></li>
+<li><code>grid[i][j] is 0 or 1</code></li>
+</ul>

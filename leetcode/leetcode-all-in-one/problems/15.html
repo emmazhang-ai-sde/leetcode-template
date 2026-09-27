@@ -1,0 +1,13 @@
+<p>Given an integer array nums, return all the triplets <code>[nums[i], nums[j], nums[k]]</code> such that <code>i != j</code>, <code>i != k</code>, and <code>j != k</code>, and <code>nums[i] + nums[j] + nums[k] == 0</code>.</p>
+<p>Notice that the solution set must not contain duplicate triplets.</p>
+<h3>Example 1</h3>
+<p><strong>Input:</strong> <code>nums = [-1,0,1,2,-1,-4]</code><br><strong>Output:</strong> <code>[[-1,-1,2],[-1,0,1]]</code><br><strong>Explanation:</strong><br><code>nums[0] + nums[1] + nums[2] = (-1) + 0 + 1 = 0.</code><br><code>nums[1] + nums[2] + nums[4] = 0 + 1 + (-1) = 0.</code><br><code>nums[0] + nums[3] + nums[4] = (-1) + 2 + (-1) = 0.</code><br><code>The distinct triplets are [-1,0,1] and [-1,-1,2].</code><br><code>Notice that the order of the output and the order of the triplets does not matter.</code></p>
+<h3>Example 2</h3>
+<p><strong>Input:</strong> <code>nums = [0,1,1]</code><br><strong>Output:</strong> <code>[]</code><br><strong>Explanation:</strong> The only possible triplet does not sum up to 0.</p>
+<h3>Example 3</h3>
+<p><strong>Input:</strong> <code>nums = [0,0,0]</code><br><strong>Output:</strong> <code>[[0,0,0]]</code><br><strong>Explanation:</strong> The only possible triplet sums up to 0.</p>
+<h3>Constraints</h3>
+<ul>
+<li><code>3 &lt;= nums.length &lt;= 3000</code></li>
+<li><code>-10<sup>5</sup> &lt;= nums[i] &lt;= 10<sup>5</sup></code></li>
+</ul>

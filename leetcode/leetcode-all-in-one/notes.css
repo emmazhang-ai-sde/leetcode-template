@@ -1,0 +1,747 @@
+/* =========================================================================
+   notes.css — LC Notes（Life OS 集成笔记系统）的全部样式。
+   风格 = 选型定稿的 Option C · Ink & Border（见 mockups/lc-notes/lc-notes-ui-mockup.html）：
+   纯白底、1.5px 实线黑框、硬阴影、等宽大写标签、黑黄高亮。
+   全部类名带 lcn- 前缀，不碰动画页面自己的样式。
+   ========================================================================= */
+
+/* ---- 共享页头：标题 + 副标题 + 双区切换，两个区都在它底下 ----
+   钉在视口顶部（position: sticky）：翻页/切 Notes-Animation 时标题、
+   星标、‹ › 邻题箭头、双区开关一直可见，不用滚回顶部。背景用页面底色
+   #f9f9f9（shared.css body 背景）盖住下面滚上来的内容；z-index 40 ——
+   低于 sidebar 的 100（不会盖住侧栏）和弹窗遮罩的 400，够盖住正文卡片。 */
+.lcn-shared-head {
+  text-align: center; padding-top: 44px; padding-bottom: 0;
+  position: sticky; top: 0; z-index: 40; background: #f9f9f9;
+}
+.lcn-shared-head .lcn-title { margin: 0 0 2px; }
+/* 章行：标题上方居中"章名 │ 细分名"，等宽大写 + 细分名黄色荧光标记
+   （2026-08-04 定稿 D 案，见 mockups/lc-notes/header-chapter-mockup.html） */
+.lcn-chap {
+  font-family: var(--ink-mono); font-size: 13px; font-weight: 700;
+  letter-spacing: 0.09em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 10px;
+}
+.lcn-chap-bar { color: var(--ink-ghost); margin: 0 10px; font-weight: 400; }
+.lcn-chap-hl { background: var(--ink-hl); padding: 3px 9px; border-radius: 4px; }
+/* 标题行：标题居中；‹ › 两个箭头并排钉死在版心右端（对齐卡片右边线），
+   题目再长箭头位置也不动。横向盒子和 .lcn-wrap 一致（1680 + 24 边距，
+   2026-08-11 从 1420 拉宽）。 */
+.lcn-title-row {
+  position: relative; max-width: 1680px; margin: 0 auto; padding: 0 24px;
+  text-align: center;
+}
+.lcn-nav-arrows {
+  position: absolute; right: 24px; top: 50%; transform: translateY(-50%);
+  display: flex; gap: 8px;
+}
+.lcn-nav-arrow {
+  width: 38px; height: 38px; flex: none; display: inline-flex; align-items: center; justify-content: center;
+  border: var(--ink-border); border-radius: 9px; background: #fff; color: var(--ink);
+  font-size: 23px; line-height: 1; padding-bottom: 2px; text-decoration: none; cursor: pointer;
+  box-shadow: var(--ink-shadow-sm);
+}
+.lcn-nav-arrow:hover { background: var(--ink); color: var(--ink-hl); }
+.lcn-nav-arrow.off { opacity: 0.25; pointer-events: none; }
+/* lcn-sub 已从题目页头撤下（章行取代）；切换按钮挪进标题行，跟题名同一行
+   （2026-08-11 从标题下方单独一行改成标题右侧，标题变成 inline-flex 把
+   题名、星标、Notes/Animation 开关横排在一起，整体还是居中）。 */
+.lcn-shared-head .lcn-title {
+  font-size: 29px; letter-spacing: -0.015em;
+  display: inline-flex; align-items: center; gap: 12px;
+}
+.lcn-shared-head .lcn-title .lcn-switch { margin: 0; }
+/* Step 步进控件（挪进共享页头，见 notes.js buildQuestionPage）紧贴在标题
+   行下面，跟标题行本来没有间距——补一个跟章行→标题行同样的 10px
+   （.lcn-chap 的 margin-bottom），让"章行｜标题行｜控件行"三级间距统一
+   （2026-08-11）。控件行到下面正文再留 26px（2026-08-17 用户要求拉开）；
+   用 padding 不用 margin——页头是 sticky 的，padding 算在页头自己的
+   #f9f9f9 背景里，正文滚上来时从背景底下过、不会在缝里露出来。 */
+.lcn-shared-head .header-row.ctrl { margin-top: 10px; padding-bottom: 26px; }
+/* 动画区自己的 h1 藏掉——标题由共享页头统一显示，不重复；
+   同时把它留下的头部空白（content-wrapper 顶部 padding + header margin）压掉，
+   切换按钮和正文别隔一大段。 */
+#lcn-anim h1 { display: none; }
+/* 动画区底部留白（2026-09-01 用户要求）：动画区挂在 body 末尾，最后一张卡
+   原来只剩 .content-wrapper 的 24px 就到页底，滚到底贴边很闷。统一给 80px。 */
+#lcn-anim .content-wrapper { padding-top: 0; padding-bottom: 80px; }
+#lcn-anim .page-header { margin-bottom: 10px; }
+#lcn-anim .page-header .header, #lcn-anim .header { margin: 0; }
+.lcn-switch {
+  display: inline-flex; gap: 4px; background: #fff; border: var(--ink-border);
+  border-radius: 9px; padding: 3px; box-shadow: var(--ink-shadow);
+  margin-bottom: 6px;
+}
+.lcn-switch button {
+  border: none; background: #fff; color: var(--ink); font: 600 12.5px var(--ink-sans);
+  padding: 5px 14px; border-radius: 6px; cursor: pointer;
+}
+.lcn-switch button.on { background: var(--ink); color: var(--ink-hl); }
+
+/* 纵排页动画区的区块标题（notes.js 注入，2026-08-26）：Notes 和动画之间的
+   分界，样式对齐页头大标题的缩小版 */
+.lcn-anim-title {
+  text-align: center; font-family: var(--ink-sans); font-size: 25px; font-weight: 800;
+  letter-spacing: -0.01em; color: var(--ink); margin: 0 0 6px;
+}
+/* 动画区的 sticky 头（notes.js 建，2026-08-29）："Animation" 标题 + Step
+   步进行。top = 共享页头实际高度（--lcn-head-h，notes.js 量出来的），紧贴
+   在页头下面；z-index 30 低于页头的 40、高于 Solution 头的 20。背景同页面
+   底色，正文滚上来从底下过。上下留白用 padding 而不是子元素 margin——
+   margin 会穿出 sticky 盒子、露出一条缝。flex 纵排 + 居中，Step 行
+   （.header-row 本来是 flex 居中）收缩到内容宽也仍然居中。只在动画区
+   （它的 .content-wrapper）范围内钉住，滚回 Notes 区就跟着走掉。 */
+.lcn-anim-head {
+  position: sticky; top: var(--lcn-head-h, 120px); z-index: 30; background: #f9f9f9;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 26px 0 14px;
+}
+
+/* ---- Notes 区骨架 ---- */
+/* 2026-09-02 用户要求：不加粗的字一律 500（Medium），比 400 沉一点；加粗仍是
+   <b> 的 bolder → 700。整个 Notes 区靠继承生效，所以下面凡是 font: 简写
+   （会把字重重置回 normal）都显式写 500，显式的 400 也一并改掉。 */
+.lcn-zone { font-family: var(--ink-sans); font-weight: 500; color: var(--ink); }
+/* 版心 1680（2026-08-11 从 1420 拉宽）：左列（Solution/Check in）是
+   max-content 定宽，版心拉宽后多出来的空间全部给右列（History / Notes）
+   ——右列要放得下贴进来的表格 */
+.lcn-wrap { max-width: 1680px; margin: 0 auto; padding: 8px 24px 80px; }
+.lcn-title { font-size: 25px; font-weight: 800; letter-spacing: -0.01em; text-align: center; margin: 8px 0 2px; }
+.lcn-title a { color: inherit; text-decoration: none; }
+.lcn-title a:hover { text-decoration: underline; }
+/* 章节页（"Chapter N · … — Notes"）的标题行高放到 2：这一页标题下面紧跟着
+   卡片网格，默认行高贴得太近。只挂 .lcn-page，题目页的标题不受影响。 */
+.lcn-page .lcn-title { line-height: 2; }
+/* 目前只有章节页（buildChapterPage）还在用 lcn-sub，margin 大一点让标题跟
+   下面第一排卡片（Lyon 课件 / Notes）拉开距离，不用再单独加章节页专属选择器 */
+.lcn-sub { text-align: center; font-size: 13.5px; color: var(--ink-muted); margin-bottom: 40px; }
+.lcn-top-row { display: grid; grid-template-columns: minmax(0,1.15fr) minmax(0,1fr); gap: 16px; margin-bottom: 16px; align-items: start; }
+/* 左列（Solution）按内容定宽：codebox 永远撑到最长一行的宽度，不出横向
+   滚动条；右列笔记吃剩余空间。代码特别宽时整行会超出 1180 的版心，宁可
+   页面变宽也不截断代码（用户明确要求）。 */
+.lcn-grid { display: grid; grid-template-columns: max-content minmax(280px,1fr); gap: 16px; align-items: start; }
+/* Solution 里什么都没有（没答案文件 / 空 tab）时没有代码撑左列，退回两列
+   各半 */
+.lcn-grid.lcn-grid-nosol { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+/* 两行两列：第一行 Check in（内含所选分数说明）│ History；第二行 Problem → Solution │ Notes，
+   Problem 卡顶边跟 Notes 标题卡对齐。两行都是单行项、不跨行：右列再长
+   也只把自己那一行撑高，不会把多出来的高度塞进别的行。 */
+/* 左列宽只许 Solution 卡（代码最长行）定：Check in 用 contain: inline-size
+   把自己的内容宽从 max-content 列宽计算里摘出去。History 现在在右列，
+   同样 contain——历史笔记/快照里一条不换行的长行（pre / pre-wrap 按不折行
+   算宽）否则会把 minmax(280px,1fr) 的右列 min-content 撑大；收窄后长内容
+   在框内横滚（lcn-hist-code 本来就有 overflow-x）。 */
+.lcn-cell-ck, .lcn-cell-hist { contain: inline-size; }
+.lcn-cell-ck { grid-column: 1; grid-row: 1; }
+.lcn-cell-rh { grid-column: 2; grid-row: 1; }
+/* 第二行顶部多留一段（行距 16 + 6 = 22）：上面是"打卡/回看"、下面是
+   "题目/答案/笔记"，视觉上分成两组。两边同一个 margin，Problem 和 Notes
+   标题卡才对得齐。Solution 卡的 sticky 以 .lcn-cell-histsol 为界。 */
+.lcn-cell-histsol { grid-column: 1; grid-row: 2; margin-top: 6px; }
+.lcn-cell-notes { grid-column: 2; grid-row: 2; margin-top: 6px; }
+.lcn-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.lcn-sticky { position: sticky; top: 56px; }
+/* Solution 卡的标题行 + tab 切换条钉在视口里（2026-08-11）：代码很长、
+   滚半天的时候，Edit/Copy 按钮和 Lyon/CopyN 切换一直够得着，不用先滚回
+   卡片顶部。top: 156px = 共享页头 .lcn-shared-head 的实际高度，紧贴在它
+   下面，不叠、也不留缝。z-index 20——比共享页头的 40 低，不会互相打架。 */
+.lcn-sol-head { position: sticky; top: 156px; z-index: 20; background: #fff; width: max-content; min-width: 100%; }
+.lcn-sol-tools:empty { display: none; }
+.lcn-sol-tools .lcn-toolbar { margin: 14px 0 0; flex-wrap: wrap; width: max-content; min-width: 560px; max-width: calc(100vw - 40px); }
+@media (max-width: 960px) {
+  .lcn-top-row, .lcn-grid, .lcn-grid.lcn-grid-nosol { grid-template-columns: 1fr; }
+  .lcn-sticky, .lcn-sol-head { position: static; }
+  /* 单列时取消显式定位，按 DOM 顺序纵排 */
+  .lcn-cell-ck, .lcn-cell-rh, .lcn-cell-histsol, .lcn-cell-notes { grid-column: auto; grid-row: auto; }
+}
+/* Laptop 视图（2026-09-04，sidebar.js 按 localStorage 把 lcn-laptop 打在 <html>
+   上，开关在侧栏顶行 Leetcode Check-in 左边）：不管窗口多宽都走上面 960px 断点那套单列纵排——Check in →
+   History → [Problem] → Solution → Notes。两列在笔记本屏上会把文字挤得
+   很窄。改这里的规则记得跟上面 @media 块保持同步。 */
+html.lcn-laptop .lcn-top-row, html.lcn-laptop .lcn-grid, html.lcn-laptop .lcn-grid.lcn-grid-nosol { grid-template-columns: 1fr; }
+html.lcn-laptop .lcn-sticky { position: static; }
+html.lcn-laptop .lcn-sol-head { position: sticky; top: var(--lcn-head-h, 156px); z-index: 20; background: #fff; }
+html.lcn-laptop .lcn-cell-ck, html.lcn-laptop .lcn-cell-rh, html.lcn-laptop .lcn-cell-histsol, html.lcn-laptop .lcn-cell-notes { grid-column: auto; grid-row: auto; }
+
+/* Scoring Rubric 卡：分数色块 + 标题独占一行（大一号黑粗）+ 说明另起一行灰字 */
+.lcn-rubric { display: flex; flex-direction: column; gap: 12px; }
+.lcn-rub-row { display: flex; gap: 10px; align-items: flex-start; }
+.lcn-rub-s { flex: none; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 800; color: var(--ink-soft); }
+.lcn-rub-t { min-width: 0; padding-top: 1px; }
+.lcn-rub-t b { display: block; font-size: 15px; color: var(--ink); margin-bottom: 2px; letter-spacing: 0.015em; }
+.lcn-rub-d { font-size: 13.5px; line-height: 1.55; color: #555; letter-spacing: 0.015em; }
+
+.lcn-card { background: #fff; border: var(--ink-border); border-radius: 10px; box-shadow: var(--ink-shadow); padding: 16px 18px; }
+.lcn-card h3 {
+  font-family: var(--ink-mono); font-size: 13px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.10em; color: var(--ink-soft);
+  margin: 0 0 12px; display: flex; align-items: center; gap: 8px;
+}
+.lcn-card h3 .lcn-grow { flex: 1; }
+.lcn-meta { font-size: 13px; color: var(--ink-muted); font-weight: 500; text-transform: none; letter-spacing: 0; font-family: var(--ink-sans); }
+
+.lcn-btn { font: 600 13.5px var(--ink-sans); padding: 7px 16px; cursor: pointer; border: none; background: var(--ink); color: #fff; border-radius: 7px; flex: none; }
+.lcn-btn:hover { box-shadow: var(--ink-shadow-hover); }
+.lcn-btn-sub { font: 500 12.5px var(--ink-sans); padding: 4px 11px; cursor: pointer; background: #fff; color: var(--ink); border: var(--ink-border); border-radius: 7px; flex: none; }
+.lcn-btn-sub:hover { background: var(--ink); color: var(--ink-hl); }
+.lcn-btn-sm { font-size: 13.5px; padding: 5px 12px; }
+
+/* 表格加/删行列的悬浮小工具条：焦点落进笔记正文里的某个表格格子就出现，
+   贴在那个格子正上方（notes.js wireTableEditing）。z-index 比页头 40/
+   Solution 卡头 20 都高，但压在删除确认弹窗的 400 下面。 */
+.lcn-tblbar {
+  position: fixed; z-index: 300; display: flex; gap: 3px; align-items: center;
+  background: #fff; border: var(--ink-border); border-radius: 8px; padding: 4px;
+  box-shadow: var(--ink-shadow);
+}
+.lcn-tblbar button {
+  font: 600 12px var(--ink-mono); padding: 4px 8px; cursor: pointer;
+  background: #fff; color: var(--ink); border: none; border-radius: 5px; white-space: nowrap;
+}
+.lcn-tblbar button:hover { background: var(--ink-panel); }
+.lcn-tblbar-sep { width: 1px; align-self: stretch; margin: 2px 1px; background: rgba(0,0,0,0.14); flex: none; }
+
+/* ---- 打卡 ---- */
+.lcn-ck-form { letter-spacing: 0.015em; }
+.lcn-ck-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.lcn-ck-row:last-child { margin-bottom: 0; }
+.lcn-ckf-rubric {
+  margin: 0 0 14px 80px;
+  padding: 12px 14px;
+  border: none;
+  border-radius: 8px;
+  box-shadow: none;
+  overflow-wrap: anywhere;
+}
+.lcn-ck-label { font-family: var(--ink-mono); font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink); width: 72px; flex: none; }
+.lcn-input { border: var(--ink-border); border-radius: 7px; padding: 6px 10px; font: 500 14px var(--ink-sans); color: var(--ink); background: #fff; }
+.lcn-input:focus { outline: none; box-shadow: var(--ink-shadow-focus); }
+/* Note 富文本区（B / 颜色 / inline code）：contenteditable 自动增高 */
+.lcn-ck-notewrap { flex: 1; min-width: 200px; }
+.lcn-ck-note-ce {
+  border: var(--ink-border); border-radius: 7px; background: #fff;
+  padding: 8px 10px; font-size: 15px; line-height: 1.6; min-height: 36px; outline: none;
+}
+.lcn-ck-note-ce:focus { box-shadow: var(--ink-shadow-focus); }
+.lcn-ck-note-ce:empty::before { content: attr(data-ph); color: var(--ink-muted); font-weight: 400; }
+.lcn-ck-note-ce code { font-family: var(--ink-mono); font-size: 13.5px; background: var(--ink-chip); color: inherit; padding: 1px 5px; border-radius: 4px; letter-spacing: normal; }
+/* 列表缩进：同 .lcn-body，全局 reset 把 padding 清零了，这里补回来 */
+.lcn-ck-note-ce ul, .lcn-ck-note-ce ol { padding-left: 24px; margin: 4px 0; }
+.lcn-ck-note-ce li { margin: 3px 0; }
+.lcn-ck-note-ce ul { list-style-type: disc; }
+.lcn-ck-hint { font-size: 13px; color: var(--ink-danger); }
+/* 打卡里的 Solution 快照输入区：复用 .lcn-code-ce 的样式但尺寸缩小
+   （那边 min-width 560 / min-height 300 是给整题 Solution 编辑用的）。
+   代码一律不换行（white-space:pre，!important 盖过粘贴 HTML 的内联样式）：
+   容器（卡片 / Edit 弹窗）会跟着最长一行撑宽，实在放不下才在框内横向滚。 */
+.lcn-ck-sol { flex: 1; min-width: 200px; }
+.lcn-code-ce.lcn-ck-code { min-width: 0; min-height: 64px; padding: 8px 10px; white-space: pre; overflow-x: auto; letter-spacing: normal; }
+.lcn-code-ce.lcn-ck-code * { white-space: pre !important; }
+.lcn-code-ce.lcn-ck-code pre { margin: 0; }
+.lcn-code-ce.lcn-ck-code:empty::before { content: attr(data-ph); color: var(--ink-muted); font-family: var(--ink-sans); font-size: 14px; }
+.lcn-score { width: 30px; height: 30px; border: none; border-radius: 7px; font-size: 15px; font-weight: 800; cursor: pointer; color: var(--ink-soft); opacity: 0.8; }
+.lcn-score.sel { opacity: 1; outline: 2px solid var(--ink); }
+.lcn-s0 { background: rgba(224,110,140,0.28); } .lcn-s1 { background: rgba(199,130,190,0.28); }
+.lcn-s2 { background: rgba(150,140,220,0.28); } .lcn-s3 { background: rgba(120,160,225,0.28); }
+.lcn-s3-5 { background: rgba(106,181,195,0.30); }
+.lcn-s4 { background: rgba(93,202,165,0.32); } .lcn-s5 { background: rgba(29,158,117,0.38); }
+.lcn-fmt { padding: 4px 10px; border: var(--ink-border); background: #fff; border-radius: 7px; font-size: 14px; font-weight: 500; cursor: pointer; color: var(--ink); }
+.lcn-fmt.sel { background: var(--ink); color: #fff; }
+.lcn-fmt-groups { display: flex; flex-direction: column; gap: 7px; flex: 1; min-width: 0; }
+.lcn-fmt-group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.lcn-fmt-gh { font-family: var(--ink-mono); font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink); width: 72px; margin-right: 6px; flex: none; }
+
+/* ---- 历史（2026-08-04 定稿 T2+N1 时间轴，见 mockups/lc-notes/hist-row-mockup.html） ----
+   竖线串日期节点卡（白底黑框硬阴影），行间不画分界线、靠留白分隔；
+   内容行 = 分数色块 + format/Class 小 chip；笔记 pre-wrap 保留换行/缩进 */
+.lcn-tl { position: relative; }
+.lcn-tl::before { content: ""; position: absolute; top: 4px; bottom: 4px; left: 33px; width: 2.5px; background: #dcdcda; border-radius: 2px; }
+.lcn-tl-item { position: relative; display: flex; gap: 14px; padding: 10px 0; font-size: 14.5px; }
+.lcn-tl-body { flex: 1; min-width: 0; }
+.lcn-tl-node {
+  position: relative; z-index: 1; flex: none; width: 66px; padding: 7px 4px 8px;
+  border-radius: 12px; text-align: center; align-self: flex-start;
+  background: #fff; border: var(--ink-border); box-shadow: var(--ink-shadow-sm);
+}
+.lcn-tl-d { display: block; font-size: 16px; font-weight: 800; letter-spacing: -0.01em; }
+.lcn-tl-w { display: block; font-family: var(--ink-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; margin-top: 1px; }
+.lcn-hist-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.lcn-chip { display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; font-size: 14px; font-weight: 800; flex: none; padding: 3px 10px; }
+.lcn-tag { font-size: 12.5px; font-weight: 600; color: #555; background: var(--ink-chip); padding: 2px 8px; border-radius: 5px; flex: none; }
+.lcn-tag-cls { background: var(--ink-hl); color: var(--ink); }
+.lcn-hist-note { color: var(--ink); min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 3px; font-size: 15px; line-height: 1.7; letter-spacing: 0.015em; }
+/* 笔记有时是从别处粘过来的（带内联 style="white-space: pre" 的等宽字体片段），
+   这种内联样式的优先级比继承来的 pre-wrap 高，单独这一段就会死活不折行，
+   顶出框外。历史区是只读展示，不需要保留"不换行"这个粘贴痕迹，直接
+   !important 盖掉，逼所有子节点都跟着外层一起折行。 */
+.lcn-hist-note, .lcn-hist-note * { white-space: pre-wrap !important; }
+.lcn-hist-note code { font-family: var(--ink-mono); font-size: 14px; background: var(--ink-chip); color: inherit; padding: 1px 5px; border-radius: 4px; letter-spacing: normal; }
+.lcn-hist-note pre { font-family: var(--ink-mono); font-size: 14px; line-height: 1.5; background: #f8f8f8; border: none; border-radius: 8px; padding: 8px 12px; margin: 6px 0; color: inherit; letter-spacing: normal; width: fit-content; max-width: 100%; }
+.lcn-hist-note pre code { background: none; padding: 0; border-radius: 0; color: inherit; }
+.lcn-hist-note .lcn-gray-block { font-family: var(--ink-mono); font-size: 14px; line-height: 1.5; background: #f8f8f8; border-radius: 8px; padding: 8px 12px; margin: 6px 0; color: inherit; letter-spacing: normal; width: fit-content; max-width: 100%; }
+.lcn-hist-note ul, .lcn-hist-note ol { padding-left: 24px; margin: 4px 0; }
+.lcn-hist-note li { margin: 3px 0; }
+.lcn-hist-note ul { list-style-type: disc; }
+/* 手打 bullet（- 开头的行）缩进一档：短横线对齐到 "1. " 后面的正文起点。
+   Note 编辑器（实时）和 Check-in History（渲染）共用这一个类 */
+.lcn-note-ind { padding-left: 18px; }
+.lcn-hist-solbtn, .lcn-hist-editbtn { font-size: 12px; padding: 2px 8px; align-self: center; }
+/* 当次 solution 快照展开框：等宽字体，代码不换行（同输入区），
+   历史卡在右列宽度固定，放不下就在框内横向滚 */
+/* 同 .lcn-body pre：code box 淡底无框（2026-08-21） */
+.lcn-hist-code { font-family: var(--ink-mono); font-size: 14px; line-height: 1.5; background: #f8f8f8; border: none; border-radius: 7px; padding: 8px 10px; margin-top: 6px; white-space: pre; overflow-x: auto; }
+.lcn-hist-code * { white-space: pre !important; }
+.lcn-hist-code pre { margin: 0; }
+/* 不设高度上限（2026-08-12 从 max-height:320px + 内部滚动改过来）：一条
+   打卡笔记自己就可能写到几十行，320px 的框根本装不下一整天，用户要的是
+   "每一天都要能看到"，不是"这张卡自己滚"。.lcn-hist-scroll 这个 class 名
+   还留着（notes.js 里用它定位滚动区），但不再挂高度/滚动样式，改成跟
+   内容一起长高，滚动交给整个页面自己滚。代码快照 .lcn-hist-code 自己
+   另设了 overflow-x: auto，长行会在那个小框里自己横滚，不需要这里兜底。 */
+.lcn-empty { font-size: 14.5px; color: var(--ink-muted); padding: 6px 2px; }
+
+/* ---- Solution ---- */
+/* 版本 tab 条：Lyon 固定第一个（没有 × / 不能改名），后面是用户自建的 tab，
+   视觉沿用页头 .lcn-switch 那套分段胶囊（激活=黑底白字），最后跟一个
+   "+ Copy as new tab" 按钮（复用 .lcn-btn-sub.lcn-btn-sm，不用另起样式） */
+.lcn-sol-tabs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 10px; }
+.lcn-sol-tab {
+  display: inline-flex; align-items: center; gap: 4px; background: #fff; border: var(--ink-border);
+  border-radius: 7px; padding: 4px 4px 4px 10px; font: 600 12.5px var(--ink-sans);
+  color: var(--ink); cursor: pointer;
+}
+.lcn-sol-tab.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+.lcn-sol-tab-noclose { padding: 4px 10px; }
+.lcn-sol-tab-name { cursor: text; padding: 2px 0; }
+.lcn-sol-tab-x {
+  border: none; background: none; cursor: pointer; font-size: 15px; line-height: 1;
+  color: inherit; opacity: 0.55; padding: 2px 5px; border-radius: 5px;
+}
+.lcn-sol-tab-x:hover { opacity: 1; color: var(--ink-danger); background: rgba(255,255,255,0.7); }
+.lcn-sol-tab.on .lcn-sol-tab-x:hover { background: rgba(255,255,255,0.15); }
+.lcn-sol-tab-rename {
+  font: 600 12.5px var(--ink-sans); color: inherit;
+  background: rgba(255,255,255,0.9); border: none; border-radius: 4px; padding: 2px 4px; width: 100px;
+}
+/* 代码块自己的框不用全站通用的黑框 token（那是外面卡片描边用的），
+   换成同色系里最浅的 --ink-ghost，只是淡一圈、不改色相 */
+/* 2026-08-26 用户要求：去掉深灰外框，只留淡灰底；底色跟笔记正文 code box
+   （.lcn-body pre 的 #f8f8f8）取同一档 */
+.lcn-code { background: #f8f8f8; border: none; border-radius: 7px; padding: 12px 14px 12px 4px; overflow-x: visible; width: max-content; min-width: 100%; }
+.lcn-line { font-family: var(--ink-mono); font-size: 15px; line-height: 1.5; padding: 0 8px 0 4px; white-space: pre; border-radius: 4px; color: var(--ink); }
+.lcn-line:hover { background: rgba(0,0,0,0.05); }
+/* 注释行染绿：# 开头的行，以及 """/''' 起头的整段 docstring（哪几行算注释
+   由 notes.js 的 commentFlags 逐行算）。 */
+.lcn-line.lcn-cmt { color: #5E9652; }
+.lcn-ln { display: inline-block; width: 26px; color: var(--ink-muted); font-size: 13px; margin-right: 8px; user-select: none; text-align: right; }
+.lcn-code-edit { width: 100%; min-width: 560px; min-height: 300px; border: var(--ink-border); border-radius: 7px; background: #fff; font-family: var(--ink-mono); font-size: 14.5px; line-height: 1.5; padding: 12px; resize: vertical; }
+.lcn-code-edit:focus { outline: none; box-shadow: var(--ink-shadow-focus); }
+.lcn-hint { font-size: 13px; color: var(--ink-muted); margin-top: 8px; }
+
+/* ---- 笔记卡 / 自定义 block ---- */
+.lcn-head-card { display: flex; align-items: center; gap: 10px; padding: 12px 14px; }
+.lcn-head-card h3 { margin: 0; }
+.lcn-note-card { background: #fff; border: var(--ink-border); border-radius: 10px; box-shadow: var(--ink-shadow); padding: 12px 14px; }
+.lcn-note-sticky-head { background: inherit; border-radius: 8px 8px 0 0; }
+.lcn-note-card:focus-within .lcn-note-sticky-head {
+  position: sticky;
+  top: var(--lcn-head-h, 0px);
+  z-index: 25;
+  margin: -12px -14px 8px;
+  padding: 12px 14px 0;
+}
+.lcn-note-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.lcn-del { margin-left: auto; border: none; background: none; color: var(--ink-muted); cursor: pointer; font-size: 15px; }
+/* Syntax / Logic 分类标签：跟 ckForm 的 Format 按钮一个路数，再点一下已选中
+   的取消。放在日期后面、"edited …" 前面，不选也行，不强制。 */
+.lcn-tagpick { display: flex; gap: 4px; flex: none; }
+.lcn-tagbtn { padding: 3px 9px; border: var(--ink-border); background: #fff; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; color: var(--ink-soft); }
+.lcn-tagbtn.sel { background: var(--ink); color: #fff; border-color: var(--ink); font-weight: 700; }
+.lcn-del:hover { color: var(--ink-danger); }
+/* 笔记卡标题输入框：跟 Syntax/Logic 挤同一行，默认没边框、贴着背景不打眼，
+   焦点时才现出一块浅灰底（跟 Notion 的 inline 标题一个路数）。
+   叫 .lcn-note-title 不叫 .lcn-title——.lcn-title 是页头大标题（24px，见
+   82 行）已经占用的类名，撞名会把页头标题的字号/对齐一起改掉。 */
+.lcn-note-title {
+  flex: 1 1 auto; min-width: 0; border: none; border-radius: 6px; background: transparent;
+  /* 2026-08-23 用户要求默认大一号：13.5px → 15px；2026-09-04 再放大：15px → 17px */
+  font: 600 17px var(--ink-sans); color: var(--ink-soft);
+  padding: 4px 7px; outline: none; transition: background 0.15s; text-align: left;
+}
+.lcn-note-title::placeholder { color: var(--ink-faint); font-weight: 500; }
+.lcn-note-title:focus { background: var(--ink-chip); }
+.lcn-note-title-static {
+  color: var(--ink);
+  font-weight: 800;
+  pointer-events: none;
+}
+.lcn-mock-head {
+  background: #fffef7;
+}
+.lcn-note-card--mock-block {
+  background: #fffef7;
+}
+.lcn-note-card--mock-block .lcn-body {
+  background: transparent;
+}
+/* ---- 标题旁"复制标题"小按钮（星标左边，2026-08-22）：跟星标一样的幽灵
+   样式，平时淡灰、悬停变深；复制成功闪 ✓（.done 绿） ---- */
+.lcn-copy-title {
+  border: none; background: none; cursor: pointer; padding: 0 2px;
+  font-size: 30px; line-height: 1; vertical-align: -3px; color: var(--ink-ghost);
+}
+.lcn-copy-title:hover { color: var(--ink-muted); }
+.lcn-copy-title.done { color: #2f9e63; }
+/* ---- 重点题星标：题目页标题旁开关 + 侧栏点亮。黄星描黑边，黑黄配色一脉 ---- */
+.lcn-star {
+  border: none; background: none; cursor: pointer; padding: 0 2px;
+  font-size: 25px; line-height: 1; vertical-align: -2px; color: var(--ink-ghost);
+}
+.lcn-star:hover { color: var(--ink-muted); }
+.lcn-star.on { color: var(--ink-hl); -webkit-text-stroke: 1.2px var(--ink); }
+.lcn-star.on:hover { color: #f5c400; }
+.lcn-side-star { color: var(--ink-hl); -webkit-text-stroke: 1px var(--ink); margin-left: 5px; font-size: 12px; flex: none; }
+/* ---- 难题旗（2026-08-27）：星标右边，"这一轮学习卡住的题"。同一套幽灵按钮，
+   点亮为红旗，侧栏跟着挂小红旗 ---- */
+.lcn-struggle {
+  border: none; background: none; cursor: pointer; padding: 0 2px;
+  font-size: 32px; line-height: 1; vertical-align: -4px; color: var(--ink-ghost);
+}
+.lcn-struggle:hover { color: var(--ink-muted); }
+.lcn-struggle.on { color: #e5484d; }
+.lcn-struggle.on:hover { color: #c8353a; }
+.lcn-side-struggle { color: #e5484d; margin-left: 4px; font-size: 12px; flex: none; }
+
+/* ---- 编辑器 ---- */
+.lcn-toolbar { display: flex; gap: 2px; margin-bottom: 6px; border-bottom: 1px solid rgba(0,0,0,0.14); padding-bottom: 6px; }
+.lcn-tb { border: none; background: transparent; color: var(--ink-muted); font-size: 14px; font-weight: 700; width: 26px; height: 24px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.lcn-tb:hover { background: var(--ink-chip); color: var(--ink); }
+.lcn-tb.on { background: var(--ink); color: #fff; }
+.lcn-tb-img { display: block; width: 17px; height: 17px; object-fit: contain; opacity: 0.76; }
+.lcn-tb:hover .lcn-tb-img { opacity: 1; }
+.lcn-tb.on .lcn-tb-img { filter: invert(1); opacity: 1; }
+.lcn-tb .lcn-a-red { color: var(--ink-danger); }
+.lcn-gray-swatch {
+  display: block; width: 17px; height: 13px; border-radius: 4px;
+  background: #f8f8f8; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.08);
+}
+.lcn-script-swatch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 15px;
+  border-radius: 4px;
+  background: #f3f4f6;
+  color: var(--ink);
+  font: 800 10px var(--ink-sans);
+  letter-spacing: 0;
+}
+.lcn-clearfmt-icon {
+  font: 800 11px var(--ink-sans);
+  letter-spacing: 0;
+  text-decoration: line-through;
+}
+/* 荧光笔按钮：带色底的黑 A（字色按钮是带色的字），两组一眼分得开。
+   色块比按钮小一圈，hover 时按钮自己的灰底还能透出来当反馈。 */
+.lcn-tb .lcn-a-hl {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; border-radius: 4px; color: var(--ink);
+}
+/* 字色组和荧光组之间的竖线 */
+.lcn-tb-sep { width: 1px; align-self: stretch; margin: 2px 5px; background: rgba(0,0,0,0.14); flex: none; }
+/* overflow-x：贴进来的宽表格在卡片里自己横向滚，不许戳出卡片边框 */
+.lcn-body { font-size: 16px; line-height: 1.7; min-height: 40px; outline: none; background: #fff; overflow-x: auto; letter-spacing: 0.015em; }
+.lcn-body[data-ph]:empty::before { content: attr(data-ph); color: var(--ink-muted); font-weight: 400; }
+/* 分隔行占正文一整行，1px 横线放在行高正中间。 */
+.lcn-body hr {
+  border: none;
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  height: 1.7em;
+  height: 1lh;
+  background: linear-gradient(rgba(0,0,0,0.2), rgba(0,0,0,0.2)) center / 100% 1px no-repeat;
+}
+/* block 内标题（工具栏 H 按钮）：用 h4 躲开 .lcn-card h3 的卡片标题样式 */
+.lcn-body h4 { font-size: 18.5px; font-weight: 800; letter-spacing: -0.01em; margin: 10px 0 4px; }
+.lcn-body h4:first-child { margin-top: 0; }
+/* 列表缩进：全局 reset 把 ul/ol 的 padding 清零了，从 Notion 贴进来的嵌套
+   列表会全部顶格——这里补回来，嵌套序号按 1. → a. → i. 走（Notion 同款） */
+.lcn-body ul, .lcn-body ol { padding-left: 24px; margin: 4px 0; }
+.lcn-body li { margin: 3px 0; }
+.lcn-body ol { list-style-type: decimal; }
+.lcn-body ol ol { list-style-type: lower-alpha; }
+.lcn-body ol ol ol { list-style-type: lower-roman; }
+.lcn-body ul { list-style-type: disc; }
+.lcn-body ul ul, .lcn-body ol ul { list-style-type: square; }
+.lcn-body a { color: #2563eb; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.lcn-body code { font-family: var(--ink-mono); font-size: 15px; background: var(--ink-chip); color: inherit; padding: 1px 5px; border-radius: 4px; letter-spacing: normal; }
+.lcn-body .lcn-gray-block,
+.lcn-ck-note-ce .lcn-gray-block {
+  font-family: var(--ink-mono); font-size: 15px; line-height: 1.5;
+  background: #f8f8f8; border: none; border-radius: 8px; padding: 8px 12px; margin: 6px 0;
+  white-space: pre-wrap; color: inherit; letter-spacing: normal; width: fit-content; max-width: 100%;
+}
+/* Mock Script 的 "3. 写" 可把讲稿直接嵌进 code block：每段 script 放在
+   对应代码行上方，像写代码前的思路提示。 */
+.lcn-body .lcn-inline-script-code {
+  width: max-content;
+  max-width: 100%;
+  margin: 6px 0;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow-x: auto;
+  font-family: var(--ink-mono);
+  font-size: 15px;
+  line-height: 1.5;
+  letter-spacing: normal;
+  white-space: pre;
+}
+.lcn-body .lcn-inline-script-row,
+.lcn-body .lcn-inline-script-code-line {
+  min-height: 1.5em;
+  white-space: pre;
+}
+.lcn-body .lcn-inline-script-row {
+  margin: 7px 0 3px;
+}
+.lcn-body .lcn-inline-script-note {
+  display: inline-block;
+  max-width: 760px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  background: #f3f4f6;
+  color: var(--ink);
+  font-family: var(--ink-sans);
+  font-size: 14px;
+  line-height: 1.55;
+  letter-spacing: 0.01em;
+  white-space: normal;
+}
+.lcn-body .lcn-inline-script-note code {
+  background: transparent;
+  padding: 0;
+}
+.lcn-body .lcn-inline-script-note * {
+  color: var(--ink) !important;
+}
+.lcn-body .lcn-inline-script-label {
+  display: none;
+}
+.lcn-body .lcn-inline-script-code-line {
+  color: var(--ink);
+}
+.lcn-body .lcn-inline-script-comment {
+  color: #5e9652;
+}
+.lcn-body .lcn-inline-script-indent-1 { padding-left: 4ch; }
+.lcn-body .lcn-inline-script-indent-2 { padding-left: 8ch; }
+.lcn-body .lcn-inline-script-indent-3 { padding-left: 12ch; }
+.lcn-body .lcn-inline-script-indent-4 { padding-left: 16ch; }
+.lcn-body .lcn-inline-script-indent-5 { padding-left: 20ch; }
+.lcn-body .lcn-inline-script-indent-6 { padding-left: 24ch; }
+.lcn-body .lcn-inline-script-indent-7 { padding-left: 28ch; }
+.lcn-body .lcn-inline-script-indent-8 { padding-left: 32ch; }
+/* code box 底色比 --ink-chip 再淡一档、不带边框；宽度按内容自适应，
+   不撑满整个 block（2026-08-21 用户要求） */
+.lcn-body pre,
+.lcn-ck-note-ce pre { font-family: var(--ink-mono); font-size: 15px; line-height: 1.5; background: #f8f8f8; border: none; border-radius: 8px; padding: 8px 12px; margin: 6px 0; white-space: pre-wrap; color: inherit; letter-spacing: normal; width: fit-content; max-width: 100%; }
+/* 外站（ChatGPT 等）粘贴代码块常是 <pre><code>…</code></pre>：pre 已经画了一层框，
+   里面的 code 不该再叠一层框 */
+.lcn-body pre code,
+.lcn-ck-note-ce pre code { background: none; padding: 0; border-radius: 0; color: inherit; }
+/* 修双层框的历史遗留：2026-08-21 之前从 ChatGPT 粘进来的代码块是 <pre> 套
+   div 壳再套 <pre>，两层 pre 各画一层框。粘贴逻辑（normalizePastedStyle）
+   已经会拍平新粘的，这条兜底已落库的旧笔记：里层 pre 不再画框。 */
+.lcn-body pre pre,
+.lcn-ck-note-ce pre pre { background: none; border: none; padding: 0; margin: 0; }
+.lcn-body img { display: block; max-width: 100%; max-height: 260px; width: auto; object-fit: contain; border: var(--ink-border); border-radius: 8px; margin: 6px 0; cursor: zoom-in; background: #fff; }
+.lcn-body img.lcn-zoomed { max-height: none; cursor: zoom-out; }
+/* 粘贴进来的表格（Claude / 网页 / Markdown 管道表转换后）：真实边框 + 表头灰底 */
+.lcn-body table { border-collapse: collapse; margin: 8px 0; max-width: 100%; }
+.lcn-body th, .lcn-body td { border: 1px solid rgba(0,0,0,0.25); padding: 5px 10px; font-size: 15.5px; line-height: 1.6; text-align: left; vertical-align: top; }
+.lcn-body th { background: var(--ink-chip); font-weight: 600; }
+.lcn-body table p { margin: 2px 0; }
+/* 创建日期 / edited 日期 + 自动保存状态，一起挪到卡片右下角（2026-08-12
+   从卡片头挪过来），跟 Syntax/Logic 标签、日期选择器分开，头部只剩分类
+   和删除按钮。scope 笔记卡（index/章级 Overview）没有日期概念，.lcn-saved
+   在那边还是单独一行，margin-top 保留；挪进 .lcn-note-foot 的这份不用再
+   单独占一行间距，归零交给外层 flex 行的 margin-top 统一管。 */
+.lcn-note-foot { display: flex; justify-content: flex-end; align-items: baseline; gap: 10px; margin-top: 8px; }
+.lcn-note-dates { font-size: 13px; color: var(--ink-muted); }
+.lcn-saved { font-size: 13px; color: var(--ink-muted); margin-top: 6px; }
+.lcn-note-foot .lcn-saved { margin-top: 0; }
+
+/* ---- Lyon 模板代码的对照上色（notes.js 的 tmplCodeHtml 生成）----
+   同一个角色的参数在两份模板里用同一种底色，一眼看出 candidates↔nums、
+   startIndex↔visited 是一回事；绿底 = 两份逐字相同的行（公共骨架）；
+   灰底 = 注释。底色都压得很淡，压在等宽代码上还得读得清。 */
+.lcn-body pre .tm-mark { border-radius: 3px; padding: 0 2px; }
+.lcn-body pre .tm-arr    { background: rgba(120,160,225,0.38); }
+.lcn-body pre .tm-temp   { background: rgba(249,203,66,0.52); }
+.lcn-body pre .tm-res    { background: rgba(199,146,234,0.38); }
+.lcn-body pre .tm-target { background: rgba(230,130,175,0.34); }
+.lcn-body pre .tm-pick   { background: rgba(232,140,110,0.42); }
+.lcn-body pre .tm-same   { background: rgba(93,202,165,0.22); }
+.lcn-body pre .tm-note   { background: rgba(150,150,150,0.20); color: #6a6a6a; }
+.tm-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 12px;
+             font-size: 13px; color: var(--ink-muted); }
+.tm-leg { display: flex; align-items: center; gap: 5px; }
+.tm-leg .tm-mark { font-family: var(--ink-mono); border-radius: 3px; }
+.tm-legend .tm-arr    { background: rgba(120,160,225,0.38); }
+.tm-legend .tm-temp   { background: rgba(249,203,66,0.52); }
+.tm-legend .tm-res    { background: rgba(199,146,234,0.38); }
+.tm-legend .tm-target { background: rgba(230,130,175,0.34); }
+.tm-legend .tm-pick   { background: rgba(232,140,110,0.42); }
+.tm-legend .tm-same   { background: rgba(93,202,165,0.22); }
+.tm-legend .tm-note   { background: rgba(150,150,150,0.20); }
+
+/* ---- 章节页：整页两大列（2026-08-06 改版）。此前顶部行和每个分类行是各自
+   独立的 grid，列宽互不对齐、看着像散落的 block；现在所有卡都是同一个 grid
+   的单元格，上下天然对齐成两根柱子。
+
+   2026-08-08 改成两列严格等宽（用户定的版式规则：题目块必须跟它右边的代码块
+   一样宽）。原先是 `minmax(280px,1fr) max-content`——右列按最长一行代码量宽、
+   左列吃掉剩下的全部宽度，结果题目列表卡总是比模板卡宽出一大截（题名短，卡
+   里大片空白）。两列都用 minmax(0,1fr) 后各占一半，任意一行的左右卡片宽度
+   必然相等，顶部的「Lyon 课件 / Notes」行也跟着对齐。
+
+   代价：一行代码超过半幅时会折行（.lcn-body pre 是 white-space: pre-wrap，
+   本来就是为这种情况准备的），不再保证"最长行永不折行"。等宽优先。
+   minmax 的下限写 0 而不是 280px：真等分才是这条规则的重点，窄屏交给下面的
+   媒体查询塌成单列。
+   Notes 卡的 contain: inline-size 保留——列宽现在跟内容无关了，但它同时挡住
+   用户粘进来的超长内容撑破卡片，仍然有用。 */
+.lcn-ch-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.lcn-ch-l { grid-column: 1; min-width: 0; }
+.lcn-ch-r { grid-column: 2; min-width: 0; }
+.lcn-ch-r.lcn-ch-free { contain: inline-size; }
+/* 分类名：横跨两列自成一行，管着它下面那一对卡（题目 + 模板）。字号比卡头
+   的 h3 大一档、颜色用主墨，让它读起来是"这一行的标题"而不是又一张卡的标题。
+   margin-top 负责跟上一行拉开距离，第一个分类紧跟顶部行所以不用额外补。 */
+.lcn-ch-sec {
+  grid-column: 1 / -1; font-family: var(--ink-mono); font-size: 15px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.12em; color: var(--ink);
+  margin: 12px 0 -4px; padding-left: 2px;
+}
+/* 分类名右边的分类页直达小链接（chapter-notes 用；分类页自建 block 见
+   section-notes.html） */
+.lcn-sec-open {
+  margin-left: 10px; font-size: 13px; font-weight: 600;
+  letter-spacing: 0; text-transform: none;
+  color: var(--ink-muted); text-decoration: none;
+}
+.lcn-sec-open:hover { color: var(--ink); text-decoration: underline; }
+@media (max-width: 960px) {
+  .lcn-ch-grid { grid-template-columns: 1fr; }
+  .lcn-ch-l, .lcn-ch-r { grid-column: auto; }
+  .lcn-ch-sec { grid-column: auto; }
+}
+/* 章节页同样吃 Laptop 视图（跟上面 @media 块同步） */
+html.lcn-laptop .lcn-ch-grid { grid-template-columns: 1fr; }
+html.lcn-laptop .lcn-ch-l, html.lcn-laptop .lcn-ch-r, html.lcn-laptop .lcn-ch-sec { grid-column: auto; }
+.lcn-stack { display: flex; flex-direction: column; gap: 16px; }
+.lcn-expr { display: flex; align-items: flex-start; gap: 9px; padding: 9px 12px; background: #fff; border: var(--ink-border); border-radius: 8px; margin-bottom: 8px; }
+.lcn-expr-body { flex: 1; min-width: 0; font-size: 15px; }
+.lcn-expr-src { font-size: 13px; color: var(--ink-muted); margin-top: 2px; }
+.lcn-pill { border: var(--ink-border); background: #fff; color: var(--ink); font: 600 12px var(--ink-sans); padding: 3px 9px; border-radius: 7px; cursor: pointer; white-space: nowrap; }
+.lcn-pill:hover { background: var(--ink); color: var(--ink-hl); }
+.lcn-pill.lcn-done { background: var(--ink-hl); border-color: var(--ink); cursor: default; }
+.lcn-pill.lcn-done:hover { color: var(--ink); }
+.lcn-add-row { display: flex; gap: 8px; margin-top: 10px; }
+.lcn-add-input { flex: 1; border: var(--ink-border); border-radius: 7px; background: #fff; font: 500 13.5px var(--ink-sans); padding: 7px 12px; }
+.lcn-add-input:focus { outline: none; box-shadow: var(--ink-shadow-focus); }
+.lcn-qlink { display: block; font-size: 15px; color: var(--ink); text-decoration: none; padding: 4px 2px; }
+.lcn-qlink:hover { text-decoration: underline; }
+.lcn-index-wrap { margin: 0 0 28px; }
+
+/* index / chapter-notes / 空壳页因为有 sidebar，内容区自己留白 */
+.lcn-shell .lcn-wrap, .lcn-page .lcn-wrap { padding-top: 20px; }
+
+/* 删除确认弹窗（自绘，不用浏览器原生 confirm） */
+.lcn-modal-ov {
+  position: fixed; inset: 0; background: rgba(17,17,17,0.35); z-index: 400;
+  display: flex; align-items: center; justify-content: center;
+}
+.lcn-modal {
+  background: #fff; border: var(--ink-border); border-radius: 10px;
+  box-shadow: var(--ink-shadow-lg); padding: 20px 22px;
+  min-width: 280px; max-width: 90vw;
+  font-family: var(--ink-sans);
+}
+.lcn-modal-msg { font-size: 16px; font-weight: 600; margin-bottom: 16px; color: var(--ink); }
+/* 防误删：Delete 降级成左侧描边小按钮，Cancel 变绿色主按钮放右侧（顺手就点到的是安全的那个） */
+.lcn-modal-btns { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.lcn-safe { background: var(--ink-safe); }
+.lcn-safe:hover { box-shadow: var(--ink-shadow-hover); }
+.lcn-danger-sub { color: var(--ink-danger); border-color: var(--ink-danger); }
+.lcn-danger-sub:hover { background: var(--ink-danger); color: #fff; }
+
+/* Check-in Edit 弹窗：装的是整份打卡表单（ckForm）。宽度按内容自适应
+   （fit-content）——代码不换行，最长一行多宽弹窗就多宽；下限 620 保证
+   没贴代码时表单不挤，上限 96vw 超出屏幕才让代码框自己横向滚。
+   Note 区的 max-width 只限弹窗里生效（卡片里 Note 要跟 Solution 一样占满行宽），
+   长段文字不会反过来撑弹窗。 */
+.lcn-ck-modal { width: fit-content; min-width: 620px; max-width: 96vw; max-height: 86vh; overflow-y: auto; }
+.lcn-ck-modal .lcn-ck-notewrap { max-width: 680px; }
+.lcn-ck-modal-title {
+  font-family: var(--ink-mono); font-size: 13px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.10em; color: var(--ink-soft);
+  margin: 0 0 14px; display: flex; align-items: baseline; gap: 8px;
+}
+.lcn-ck-modal .lcn-modal-btns { margin-top: 16px; }
+
+/* Solution 富文本编辑区（可上色；白底 pre-wrap，Done 时按行序列化回存） */
+.lcn-code-ce {
+  border: var(--ink-border); border-radius: 7px; background: #fff;
+  font-family: var(--ink-mono); font-size: 15px; line-height: 1.5;
+  padding: 12px; white-space: pre-wrap; min-width: 560px; min-height: 300px; outline: none;
+}
+.lcn-code-ce:focus { box-shadow: var(--ink-shadow-focus); }
+.lcn-code-edit-line { min-height: 1.5em; white-space: pre-wrap; color: var(--ink); }
+.lcn-code-edit-line.lcn-cmt { color: #5E9652; }
+
+/* Lyon 课件里的对比表（chapter-2 的 Traversal vs Divide & Conquer；
+   LYON_NOTES 写死的 html 引用，别的地方不用） */
+.lcn-cmp-table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 14.5px; }
+.lcn-cmp-table th, .lcn-cmp-table td {
+  text-align: left; vertical-align: top;
+  padding: 7px 9px; border: 1px solid var(--ink-ghost);
+  line-height: 1.55;
+}
+.lcn-cmp-table th { font-weight: 800; background: var(--ink-panel); }
+.lcn-cmp-table td:first-child { white-space: nowrap; font-weight: 700; }
+
+/* ---------- Problem 块（OA 图文页题面挪进 Notes 区，notes.js problemToNotes，2026-08-16） ----------
+   位置在左列 Solution 正上方。左列宽是 max-content（由代码最长行定），
+   题面正文不参与定宽、只跟着列宽拉伸换行（同 Check in 卡的处理，
+   见上面 .lcn-cell-ck 那条）——左列所有卡片一样宽。
+   contain 不打在整卡上而是打在正文每个块级子元素上：唯独放过 .oa-tag，
+   让场次标签以单行自然宽参与撑列宽——OA 页的这行标签必须一行放完，
+   列不够宽就把列撑开（2026-08-16 用户要求）。
+   字号对齐站内规范：正文 13px、code chip 等宽 11.5px、子标题走 lcn-card h3
+   同款小号大写。 */
+.lcn-problem-body > :not(.oa-tag) { contain: inline-size; }
+/* 题面字号 2026-09-01 整体放大半号（13→13.5，行内 code / 表格 / 小节标题同步 +0.5） */
+.lcn-problem-body { font-size: 15.5px; line-height: 1.7; letter-spacing: 0.015em; color: var(--ink); }
+.lcn-problem-body p { margin: 0 0 8px; }
+.lcn-problem-body p:last-child { margin-bottom: 0; }
+.lcn-problem-body ul, .lcn-problem-body ol { margin: 0 0 8px 18px; padding: 0; }
+.lcn-problem-body li { margin-bottom: 4px; }
+.lcn-problem-body code { font-family: var(--ink-mono); font-size: 14px; background: var(--ink-chip); color: var(--ink); padding: 1px 5px; border-radius: 4px; letter-spacing: normal; }
+.lcn-problem-body table { border-collapse: collapse; font-size: 15px; margin: 0 0 8px; }
+.lcn-problem-body th, .lcn-problem-body td { border: 1px solid var(--ink-ghost); padding: 4px 9px; text-align: left; line-height: 1.55; }
+.lcn-problem-body th { background: var(--ink-panel); font-weight: 800; }
+.lcn-problem-body h3 { font-family: var(--ink-mono); font-size: 13.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-muted); margin: 12px 0 6px; }
+.lcn-problem-body .oa-tag { margin-bottom: 10px; white-space: nowrap; }
+.lcn-problem-body .code-panel { max-width: 100%; overflow-x: auto; }
+.lcn-problem-body img { max-width: 100%; height: auto; display: block; border-radius: 6px; }
+/* 题面还没抓的占位（2026-08-27 起每个题目页都有 Problem 卡）：虚线浅底
+   一行灰字 + 力扣链接，跟正文区分开、以后填进真题面时整块换掉 */
+.lcn-problem-empty {
+  padding: 10px 12px; border: 1.5px dashed var(--ink-ghost); border-radius: 8px;
+  background: var(--ink-panel); color: var(--ink-muted); font-size: 14.5px; line-height: 1.6;
+}
+.lcn-problem-empty a { color: var(--ink); font-weight: 700; text-decoration: none; border-bottom: 1px solid var(--ink-ghost); }
+.lcn-problem-empty a:hover { background: var(--ink-hl); border-color: transparent; }

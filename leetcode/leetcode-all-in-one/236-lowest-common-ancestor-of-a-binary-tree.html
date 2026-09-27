@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>236. Lowest Common Ancestor of a Binary Tree</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  svg { display: block; width: 100%; max-height: 290px; }
+  .pq-title { margin-top: 6px; text-align: center; font-family: 'SF Mono', 'Menlo', monospace; font-size: 12.5px; font-weight: 700; color: #3A6FD4; }
+
+  /* Call stack (recursion frames) */
+  .frame-stack-container { display: flex; flex-direction: column-reverse; align-items: center; gap: 4px; min-height: 172px; justify-content: flex-start; padding: 8px 0; }
+  .frame-cell { min-width: 108px; height: 32px; padding: 0 12px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-family: 'SF Mono', monospace; font-size: 12px; font-weight: 700; background: rgba(139,133,212,0.22); color: #1a1a1a; transition: all 0.2s; white-space: nowrap; }
+  .frame-cell.top { background: rgba(249,203,66,0.5); }
+  .frame-cell.none-frame { color: #999; font-weight: 600; background: #f0f0f0; }
+  .frame-cell.resolved { background: rgba(93,202,165,0.45); }
+  .frame-stack-base { width: 120px; height: 3px; background: #ccc; border-radius: 2px; margin-top: 4px; }
+  .stack-empty { font-size: 12px; color: #aaa; font-family: 'SF Mono', monospace; }
+
+  /* Single-value answer cell */
+  .res-row { display: flex; }
+  .res-cell { min-width: 84px; height: 44px; padding: 0 10px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; font-family: 'SF Mono', monospace; background: #f5f5f5; color: #bbb; transition: background 0.2s, color 0.2s, transform 0.15s; }
+  .res-cell.filled { background: rgba(247,140,108,0.35); color: #1a1a1a; }
+  .res-cell.newest { background: rgba(247,140,108,0.55); transform: scale(1.08); }
+
+  .tree-stack-row { display: flex; gap: 16px; align-items: flex-start; }
+  .tree-stack-row .stack-card { display: flex; flex-direction: column; align-items: center; }
+
+  /* Inline variable readouts, anchored under the block they describe */
+  .node-vars { margin-top: 8px; display: flex; flex-direction: column; align-items: center; gap: 3px; font-family: 'SF Mono', 'Menlo', monospace; font-size: 12.5px; }
+  .depth-var-row { margin-top: 8px; text-align: center; font-family: 'SF Mono', 'Menlo', monospace; font-size: 13px; }
+  .res-label { margin: 12px 0 0; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '236. Lowest Common Ancestor of a Binary Tree',
+  link: 'https://leetcode.com/problems/lowest-common-ancestor-of-a-binary-tree/',
+  examples: [
+    { id: 'ex1', label: 'p = 5, q = 1 → LCA = 3' },
+    { id: 'ex2', label: 'p = 5, q = 4 → LCA = 5' },
+  ],
+  examplesLabel: 'Example:',
+  legend: [
+    { color: 'rgba(249,203,66,0.55)', label: '栈顶 — lowestCommonAncestor(node) 正在执行' },
+    { color: 'rgba(93,202,165,0.4)', label: '子树已解决 — 返回了一个节点（命中目标 / 已知 LCA）' },
+    { color: '#f0f0f0', extra: 'border:1px solid #ccc;', label: '子树已解决 — 返回 None（这一侧没有目标）' },
+    { color: '#3A6FD4', extra: 'border-radius:2px;width:14px;height:3px;', label: '正在下探的边' },
+    { color: 'rgba(247,140,108,0.5)', extra: 'border:2px solid #E0663E;', label: '最终答案 — LCA' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+  <script>
+  renderCodeBox({
+    prereq: `
+# Definition for a binary tree node.
+# class TreeNode:
+#     def __init__(self, val=0, left=None, right=None):
+#         self.val = val
+#         self.left = left
+#         self.right = right`,
+    code: `
+class Solution:
+    def lowestCommonAncestor(self, root: 'TreeNode', p: 'TreeNode', q: 'TreeNode') -> 'TreeNode':
+        if root is None or root == p or root == q:
+            return root
+
+        left = self.lowestCommonAncestor(root.left, p, q)
+        right = self.lowestCommonAncestor(root.right, p, q)
+
+        if left and right:
+            return root
+
+        return left if left else right`,
+  });
+  </script>
+
+  <div class="viz-panel">
+    <div class="tree-stack-row">
+      <div class="card">
+        <h3>Binary Tree</h3>
+        <svg id="tree-svg" viewBox="0 0 400 300"></svg>
+        <div class="pq-title" id="pq-title"></div>
+        <div class="node-vars" id="node-vars"></div>
+      </div>
+
+      <div class="card stack-card">
+        <h3>Call Stack（递归栈）</h3>
+        <div class="frame-stack-container" id="frame-stack">
+          <span class="stack-empty">尚未调用 lowestCommonAncestor()</span>
+        </div>
+        <div class="frame-stack-base"></div>
+        <div style="font-size:11px;color:#aaa;margin-top:4px;">bottom</div>
+        <div class="depth-var-row" id="depth-var"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="res-row" id="answer-row"></div>
+      <h3 class="res-label">answer = lowestCommonAncestor(root, p, q)</h3>
+    </div>
+  </div>
+</div><!-- /.main -->
+</div><!-- /.content-wrapper -->
+
+<script>
+// ── Tree definition (LeetCode's official example tree) ───────────────────
+//            3
+//          /   \
+//         5     1
+//        / \   / \
+//       6   2 0   8
+//          / \
+//         7   4
+const TREE = {
+  3: { left: 5, right: 1 },
+  5: { left: 6, right: 2 },
+  1: { left: 0, right: 8 },
+  2: { left: 7, right: 4 },
+  6: { left: null, right: null },
+  0: { left: null, right: null },
+  8: { left: null, right: null },
+  7: { left: null, right: null },
+  4: { left: null, right: null },
+};
+const POS = {
+  3: { x: 200, y: 34 },
+  5: { x: 110, y: 104 },
+  1: { x: 290, y: 104 },
+  6: { x: 55,  y: 174 },
+  2: { x: 165, y: 174 },
+  0: { x: 235, y: 174 },
+  8: { x: 345, y: 174 },
+  7: { x: 130, y: 244 },
+  4: { x: 200, y: 244 },
+};
+const EDGES = [[3,5],[3,1],[5,6],[5,2],[1,0],[1,8],[2,7],[2,4]];
+const NODE_IDS = [3, 5, 1, 6, 2, 0, 8, 7, 4];
+const ROOT = 3;
+
+const EXAMPLES = {
+  ex1: { p: 5, q: 1 },  // different top-level branches → LCA = 3
+  ex2: { p: 5, q: 4 },  // p is an ancestor of q → LCA = 5
+};
+let P = EXAMPLES.ex1.p;
+let Q = EXAMPLES.ex1.q;
+
+// data-l line numbers (prereq occupies 1-6, main code continues from 7)
+const L = { CHECK: 9, RET_EARLY: 10, LEFT_CALL: 12, RIGHT_CALL: 13, CHECK_BOTH: 15, RET_BOTH: 16, RET_PROP: 18 };
+
+function fmt(v) {
+  if (v === undefined) return '·';
+  if (v === null) return 'None';
+  return String(v);
+}
+
+// ── Build steps by simulating the divide-and-conquer recursion ───────────
+function buildSteps() {
+  const steps = [];
+  let stack = [];    // frames: { node, leftRet, rightRet, result }
+  let resolved = {}; // nodeVal -> returned value (node id or null), once its call returned
+  let activeEdge = null;
+
+  const cloneStack = () => stack.map(f => ({ ...f }));
+  const cloneResolved = () => ({ ...resolved });
+  function snap(line, info, finalAnswer) {
+    steps.push({ line, info, stack: cloneStack(), resolved: cloneResolved(), activeEdge, finalAnswer: finalAnswer !== undefined ? finalAnswer : null });
+  }
+
+  snap(null, `点击 Next 开始：调用 lowestCommonAncestor(root, p, q)，root 指向节点 ${ROOT}，p=${P}，q=${Q}。`);
+
+  function dfs(nodeVal) {
+    const frame = { node: nodeVal, result: undefined };
+    stack.push(frame);
+
+    if (nodeVal === null) {
+      snap(L.CHECK, '进入 lowestCommonAncestor(None)。Line 9: root is None → True。');
+      frame.result = null;
+      snap(L.RET_EARLY, 'Line 10: return root → return None。');
+      stack.pop();
+      return null;
+    }
+
+    if (nodeVal === P || nodeVal === Q) {
+      snap(L.CHECK, `进入 lowestCommonAncestor(${nodeVal})。Line 9: root == ${nodeVal === P ? 'p' : 'q'} → True（节点 ${nodeVal} 正是要找的目标）！`);
+      frame.result = nodeVal;
+      resolved[nodeVal] = nodeVal;
+      snap(L.RET_EARLY, `Line 10: return root = ${nodeVal} — 命中就立刻返回，不再往下探它的子树。`);
+      stack.pop();
+      return nodeVal;
+    }
+
+    snap(L.CHECK, `进入 lowestCommonAncestor(${nodeVal})。Line 9: root 既不是 None，也不是 p 或 q → 条件 False，继续执行。`);
+
+    const { left, right } = TREE[nodeVal];
+
+    activeEdge = left != null ? [nodeVal, left] : null;
+    snap(L.LEFT_CALL, `Line 12: left = self.lowestCommonAncestor(root.left, p, q) → ${left != null ? `调用 lowestCommonAncestor(${left})` : '左子节点为 None，调用 lowestCommonAncestor(None)'}`);
+    const leftRet = dfs(left);
+    activeEdge = null;
+    frame.leftRet = leftRet;
+    snap(L.LEFT_CALL, `递归返回 → left = ${fmt(leftRet)}`);
+
+    activeEdge = right != null ? [nodeVal, right] : null;
+    snap(L.RIGHT_CALL, `Line 13: right = self.lowestCommonAncestor(root.right, p, q) → ${right != null ? `调用 lowestCommonAncestor(${right})` : '右子节点为 None，调用 lowestCommonAncestor(None)'}`);
+    const rightRet = dfs(right);
+    activeEdge = null;
+    frame.rightRet = rightRet;
+    snap(L.RIGHT_CALL, `递归返回 → right = ${fmt(rightRet)}`);
+
+    snap(L.CHECK_BOTH, `Line 15: if left and right → left=${fmt(leftRet)}, right=${fmt(rightRet)} → ${leftRet && rightRet ? 'True' : 'False'}`);
+
+    let result;
+    if (leftRet && rightRet) {
+      result = nodeVal;
+      snap(L.RET_BOTH, `Line 16: return root = ${nodeVal} ⭐ — 左右子树各自带回一个目标，${nodeVal} 就是它们的最近公共祖先！`);
+    } else {
+      result = leftRet ? leftRet : rightRet;
+      snap(L.RET_PROP, `Line 18: return left if left else right = ${fmt(result)} — 只有一侧带回了结果，继续把它往上传。`);
+    }
+    frame.result = result;
+    resolved[nodeVal] = result;
+    stack.pop();
+    return result;
+  }
+
+  const answer = dfs(ROOT);
+  snap(null, `✅ lowestCommonAncestor 返回节点 ${answer} — 这就是 p=${P} 和 q=${Q} 的最近公共祖先。`, answer);
+
+  return steps;
+}
+
+let STEPS = buildSteps();
+let cur = -1;
+
+// ── Rendering ─────────────────────────────────────────────────────────────
+function renderTree(step) {
+  const svg = document.getElementById('tree-svg');
+  svg.innerHTML = '';
+  function mkEl(tag) { return document.createElementNS('http://www.w3.org/2000/svg', tag); }
+
+  for (const [a, b] of EDGES) {
+    const pa = POS[a], pb = POS[b];
+    const isActive = step.activeEdge && step.activeEdge[0] === a && step.activeEdge[1] === b;
+    const line = mkEl('line');
+    line.setAttribute('x1', pa.x); line.setAttribute('y1', pa.y);
+    line.setAttribute('x2', pb.x); line.setAttribute('y2', pb.y);
+    line.setAttribute('stroke', isActive ? '#3A6FD4' : '#c8c6be');
+    line.setAttribute('stroke-width', isActive ? '3' : '1.5');
+    svg.appendChild(line);
+  }
+
+  const top = step.stack.length ? step.stack[step.stack.length - 1] : null;
+  const activeNode = top && top.node !== null ? top.node : null;
+
+  for (const id of NODE_IDS) {
+    const p = POS[id];
+    const isTarget = id === P || id === Q;
+    const isDone = step.resolved[id] !== undefined;
+    const isFinal = step.finalAnswer !== null && id === step.finalAnswer;
+
+    let fill = '#f5f5f5', stroke = '#c9c9c9', strokeW = 1.5;
+    if (isFinal) { fill = 'rgba(247,140,108,0.5)'; stroke = '#E0663E'; strokeW = 3; }
+    else if (id === activeNode) { fill = 'rgba(249,203,66,0.55)'; stroke = '#d4a800'; strokeW = 2.5; }
+    else if (isDone) {
+      const ret = step.resolved[id];
+      if (ret !== null) { fill = 'rgba(93,202,165,0.4)'; stroke = '#1D9E75'; strokeW = 1.5; }
+      else { fill = '#f0f0f0'; stroke = '#ccc'; strokeW = 1.5; }
+    }
+
+    if (isTarget) {
+      const label = mkEl('text');
+      label.setAttribute('x', p.x); label.setAttribute('y', p.y - 30);
+      label.setAttribute('text-anchor', 'middle'); label.setAttribute('font-size', '11');
+      label.setAttribute('font-weight', '700'); label.setAttribute('fill', '#3A6FD4');
+      label.setAttribute('font-family', 'SF Mono, monospace');
+      label.textContent = id === P ? 'p' : 'q';
+      svg.appendChild(label);
+    }
+
+    const g = mkEl('g');
+    const circle = mkEl('circle');
+    circle.setAttribute('cx', p.x); circle.setAttribute('cy', p.y); circle.setAttribute('r', 20);
+    circle.setAttribute('fill', fill); circle.setAttribute('stroke', stroke); circle.setAttribute('stroke-width', strokeW);
+    g.appendChild(circle);
+
+    const text = mkEl('text');
+    text.setAttribute('x', p.x); text.setAttribute('y', p.y);
+    text.setAttribute('text-anchor', 'middle'); text.setAttribute('dominant-baseline', 'central');
+    text.setAttribute('font-size', '14'); text.setAttribute('font-weight', '700'); text.setAttribute('fill', '#1a1a1a');
+    text.setAttribute('font-family', 'SF Mono, Menlo, monospace');
+    text.textContent = id;
+    g.appendChild(text);
+
+    if (isFinal) {
+      const badge = mkEl('text');
+      badge.setAttribute('x', p.x); badge.setAttribute('y', p.y + 34);
+      badge.setAttribute('text-anchor', 'middle'); badge.setAttribute('font-size', '10');
+      badge.setAttribute('font-weight', '700'); badge.setAttribute('fill', '#E0663E');
+      badge.setAttribute('font-family', 'SF Mono, monospace');
+      badge.textContent = '★ LCA';
+      g.appendChild(badge);
+    } else if (isDone) {
+      const ret = step.resolved[id];
+      const badge = mkEl('text');
+      badge.setAttribute('x', p.x); badge.setAttribute('y', p.y + 34);
+      badge.setAttribute('text-anchor', 'middle'); badge.setAttribute('font-size', '10');
+      badge.setAttribute('font-weight', '700'); badge.setAttribute('fill', ret !== null ? '#1D9E75' : '#999');
+      badge.setAttribute('font-family', 'SF Mono, monospace');
+      badge.textContent = '→ ' + fmt(ret);
+      g.appendChild(badge);
+    }
+
+    svg.appendChild(g);
+  }
+}
+
+function renderCallStack(stack) {
+  const el = document.getElementById('frame-stack');
+  if (!stack.length) {
+    el.innerHTML = '<span class="stack-empty">尚未调用 lowestCommonAncestor()</span>';
+    return;
+  }
+  el.innerHTML = stack.map((f, i) => {
+    const isTop = i === stack.length - 1;
+    const isNone = f.node === null;
+    const label = isNone ? 'lowestCommonAncestor(None)' : `lowestCommonAncestor(${f.node})`;
+    const isResolved = f.result !== undefined;
+    const suffix = isResolved ? ' = ' + fmt(f.result) : '';
+    return `<div class="frame-cell${isTop ? ' top' : ''}${isNone ? ' none-frame' : ''}${isResolved ? ' resolved' : ''}">${label}${suffix}</div>`;
+  }).join('');
+}
+
+function renderAnswerRow(step) {
+  const filled = step.finalAnswer !== null;
+  document.getElementById('answer-row').innerHTML =
+    `<div class="res-cell${filled ? ' filled newest' : ''}">${filled ? step.finalAnswer : '?'}</div>`;
+}
+
+function renderNodeVars(step) {
+  const top = step.stack.length ? step.stack[step.stack.length - 1] : null;
+  const rootDisplay = !top ? '—' : (top.node === null ? 'None' : top.node);
+  document.getElementById('node-vars').innerHTML =
+    `<div><span class="var-name">root</span><span class="var-eq"> = </span><span class="var-val">${rootDisplay}</span></div>` +
+    `<div><span class="var-name">left</span><span class="var-eq"> = </span><span class="var-val">${fmt(top ? top.leftRet : undefined)}</span></div>` +
+    `<div><span class="var-name">right</span><span class="var-eq"> = </span><span class="var-val">${fmt(top ? top.rightRet : undefined)}</span></div>`;
+}
+
+function renderDepthVar(step) {
+  document.getElementById('depth-var').innerHTML =
+    `<span class="var-name">stack depth</span><span class="var-eq"> = </span><span class="var-val">${step.stack.length}</span>`;
+}
+
+function renderAll() {
+  const step = cur >= 0 ? STEPS[cur] : null;
+  const empty = { stack: [], resolved: {}, activeEdge: null, finalAnswer: null };
+
+  if (!step) {
+    renderTree(empty);
+    renderCallStack([]);
+    renderAnswerRow(empty);
+    renderNodeVars(empty);
+    renderDepthVar(empty);
+    renderCtrl(-1, STEPS.length, '');
+    highlightLine(null);
+    return;
+  }
+
+  renderTree(step);
+  renderCallStack(step.stack);
+  renderAnswerRow(step);
+  renderNodeVars(step);
+  renderDepthVar(step);
+  highlightLine(step.line);
+  renderCtrl(cur, STEPS.length, step.info);
+}
+
+var render = renderAll;
+
+// ── Example switcher ─────────────────────────────────────────────────────
+function loadExample(id) {
+  const ex = EXAMPLES[id];
+  if (!ex) return;
+  stopAuto();
+  P = ex.p;
+  Q = ex.q;
+  document.getElementById('pq-title').textContent = `p = ${P}, q = ${Q}`;
+  STEPS = buildSteps();
+  cur = -1;
+  render();
+  lockStableSizes(); // re-pin block heights for the new example's steps
+  Object.keys(EXAMPLES).forEach(k => {
+    const btn = document.getElementById('ex-' + k);
+    if (btn) btn.classList.toggle('auto-active', k === id);
+  });
+}
+
+loadExample('ex1');
+</script>
+</body>
+</html>

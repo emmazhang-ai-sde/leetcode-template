@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>170. Two Sum III - Data structure design</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  /* 操作序列：像 driver 代码一样一条条排,当前黄、add 完成蓝、find 完成按结果绿/红 */
+  .ops-row { display: flex; flex-wrap: wrap; gap: 6px; max-width: 620px; }
+  .op-chip { padding: 5px 10px; border-radius: 7px; font-family: var(--ink-mono); font-size: 12.5px;
+             font-weight: 700; background: #f5f5f5; border: 1px solid #c9c9c9; color: #999;
+             transition: background 0.2s, transform 0.15s; white-space: nowrap; }
+  .op-chip.current { background: rgba(249,203,66,0.55); border-color: rgba(200,160,30,0.6);
+                     color: #1a1a1a; transform: scale(1.05); }
+  .op-chip.done { background: rgba(120,160,225,0.3); border-color: rgba(90,130,200,0.5); color: #1a1a1a; }
+  .op-chip.done.hit { background: rgba(93,202,165,0.4); border-color: rgba(60,160,125,0.5); }
+  .op-chip.done.fail { background: rgba(224,133,133,0.28); border-color: rgba(190,110,110,0.5); }
+
+  /* self.nums 字典：number | count 两列 */
+  .map-table { display: grid; grid-template-columns: 120px 160px; gap: 7px;
+               font-family: var(--ink-mono); font-size: 13px; }
+  .map-head { color: #777; font-weight: 700; padding: 0 6px 3px; border-bottom: 1px solid #eee;
+              text-align: center; }
+  .map-cell { min-height: 32px; border-radius: 7px; background: #f5f5f5;
+              display: flex; align-items: center; justify-content: center;
+              color: #333; font-weight: 700; transition: background 0.2s, transform 0.2s; }
+  .map-cell.cur { background: rgba(249,203,66,0.55); transform: scale(1.05); }
+  .map-cell.new { background: rgba(120,160,225,0.3); transform: scale(1.05); }
+  .map-cell.hit { background: rgba(93,202,165,0.4); transform: scale(1.05); }
+  .map-empty { grid-column: 1 / 3; min-height: 34px; border-radius: 8px;
+               display: flex; align-items: center; justify-content: center;
+               color: #aaa; background: #f5f5f5; }
+
+  /* 计算过程：need = value - key 的推导 + 走了哪个分支 */
+  .formula { min-height: 62px; font: 13.5px/1.9 var(--ink-mono); color: #555; }
+  .f-var { color: #C4501E; font-weight: 700; }
+  .f-ok { color: #246b55; font-weight: 700; }
+  .f-no { color: #b04a4a; font-weight: 700; }
+
+  .fn-tag { display: inline-block; padding: 1px 8px; border-radius: 5px; background: rgba(199,146,234,0.18);
+            color: #6b3fa0; font-family: var(--ink-mono); font-size: 12px; font-weight: 700; }
+  .fn-note { margin-left: 8px; font-family: -apple-system, sans-serif; font-size: 11px; color: #aaa; }
+
+  /* 颜色图例从页头搬到代码框下面后改纵向单列排列 */
+  .legend-below { flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 0; max-width: none; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '170. Two Sum III - Data structure design',
+  link: 'https://leetcode.com/problems/two-sum-iii-data-structure-design/',
+  legend: [
+    { color: 'rgba(249,203,66,0.55)', label: '当前正在执行的操作 / find 当前枚举到的 key' },
+    { color: 'rgba(120,160,225,0.3)', label: '已完成的 add / 字典里次数刚 +1 的条目' },
+    { color: 'rgba(93,202,165,0.4)', label: '配对成功 — find 返回 True 的那对搭档' },
+    { color: 'rgba(224,133,133,0.28)', label: 'find 返回 False 的操作' },
+    { color: '#f5f5f5', extra: 'border:1px solid #c9c9c9;', label: '还没执行到的操作 / 字典普通条目' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+  <script>
+  renderCodeBox({
+    code: `
+class TwoSum:
+
+    def __init__(self):
+        self.nums = {}
+
+    def add(self, number: int) -> None:
+        self.nums[number] = self.nums.get(number, 0) + 1
+
+
+    def find(self, value: int) -> bool:
+        for key in self.nums:
+            if value - key == key:
+                if self.nums.get(value - key, 0) >= 2:
+                    return True
+            elif (value - key) in self.nums:
+                return True
+        return False;
+
+
+
+# Your TwoSum object will be instantiated and called as such:
+# obj = TwoSum()
+# obj.add(number)
+# param_2 = obj.find(value)`,
+  });
+  </script>
+
+  <!-- 步骤说明 + 颜色图例从页头搬到代码框下面 -->
+  <script>
+  (function () {
+    const stack = document.querySelector('.code-stack');
+    stack.appendChild(document.getElementById('info'));
+    const legend = document.querySelector('.legend');
+    const legendRow = legend.parentElement;
+    legend.classList.add('legend-below');
+    stack.appendChild(legend);
+    legendRow.remove();
+  })();
+  </script>
+
+  <div class="viz-panel">
+    <div class="var-bar" id="var-bar"></div>
+
+    <div class="card">
+      <h3>操作序列 — 前 6 个是 LeetCode 官方 Example,后 3 个补「搭档是自己」的情况</h3>
+      <div class="ops-row" id="ops-row"></div>
+    </div>
+
+    <div class="card">
+      <h3>self.nums — 字典 {数: 出现次数}</h3>
+      <div class="map-table" id="map-table"></div>
+    </div>
+
+    <div class="card">
+      <h3>计算过程 — add 记次数,find 查搭档 need = value - key</h3>
+      <div class="formula" id="formula"></div>
+    </div>
+  </div>
+</div><!-- /.main -->
+</div><!-- /.content-wrapper -->
+
+<script>
+// ── 操作序列:官方 Example(add 1/3/5, find 4, find 7)+ 补 3 个演示
+//    「搭档是自己必须有两个」的操作(find 2 / add 1 / find 2),
+//    不补的话 Line 13/14 永远走不到 ────────────────────────────────────────
+const OPS = [
+  { label: 'obj = TwoSum()', kind: 'new' },
+  { label: 'obj.add(1)', kind: 'add', arg: 1 },
+  { label: 'obj.add(3)', kind: 'add', arg: 3 },
+  { label: 'obj.add(5)', kind: 'add', arg: 5 },
+  { label: 'obj.find(4)', kind: 'find', arg: 4 },
+  { label: 'obj.find(7)', kind: 'find', arg: 7 },
+  { label: 'obj.find(2)', kind: 'find', arg: 2 },
+  { label: 'obj.add(1)', kind: 'add', arg: 1 },
+  { label: 'obj.find(2)', kind: 'find', arg: 2 },
+];
+
+/* 行号表:正文从 1 开始,空行也占号(2/8/9/18/19/20 是空行,21-24 是注释)。
+   按 ANIMATION_GUIDE:每行可执行代码 ≥ 1 步,if/for 头 True/False 都停,
+   def 行进入方法时也停。driver 调用写在注释里,不是可执行行,不占步。 */
+const L = {
+  INIT:     3,   // def __init__(self)
+  INIT_BODY:4,   // self.nums = {}
+  ADD:      6,   // def add(self, number)
+  ADD_BODY: 7,   // self.nums[number] = self.nums.get(number, 0) + 1
+  FIND:    10,   // def find(self, value)
+  FOR:     11,   // for key in self.nums   每轮 + 取空各一次
+  IFDUP:   12,   // if value - key == key   True / False 各停一次
+  IFCNT:   13,   // if self.nums.get(value - key, 0) >= 2
+  RETDUP:  14,   // return True(搭档是自己、次数够 2)
+  ELIF:    15,   // elif (value - key) in self.nums
+  RETHIT:  16,   // return True(搭档是别人)
+  RETFALSE:17,   // return False;
+};
+
+const fmtNums = (entries) => entries.length
+  ? '{' + entries.map(([k, c]) => k + ': ' + c).join(', ') + '}'
+  : '{}';
+
+// ── 真跑一遍 Lyon 的解法(9 个操作依次执行)生成步骤 ──────────────────────
+function buildSteps() {
+  const steps = [];
+  const nums = new Map();   // 对应 self.nums,Map 跟 Python dict 一样按插入顺序枚举
+  const results = [];       // 已完成操作的结果:add/new 记 '✓',find 记 true/false
+  let fn = null, opIdx = null;
+
+  function snap(line, info, x) {
+    x = x || {};
+    steps.push({
+      line, info, fn, opIdx,
+      nums: [...nums.entries()],
+      results: results.slice(),
+      number: x.number != null ? x.number : null,
+      value: x.value != null ? x.value : null,
+      key: x.key != null ? x.key : null,
+      need: x.need != null ? x.need : null,
+      cnt: x.cnt != null ? x.cnt : null,
+      phase: x.phase || null,
+      newKey: x.newKey != null ? x.newKey : null,
+      hitKey: x.hitKey != null ? x.hitKey : null,
+    });
+  }
+
+  snap(null, '点 Next 开始:按 LeetCode 官方 Example 依次执行 add(1) / add(3) / add(5) / ' +
+    'find(4) / find(7),再补三个操作演示「搭档是自己」:find(2) → add(1) → find(2)。');
+
+  function runNew(idx) {
+    opIdx = idx; fn = '__init__';
+    snap(L.INIT, 'Line 3: obj = TwoSum() 触发 __init__ — 构造这个数据结构。');
+    nums.clear();
+    snap(L.INIT_BODY, 'Line 4: self.nums = {} — 用字典记「数 → 出现次数」。不用 list:add 要 O(1),' +
+      'find 要能一步查到搭档,还得知道同一个数有没有出现两次。');
+    results.push('✓'); fn = null;
+  }
+
+  function runAdd(idx, n) {
+    opIdx = idx; fn = 'add';
+    snap(L.ADD, 'Line 6: 进入 add(number=' + n + ') — 把 ' + n + ' 记进字典。', { number: n });
+    const before = nums.get(n) || 0;
+    nums.set(n, before + 1);
+    const info = before === 0
+      ? 'Line 7: self.nums.get(' + n + ', 0) = 0,' + n + ' 没出现过 → self.nums[' + n + '] = 0 + 1 = 1。'
+      : 'Line 7: self.nums.get(' + n + ', 0) = ' + before + ',已经有一个 ' + n + ' → 次数变成 ' +
+        (before + 1) + ' — 现在字典里有两个 ' + n + ',等下 find(' + (n + n) + ') 就靠它。';
+    snap(L.ADD_BODY, info, { number: n, cnt: before + 1, newKey: n });
+    results.push('✓'); fn = null;
+  }
+
+  function runFind(idx, value) {
+    opIdx = idx; fn = 'find';
+    snap(L.FIND, 'Line 10: 进入 find(value=' + value + ') — 问:字典里有没有两个数(可以是同一个数' +
+      '出现两次)加起来等于 ' + value + '?', { value });
+    let returned = null;
+    for (const key of nums.keys()) {
+      snap(L.FOR, 'Line 11: for key in self.nums → key = ' + key + ' — 字典按插入顺序枚举,' +
+        '轮到 ' + key + '。', { value, key });
+      const need = value - key;
+      if (need === key) {
+        snap(L.IFDUP, 'Line 12: value - key = ' + value + ' - ' + key + ' = ' + need + ',等于 key 自己 → True' +
+          ' — 搭档就是自己,光「' + key + ' 在字典里」不够,得有两个 ' + key + '。',
+          { value, key, need, phase: 'dup-eq' });
+        const cnt = nums.get(need) || 0;
+        if (cnt >= 2) {
+          snap(L.IFCNT, 'Line 13: self.nums.get(' + need + ', 0) = ' + cnt + ' >= 2 → True — ' +
+            key + ' 出现了 ' + cnt + ' 次,凑得出 ' + key + ' + ' + key + ' = ' + value + '。',
+            { value, key, need, cnt, phase: 'dup-hit', hitKey: need });
+          results.push(true); returned = true;
+          snap(L.RETDUP, 'Line 14: return True — 找到一对:' + key + ' + ' + need + ' = ' + value +
+            ',find(' + value + ') 结束。', { value, key, need, cnt, phase: 'dup-hit', hitKey: need });
+          break;
+        }
+        snap(L.IFCNT, 'Line 13: self.nums.get(' + need + ', 0) = ' + cnt + ',不够 2 个 → False — ' +
+          '只有一个 ' + key + ',自己配不了自己,回到 for 换下一个 key。',
+          { value, key, need, cnt, phase: 'dup-fail' });
+      } else {
+        snap(L.IFDUP, 'Line 12: value - key = ' + value + ' - ' + key + ' = ' + need + ',不等于 key → False' +
+          ' — 搭档不是自己,走 elif 正常查字典。', { value, key, need, phase: 'noteq' });
+        if (nums.has(need)) {
+          snap(L.ELIF, 'Line 15: (' + need + ') in self.nums → True — 搭档 ' + need + ' 在字典里,' +
+            key + ' + ' + need + ' = ' + value + ' 配对成功。',
+            { value, key, need, phase: 'hit', hitKey: need });
+          results.push(true); returned = true;
+          snap(L.RETHIT, 'Line 16: return True — find(' + value + ') 结束,答案 True。',
+            { value, key, need, phase: 'hit', hitKey: need });
+          break;
+        }
+        snap(L.ELIF, 'Line 15: (' + need + ') in self.nums → False — 字典里没有 ' + need + ',' +
+          'key = ' + key + ' 配不上,回到 for 换下一个。', { value, key, need, phase: 'miss' });
+      }
+    }
+    if (returned === null) {
+      snap(L.FOR, 'Line 11: for key in self.nums — 所有 key 都试完了,循环自然结束。', { value });
+      results.push(false);
+      snap(L.RETFALSE, 'Line 17: return False; — 没有任何两个数加起来等于 ' + value + '。',
+        { value, phase: 'false' });
+    }
+    fn = null;
+  }
+
+  OPS.forEach((op, idx) => {
+    if (op.kind === 'new') runNew(idx);
+    else if (op.kind === 'add') runAdd(idx, op.arg);
+    else runFind(idx, op.arg);
+  });
+
+  opIdx = null;
+  snap(null, '✅ 9 个操作全部执行完:find(4) → True(1 + 3),find(7) → False,find(2) → False' +
+    '(只有一个 1),add(1) 之后 find(2) → True(1 + 1)。add 只把次数 +1,O(1);find 逐 key 查' +
+    '搭档,O(n)。搭档是自己时必须出现次数 >= 2 —— 这就是存 {数: 次数} 而不是 set 的原因。');
+  return steps;
+}
+
+const STEPS = buildSteps();
+let cur = -1;
+
+// ── 渲染(只读快照,无副作用)──────────────────────────────────────────────
+function renderOps(s) {
+  document.getElementById('ops-row').innerHTML = OPS.map((op, i) => {
+    const cls = ['op-chip'];
+    let text = op.label;
+    const r = s.results[i];
+    if (i === s.opIdx) cls.push('current');
+    else if (r !== undefined) cls.push('done');
+    if (r === true) { cls.push('done', 'hit'); text += ' → True'; }
+    else if (r === false) { cls.push('done', 'fail'); text += ' → False'; }
+    return '<span class="' + cls.join(' ') + '">' + text + '</span>';
+  }).join('');
+}
+
+function renderMap(s) {
+  const table = document.getElementById('map-table');
+  if (!s.nums.length) {
+    table.innerHTML = '<div class="map-empty">self.nums = {}</div>';
+    return;
+  }
+  let html = '<div class="map-head">number</div><div class="map-head">count(出现次数)</div>';
+  html += s.nums.map(([k, c]) => {
+    const cls = k === s.hitKey ? 'hit' : k === s.newKey ? 'new' : k === s.key ? 'cur' : '';
+    return '<div class="map-cell ' + cls + '">' + k + '</div>' +
+           '<div class="map-cell ' + cls + '">' + c + '</div>';
+  }).join('');
+  table.innerHTML = html;
+}
+
+function renderFormula(s) {
+  const el = document.getElementById('formula');
+  const v = (t) => '<span class="f-var">' + t + '</span>';
+  if (s.fn === 'find' && s.key != null) {
+    let branch = '';
+    if (s.phase === 'dup-eq') {
+      branch = 'need == key → 搭档是 key 自己,要看次数够不够 2';
+    } else if (s.phase === 'dup-hit') {
+      branch = 'self.nums.get(' + s.need + ') = ' + v(s.cnt) + ' ≥ 2 <span class="f-ok">✓</span> → ' +
+        v(s.key) + ' + ' + v(s.need) + ' = ' + v(s.value);
+    } else if (s.phase === 'dup-fail') {
+      branch = 'self.nums.get(' + s.need + ') = ' + v(s.cnt) + ' &lt; 2 <span class="f-no">✗</span>' +
+        ' → 一个 ' + s.key + ' 配不成一对';
+    } else if (s.phase === 'noteq') {
+      branch = 'need != key → 走 elif,直接查 ' + s.need + ' 在不在字典里';
+    } else if (s.phase === 'hit') {
+      branch = s.need + ' in self.nums <span class="f-ok">✓</span> → ' +
+        v(s.key) + ' + ' + v(s.need) + ' = ' + v(s.value);
+    } else if (s.phase === 'miss') {
+      branch = s.need + ' not in self.nums <span class="f-no">✗</span> → key = ' + s.key + ' 配不上';
+    } else {
+      branch = '算搭档:need = value - key';
+    }
+    const needLine = s.need != null
+      ? 'need = value - key = ' + s.value + ' - ' + s.key + ' = ' + v(s.need) + '<br>'
+      : '';
+    el.innerHTML = needLine + branch;
+  } else if (s.fn === 'find') {
+    el.innerHTML = s.phase === 'false'
+      ? 'value = ' + v(s.value) + ',所有 key 都配不上 → <span class="f-no">False</span>'
+      : 'value = ' + v(s.value) + ',逐个 key 找搭档 value - key';
+  } else if (s.fn === 'add' && s.cnt != null) {
+    el.innerHTML = 'self.nums[' + s.number + '] = self.nums.get(' + s.number + ', 0) + 1 = ' +
+      (s.cnt - 1) + ' + 1 = ' + v(s.cnt);
+  } else if (s.fn === 'add') {
+    el.innerHTML = 'number = ' + v(s.number);
+  } else if (s.fn === '__init__') {
+    el.innerHTML = 'self.nums = {}';
+  } else {
+    el.innerHTML = '—';
+  }
+}
+
+function renderVars(s) {
+  const row = (name, val, note) => '<span class="var-row"><span class="var-name">' + name +
+    '</span><span class="var-eq"> = </span><span class="var-val">' + val + '</span>' +
+    (note ? '<span class="fn-note">' + note + '</span>' : '') + '</span>';
+  document.getElementById('var-bar').innerHTML =
+    '<span class="var-row"><span class="fn-tag">' + (s.fn ? s.fn + '()' : '—') +
+      '</span><span class="fn-note">当前所在方法</span></span>' +
+    row('number', s.number == null ? '-' : s.number, 'add 的参数') +
+    row('value', s.value == null ? '-' : s.value, 'find 的参数') +
+    row('key', s.key == null ? '-' : s.key) +
+    row('need', s.need == null ? '-' : s.need, 'value - key') +
+    row('self.nums', fmtNums(s.nums));
+}
+
+const EMPTY = { line: null, fn: null, opIdx: null, nums: [], results: [],
+                number: null, value: null, key: null, need: null, cnt: null,
+                phase: null, newKey: null, hitKey: null };
+
+function renderAll() {
+  const step = cur >= 0 ? STEPS[cur] : null;
+  const s = step || EMPTY;
+  renderOps(s);
+  renderMap(s);
+  renderFormula(s);
+  renderVars(s);
+  highlightLine(s.line);
+  renderCtrl(cur, STEPS.length, step ? step.info :
+    '点 Next 开始:add 把数记进 {数: 次数} 字典,find 逐个 key 查搭档 value - key 在不在。');
+}
+
+var render = renderAll;
+doReset();
+</script>
+</body>
+</html>

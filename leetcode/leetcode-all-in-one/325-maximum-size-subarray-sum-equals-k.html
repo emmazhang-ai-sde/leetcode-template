@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>325. Maximum Size Subarray Sum Equals k</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  .prefix325-layout .code-half { width: 610px; min-width: 0; }
+  .prefix325-layout .viz-panel { width: max-content; min-width: 0; align-items: flex-start; }
+  .prefix325-layout .code-stack,
+  .prefix325-layout .code-panel { width: 100%; min-width: 0; }
+  .prefix325-layout .code-panel { overflow-x: auto; }
+  .prefix325-layout .card { width: fit-content; min-width: 0; max-width: 620px; }
+  .prefix325-layout .step-info { min-height: 58px; }
+
+  .array-row { display: flex; align-items: flex-end; gap: 6px; min-height: 78px; }
+  .cell-wrap { width: 52px; text-align: center; font-family: 'SF Mono', Menlo, monospace; }
+  .cell-index { height: 17px; color: #aaa; font-size: 11px; }
+  .cell {
+    width: 52px; height: 42px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    background: #f5f5f5; color: #1a1a1a;
+    font-size: 17px; font-weight: 750;
+    transition: background .2s, transform .2s, opacity .2s;
+  }
+  .cell.unbuilt { color: #bbb; font-weight: 400; }
+  /* nums 行开头空一格：nums[i] 正对 prefix[i+1]（prefix[0] 下面没有 nums），
+     prefix[i+1] = prefix[i] + nums[i] 竖着就能看出来 */
+  .cell.spacer { background: transparent; }
+  .cell.source { background: rgba(249,203,66,.50); transform: scale(1.08); }
+  .cell.built { background: rgba(139,133,212,.22); }
+  .cell.current { background: rgba(249,203,66,.50); transform: scale(1.08); }
+  .cell.target { background: rgba(93,202,165,.42); transform: scale(1.08); }
+  .cell.range { background: rgba(247,140,108,.28); }
+  .cell.best { background: rgba(196,80,30,.30); transform: scale(1.08); }
+  .marker-row {
+    display: flex;
+    gap: 6px;
+    min-height: 40px;
+    margin-top: 2px;
+    font: 700 11px/1.15 'SF Mono', Menlo, monospace;
+  }
+  .marker-cell {
+    width: 52px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    color: transparent;
+  }
+  .marker-cell.active { color: #C4501E; }
+  .marker-cell.need { color: #246b55; }
+  .marker-arrow { color: #007EA8; font-size: 14px; line-height: 12px; }
+  .marker-label { white-space: nowrap; }
+
+  .map-table {
+    display: grid;
+    grid-template-columns: 104px 104px 1fr;
+    gap: 7px;
+    align-items: stretch;
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 12px;
+  }
+  .map-head {
+    color: #777; font-weight: 700; padding: 0 6px 3px;
+    border-bottom: 1px solid #eee;
+  }
+  .map-cell {
+    min-height: 30px; border-radius: 7px; background: #f5f5f5;
+    display: flex; align-items: center; padding: 5px 8px;
+    color: #333; transition: background .2s, transform .2s, opacity .2s;
+  }
+  .map-cell.key { justify-content: center; font-weight: 750; color: #9333C0; }
+  .map-cell.index { justify-content: center; color: #C4501E; font-weight: 750; }
+  .map-cell.hit { background: rgba(93,202,165,.42); transform: scale(1.03); }
+  .map-cell.new { background: rgba(139,133,212,.22); transform: scale(1.03); }
+  .map-empty {
+    grid-column: 1 / 4; min-height: 34px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    color: #aaa; background: #f5f5f5; font-family: 'SF Mono', Menlo, monospace;
+  }
+  .formula {
+    min-height: 58px; padding: 4px 0 0;
+    font: 13px/1.5 'SF Mono', Menlo, monospace; color: #555;
+    display: flex; align-items: flex-start; overflow-wrap: anywhere;
+  }
+  .formula strong { color: #C4501E; }
+  .formula-lines { display: inline-grid; grid-template-columns: max-content max-content max-content; column-gap: 8px; row-gap: 2px; }
+  .formula-line { display: contents; }
+  .formula-lhs { text-align: right; white-space: nowrap; }
+  .formula-eq { color: #007EA8; font-weight: 700; text-align: center; }
+  .formula-rhs { white-space: nowrap; }
+  .formula-inline { display: flex; flex-direction: column; gap: 5px; }
+  .formula-row { white-space: nowrap; }
+  .f-var { color: #C4501E; font-weight: 700; }
+  .i-ref {
+    display: inline-block;
+    padding: 0 4px;
+    border-radius: 4px;
+    background: rgba(249,203,66,.50);
+    color: #1a1a1a;
+    font-weight: 700;
+  }
+  .answer-strip {
+    min-height: 48px; border-radius: 8px; padding: 10px 12px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(196,80,30,.12);
+    color: #7b2e14; font: 750 14px 'SF Mono', Menlo, monospace;
+  }
+  .answer-strip.empty { background: #f5f5f5; color: #aaa; font-weight: 400; }
+
+  @media (max-width: 1500px) {
+    .main.layout-grid.prefix325-layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .main.layout-grid.prefix325-layout .code-half,
+    .main.layout-grid.prefix325-layout .viz-panel {
+      grid-column: 1;
+      justify-self: center;
+      width: fit-content;
+      min-width: 0;
+    }
+    .main.layout-grid.prefix325-layout .viz-panel { grid-row: 2; }
+  }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '325. Maximum Size Subarray Sum Equals k',
+  link: 'https://leetcode.com/problems/maximum-size-subarray-sum-equals-k/',
+  legend: [
+    { color: 'rgba(249,203,66,.50)', label: 'current prefix / nums[i]' },
+    { color: 'rgba(93,202,165,.42)', label: 'needed prefix found' },
+    { color: 'rgba(139,133,212,.22)', label: 'stored earliest prefix' },
+    { color: 'rgba(247,140,108,.28)', label: 'candidate subarray' },
+    { color: 'rgba(196,80,30,.30)', label: 'best length' },
+  ],
+});
+</script>
+  <div class="main layout-grid prefix325-layout">
+    <script>
+    renderCodeBox({
+      code: `
+class Solution:
+    def maxSubArrayLen(self, nums: List[int], k: int) -> int:
+        prefix = [0] * (len(nums) + 1)
+        for i, val in enumerate(nums):
+            prefix[i+1] = prefix[i] + val
+
+        maps = {}   # prefix sum -> earliest prefix index
+        res = 0
+
+        for index, val in enumerate(prefix):
+            if val - k in maps:
+                right = index - 1
+                left = maps[val - k]
+                res = max(res, right - left + 1)
+            if val not in maps:
+                maps[val] = index
+        return res`,
+    });
+    </script>
+
+    <div class="viz-panel">
+      <div class="card">
+        <h3>Input Array　nums = [1, -1, 5, -2, 3]　k = 3</h3>
+        <div class="array-row" id="numsRow"></div>
+        <div class="marker-row" id="numsMarkers"></div>
+      </div>
+      <div class="card">
+        <h3>Prefix Sum Array　prefix[i] = sum(nums[0:i])</h3>
+        <div class="array-row" id="prefixRow"></div>
+        <div class="marker-row" id="prefixMarkers"></div>
+        <div class="formula" id="formula"></div>
+      </div>
+      <div class="card">
+        <h3>Hash Map: prefix sum -> earliest prefix index</h3>
+        <div class="map-table" id="mapTable"></div>
+      </div>
+      <div class="card">
+        <h3>Best Candidate</h3>
+        <div class="answer-strip empty" id="answer">no subarray found yet</div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+const NUMS = [1, -1, 5, -2, 3];
+const K = 3;
+const PREFIX = [0, 1, 0, 5, 3, 6];
+const FINAL_MAP = new Map([[0, 0], [1, 1], [5, 3], [3, 4], [6, 5]]);
+const STEPS = [
+  { line:3, built:-1, phase:'build', map:[], res:0, info:'Allocate prefix with one extra slot. prefix[0] is the empty prefix sum.' },
+  ...NUMS.flatMap((val, i) => [
+    { line:4, built:i, activeNum:i, phase:'build', i, numsVal:val, map:[], res:0, info:`Read nums[${i}] = ${val}.` },
+    { line:5, built:i+1, activeNum:i, freshPrefix:i+1, phase:'build', i, numsVal:val, map:[], res:0, info:`prefix[${i+1}] = prefix[${i}] + nums[${i}] = ${PREFIX[i]} + ${val} = ${PREFIX[i+1]}.` }
+  ]),
+  { line:7, built:5, phase:'init', map:[], res:0, info:'Create the hash map. It stores the first index where each prefix sum appears.' },
+  { line:8, built:5, phase:'init', map:[], res:0, info:'Initialize res = 0, the longest valid subarray length found so far.' },
+  { line:10, built:5, index:0, val:0, need:-3, phase:'scan', map:[], res:0, info:'At prefix index 0, val = 0. A matching left prefix would be -3.' },
+  { line:11, built:5, index:0, val:0, need:-3, phase:'miss', map:[], res:0, info:'-3 is not in maps, so no subarray ending before index 0 has sum k.' },
+  { line:15, built:5, index:0, val:0, need:-3, phase:'store-check', map:[], res:0, info:'prefix sum 0 has not been stored yet.' },
+  { line:16, built:5, index:0, val:0, need:-3, phase:'store', map:[[0,0]], newKey:0, res:0, info:'Store maps[0] = 0. Keep the earliest index for maximum length later.' },
+  { line:10, built:5, index:1, val:1, need:-2, phase:'scan', map:[[0,0]], res:0, info:'At prefix index 1, val = 1. Need prefix -2 to make sum 3.' },
+  { line:11, built:5, index:1, val:1, need:-2, phase:'miss', map:[[0,0]], res:0, info:'-2 is not in maps.' },
+  { line:15, built:5, index:1, val:1, need:-2, phase:'store-check', map:[[0,0]], res:0, info:'prefix sum 1 has not been stored yet.' },
+  { line:16, built:5, index:1, val:1, need:-2, phase:'store', map:[[0,0],[1,1]], newKey:1, res:0, info:'Store maps[1] = 1.' },
+  { line:10, built:5, index:2, val:0, need:-3, phase:'scan', map:[[0,0],[1,1]], res:0, info:'At prefix index 2, val returns to 0 after nums[0] + nums[1].' },
+  { line:11, built:5, index:2, val:0, need:-3, phase:'miss', map:[[0,0],[1,1]], res:0, info:'-3 is still absent.' },
+  { line:15, built:5, index:2, val:0, need:-3, phase:'skip-store', map:[[0,0],[1,1]], hitKey:0, res:0, info:'0 already exists at index 0, so do not overwrite it with index 2.' },
+  { line:10, built:5, index:3, val:5, need:2, phase:'scan', map:[[0,0],[1,1]], res:0, info:'At prefix index 3, val = 5. Need prefix 2.' },
+  { line:11, built:5, index:3, val:5, need:2, phase:'miss', map:[[0,0],[1,1]], res:0, info:'2 is not in maps.' },
+  { line:15, built:5, index:3, val:5, need:2, phase:'store-check', map:[[0,0],[1,1]], res:0, info:'prefix sum 5 is new.' },
+  { line:16, built:5, index:3, val:5, need:2, phase:'store', map:[[0,0],[1,1],[5,3]], newKey:5, res:0, info:'Store maps[5] = 3.' },
+  { line:10, built:5, index:4, val:3, need:0, phase:'scan', map:[[0,0],[1,1],[5,3]], res:0, info:'At prefix index 4, val = 3. Need prefix 0.' },
+  { line:11, built:5, index:4, val:3, need:0, phase:'hit', map:[[0,0],[1,1],[5,3]], hitKey:0, left:0, right:3, res:0, info:'0 is in maps at prefix index 0, so a sum-k subarray exists.' },
+  { line:12, built:5, index:4, val:3, need:0, phase:'candidate', map:[[0,0],[1,1],[5,3]], hitKey:0, left:0, right:3, res:0, info:'right = index - 1 = 3, the last nums index covered by prefix[4].' },
+  { line:13, built:5, index:4, val:3, need:0, phase:'candidate', map:[[0,0],[1,1],[5,3]], hitKey:0, left:0, right:3, res:0, info:'left = maps[0] = 0, so the candidate is nums[0..3].' },
+  { line:14, built:5, index:4, val:3, need:0, phase:'best', map:[[0,0],[1,1],[5,3]], hitKey:0, left:0, right:3, candidateLen:4, res:4, info:'Length = right - left + 1 = 4. Update res to 4.' },
+  { line:15, built:5, index:4, val:3, need:0, phase:'store-check', map:[[0,0],[1,1],[5,3]], left:0, right:3, candidateLen:4, res:4, info:'prefix sum 3 is not in maps yet.' },
+  { line:16, built:5, index:4, val:3, need:0, phase:'store', map:[[0,0],[1,1],[5,3],[3,4]], newKey:3, left:0, right:3, candidateLen:4, res:4, info:'Store maps[3] = 4 after checking. This order avoids using the current prefix as its own left edge.' },
+  { line:10, built:5, index:5, val:6, need:3, phase:'scan', map:[[0,0],[1,1],[5,3],[3,4]], left:0, right:3, candidateLen:4, res:4, info:'At prefix index 5, val = 6. Need prefix 3.' },
+  { line:11, built:5, index:5, val:6, need:3, phase:'hit', map:[[0,0],[1,1],[5,3],[3,4]], hitKey:3, left:4, right:4, candidateLen:1, res:4, info:'3 is in maps at prefix index 4, giving candidate nums[4..4].' },
+  { line:12, built:5, index:5, val:6, need:3, phase:'candidate', map:[[0,0],[1,1],[5,3],[3,4]], hitKey:3, left:4, right:4, candidateLen:1, res:4, info:'right = index - 1 = 4.' },
+  { line:13, built:5, index:5, val:6, need:3, phase:'candidate', map:[[0,0],[1,1],[5,3],[3,4]], hitKey:3, left:4, right:4, candidateLen:1, res:4, info:'left = maps[3] = 4.' },
+  { line:14, built:5, index:5, val:6, need:3, phase:'best', map:[[0,0],[1,1],[5,3],[3,4]], hitKey:3, left:4, right:4, candidateLen:1, res:4, info:'Length 1 does not beat res 4.' },
+  { line:15, built:5, index:5, val:6, need:3, phase:'store-check', map:[[0,0],[1,1],[5,3],[3,4]], left:4, right:4, candidateLen:1, res:4, info:'prefix sum 6 is new.' },
+  { line:16, built:5, index:5, val:6, need:3, phase:'store', map:[[0,0],[1,1],[5,3],[3,4],[6,5]], newKey:6, left:4, right:4, candidateLen:1, res:4, info:'Store maps[6] = 5.' },
+  { line:17, built:5, phase:'done', map:[[0,0],[1,1],[5,3],[3,4],[6,5]], left:0, right:3, candidateLen:4, res:4, info:'Return 4: nums[0..3] = [1, -1, 5, -2] sums to 3.' },
+];
+let cur = -1;
+
+function cell(value, index, classes='') {
+  return `<div class="cell-wrap"><div class="cell-index">${index}</div><div class="cell ${classes}">${value}</div></div>`;
+}
+
+function formulaLines(lines) {
+  return `<div class="formula-lines">${lines.map(([lhs, rhs]) => `
+    <div class="formula-line">
+      <span class="formula-lhs">${lhs}</span>
+      <span class="formula-eq">=</span>
+      <span class="formula-rhs">${rhs}</span>
+    </div>
+  `).join('')}</div>`;
+}
+
+function iRef() {
+  return '<span class="i-ref">i</span>';
+}
+
+// Variables and their values read red; '=', commas and the lookup status stay gray.
+function fv(text) {
+  return `<span class="f-var">${text}</span>`;
+}
+
+function markerCell(labels, kind='active') {
+  if (!labels.length) return '<div class="marker-cell"></div>';
+  return `<div class="marker-cell ${kind}">
+    <div class="marker-arrow">↑</div>
+    ${labels.map(label => `<div class="marker-label">${label}</div>`).join('')}
+  </div>`;
+}
+
+function numsMarkers(s) {
+  return markerCell([]) + NUMS.map((_, i) => {
+    if (s.phase === 'build' && i === s.i) {
+      return markerCell([`i = ${s.i}`, `val = ${s.numsVal}`]);
+    }
+    if (s.left != null && s.right != null && i >= s.left && i <= s.right) {
+      const labels = [];
+      if (i === s.left) labels.push('left');
+      if (i === s.right) labels.push('right');
+      return markerCell(labels);
+    }
+    return markerCell([]);
+  }).join('');
+}
+
+function prefixMarkers(s) {
+  return PREFIX.map((v, i) => {
+    const labels = [];
+    let kind = 'active';
+    if (s.index === i) labels.push(`index = ${s.index}`, `val = ${s.val}`);
+    if (s.hitKey != null && FINAL_MAP.get(s.hitKey) === i) {
+      labels.push(`need = ${s.need}`);
+      kind = 'need';
+    }
+    if (s.newKey != null && s.newKey === v && i === s.index) labels.push('store');
+    return markerCell(labels, kind);
+  }).join('');
+}
+
+function renderMap(entries, s) {
+  const table = document.getElementById('mapTable');
+  if (!entries || entries.length === 0) {
+    table.innerHTML = '<div class="map-empty">maps = {}</div>';
+    return;
+  }
+  let html = '<div class="map-head">prefix</div><div class="map-head">index</div><div class="map-head">meaning</div>';
+  html += entries.map(([key, idx]) => {
+    const cls = key === s.hitKey ? 'hit' : key === s.newKey ? 'new' : '';
+    const meaning = idx === 0 ? 'empty prefix before nums[0]' : `sum before nums[${idx}]`;
+    return `<div class="map-cell key ${cls}">${key}</div><div class="map-cell index ${cls}">${idx}</div><div class="map-cell ${cls}">${meaning}</div>`;
+  }).join('');
+  table.innerHTML = html;
+}
+
+function render() {
+  const s = cur < 0 ? { built:-1, phase:'start', map:[], res:0, info:'Use prefix[right + 1] - prefix[left] = k, so each current prefix looks for val - k in the earliest-prefix map.' } : STEPS[cur];
+  highlightLine(cur < 0 ? null : s.line);
+
+  document.getElementById('numsRow').innerHTML = cell('', '', 'spacer') + NUMS.map((v, i) => {
+    let cls = i === s.activeNum ? 'source' : '';
+    if (s.left != null && s.right != null && i >= s.left && i <= s.right) cls = s.phase === 'done' || s.candidateLen === 4 ? 'best' : 'range';
+    return cell(v, i, cls);
+  }).join('');
+  document.getElementById('numsMarkers').innerHTML = numsMarkers(s);
+
+  document.getElementById('prefixRow').innerHTML = PREFIX.map((v, i) => {
+    let cls = i <= s.built ? 'built' : 'unbuilt';
+    if (i === s.freshPrefix) cls = 'source';
+    if (i === s.index) cls = 'current';
+    if (s.hitKey != null && v === s.hitKey && (FINAL_MAP.get(v) === i)) cls = 'target';
+    return cell(i <= s.built ? v : '·', i, cls);
+  }).join('');
+  document.getElementById('prefixMarkers').innerHTML = prefixMarkers(s);
+
+  const formula = document.getElementById('formula');
+  if (s.phase === 'build' && s.freshPrefix != null) {
+    formula.innerHTML = formulaLines([
+      [`prefix[${iRef()} + 1]`, `prefix[${iRef()}] + nums[${iRef()}]`],
+      ['', `prefix[${s.i}] + nums[${s.i}]`],
+      ['', `${PREFIX[s.i]} + ${s.numsVal}`],
+      ['', `<strong>${PREFIX[s.freshPrefix]}</strong>`],
+    ]);
+  } else if (s.val != null) {
+    // Resolve the miss against the map as it stands at this step — hitKey is a
+    // highlight flag (it also marks the already-stored key on skip-store), not a hit.
+    // Line 10 has only computed need; line 11 is where the membership test happens.
+    const missing = s.phase !== 'scan' && !(s.map || []).some(([key]) => key === s.need);
+    formula.innerHTML =
+      `<div class="formula-inline">` +
+        `<div class="formula-row">val = ${fv(`prefix[${s.index}]`)} = ${fv(s.val)}</div>` +
+        `<div class="formula-row">` +
+          `need = ${fv('val - k')} = ${fv(`${s.val} - ${K}`)} = ${fv(s.need)}` +
+          (missing ? ' (#N/A)' : '') +
+        `</div>` +
+      `</div>`;
+  } else {
+    formula.textContent = 'Look for current prefix - k in maps.';
+  }
+
+  renderMap(s.map, s);
+
+  const answer = document.getElementById('answer');
+  if (s.left != null && s.right != null) {
+    answer.className = 'answer-strip';
+    const len = s.candidateLen ?? (s.right - s.left + 1);
+    answer.textContent = `candidate nums[${s.left}..${s.right}], length = ${len}; best res = ${s.res}`;
+  } else if ((s.res ?? 0) > 0) {
+    answer.className = 'answer-strip';
+    answer.textContent = `best res = ${s.res}`;
+  } else {
+    answer.className = 'answer-strip empty';
+    answer.textContent = 'no subarray found yet';
+  }
+  renderCtrl(cur, STEPS.length, s.info);
+}
+render();
+</script>
+</body>
+</html>

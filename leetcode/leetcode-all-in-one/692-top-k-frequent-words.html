@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>692. Top K Frequent Words — Heap Animation</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  .code-block { }
+  .viz-panel {
+    gap: 14px;
+    width: 700px;
+    align-items: stretch;
+  }
+  .viz-panel .card {
+    width: 100%;
+    min-width: 0;
+    flex-shrink: 0;
+  }
+  .result-row {
+    display: flex;
+    gap: 14px;
+    align-items: stretch;
+    width: 100%;
+  }
+  .middle-row {
+    display: flex;
+    gap: 14px;
+    align-items: stretch;
+    width: 100%;
+  }
+  .middle-row .card {
+    flex: 1 1 0;
+    width: auto;
+  }
+  .result-row .card {
+    flex: 1 1 0;
+    width: auto;
+  }
+  .viz-panel .var-bar {
+    width: 100%;
+    height: 112px;
+    overflow: visible;
+    align-content: start;
+  }
+  .code-stack .step-info {
+    height: auto;
+    min-height: 60px;
+    overflow: visible;
+  }
+  :root {
+    --word-block-w: 90px;
+    --quoted-word-block-w: 112px;
+    --word-block-h: 38px;
+    --freq-key-block-w: 96px;
+    --freq-val-block-w: 36px;
+    --freq-block-h: 28px;
+    --heap-block-w: 112px;
+    --heap-block-h: 58px;
+    --card-title-h: 34px;
+    --words-area-h: 56px;
+    --freq-area-h: 140px;
+    --heap-area-h: 132px;
+    --result-area-h: 48px;
+  }
+  .viz-panel .card h3 {
+    min-height: var(--card-title-h);
+    white-space: normal;
+    overflow: visible;
+  }
+  .words-card h3 {
+    min-height: 22px;
+    margin-bottom: 6px;
+  }
+  /* Word cells */
+  .cell-group { display: flex; flex-direction: column; align-items: center; margin-right: 4px; flex-shrink: 0; }
+  .cell { display: inline-flex; align-items: center; justify-content: center; width: var(--word-block-w); height: var(--word-block-h); padding: 0 10px; border-radius: 8px; font-size: 14px; font-weight: 700; font-family: 'SF Mono', monospace; background: #f5f5f5; color: #1a1a1a; transition: background 0.2s, opacity 0.2s; }
+  .cell.active   { background: rgba(249,203,66,0.45); }
+  .cell.in-heap  { background: rgba(139,133,212,0.25); }
+  .cell.counted  { opacity: 0.4; }
+  .cell.done     { background: rgba(247,140,108,0.2); opacity: 0.8; }
+  .cell-idx { font-size: 10px; color: #aaa; font-family: 'SF Mono', monospace; margin-top: 3px; }
+
+  /* Freq map table */
+  .maps-table { display: flex; flex-direction: column; gap: 6px; }
+  .maps-row { display: flex; align-items: center; gap: 10px; font-family: 'SF Mono', monospace; font-size: 13px; }
+  .maps-row.placeholder { visibility: hidden; }
+  .maps-key { width: var(--freq-key-block-w); height: var(--freq-block-h); padding: 0 8px; border-radius: 6px; background: #f0f0f0; display: flex; align-items: center; justify-content: center; font-weight: 700; }
+  .maps-arrow { color: #aaa; }
+  .maps-val { width: var(--freq-val-block-w); height: var(--freq-block-h); border-radius: 6px; background: #f0f0f0; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #aaa; }
+  .maps-val.filled { background: rgba(247,140,108,0.3); color: #1a1a1a; }
+  .maps-val.newest { background: rgba(93,202,165,0.4); color: #1a1a1a; }
+  .maps-key.hit    { background: rgba(249,203,66,0.5); }
+
+  /* Heap sizing (word items need more room than numbers) */
+  .heap-node { width: var(--heap-block-w); height: var(--heap-block-h); gap: 2px; }
+  .heap-val  { font-size: 15px; }
+  .heap-area-fixed {
+    align-items: flex-start;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 10px;
+  }
+  /* 堆只强调 heap[0] 一定是"最小"(按比较器),其余元素装进 black box、
+     不画具体排列(2026-08-20,再前身是垒砖/ASCII 树) */
+  .heap-stack { display: flex; flex-direction: column; gap: 5px; min-height: 108px; }
+  .hbrick-cap { font-size: 10px; color: #aaa; }
+  .hbrick { height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+            font-family: 'SF Mono', 'Menlo', monospace; font-size: 14px; font-weight: 700; color: #1a1a1a;
+            background: rgba(139,133,212,0.25); transition: background 0.2s; }
+  .hbrick-root { width: calc(var(--heap-block-w) * 2 + 6px); }
+  .hbrick.popping { background: rgba(93,202,165,0.35); }
+  .hbrick.pushing { background: rgba(249,203,66,0.45); }
+  .hbrick.ghost { background: transparent; border: 1px dashed #d9d9d9; color: #c9c9c9; font-weight: 400; }
+  .hbb { width: calc(var(--heap-block-w) * 2 + 6px); border: 1.5px dashed #c9c9c9; border-radius: 8px;
+         padding: 6px 8px; }
+  .hbb-label { font-size: 10px; color: #aaa; margin-bottom: 5px; }
+  .hbb-chips { display: flex; gap: 6px; min-height: 26px; align-items: center; }
+  .hbb-chip { padding: 0 10px; height: 26px; display: flex; align-items: center; border-radius: 6px;
+              background: rgba(139,133,212,0.25); font-family: 'SF Mono', 'Menlo', monospace;
+              font-size: 12.5px; font-weight: 700; color: #1a1a1a; transition: background 0.2s; }
+  .hbb-chip.pushing { background: rgba(249,203,66,0.45); }
+  .hbb-empty { color: #ccc; font-size: 12px; font-family: 'SF Mono', 'Menlo', monospace; }
+
+  /* Extract chips */
+  .extract-area { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-height: 44px; }
+  .extract-chip { display: inline-flex; align-items: center; justify-content: center; width: var(--quoted-word-block-w); height: var(--word-block-h); padding: 0 12px; border-radius: 8px; font-size: 13px; font-weight: 700; font-family: 'SF Mono', monospace; background: rgba(93,202,165,0.15); color: #1a1a1a; }
+  .extract-chip.newest { background: rgba(93,202,165,0.4); }
+
+  /* Final result cells */
+  .res-cell { width: var(--quoted-word-block-w); height: var(--word-block-h); padding: 0 10px; border-radius: 8px; margin-right: 4px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; font-family: 'SF Mono', monospace; background: #f5f5f5; color: #aaa; transition: background 0.2s, color 0.2s; }
+  .res-cell.filled { background: rgba(247,140,108,0.28); color: #1a1a1a; }
+  .words-card,
+  .freq-card,
+  .heap-card,
+  .res-card,
+  .final-card {
+    overflow: visible;
+  }
+  .words-area-fixed {
+    display: flex;
+    flex-wrap: wrap;
+    height: var(--words-area-h);
+    overflow: hidden;
+    align-content: flex-start;
+  }
+  .freq-table-fixed {
+    height: var(--freq-area-h);
+    overflow: hidden;
+  }
+  .heap-area-fixed {
+    height: var(--heap-area-h);
+    overflow: hidden;
+  }
+  .extract-area-fixed {
+    height: var(--result-area-h);
+    min-height: var(--result-area-h);
+    overflow: hidden;
+  }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '692. Top K Frequent Words — Heap (Custom Comparator) Animation',
+  legend: [
+    { color: 'rgba(249,203,66,0.45)', label: '当前处理' },
+    { color: 'rgba(139,133,212,0.25)', label: '在堆中' },
+    { color: 'rgba(93,202,165,0.35)', label: '堆顶被弹出（淘汰/提取）' },
+    { color: 'rgba(247,140,108,0.25)', label: '已计入最终结果' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+  <script>
+  renderCodeBox({
+    code: `
+class Item:
+    def __init__(self, freq, word):
+        self.freq = freq
+        self.word = word
+
+    def __lt__(self, other):
+        if self.freq == other.freq:
+            return self.word > other.word
+        return self.freq < other.freq
+
+def topKFrequent(words, k):
+    freq = {}
+    for w in words:
+        freq[w] = freq.get(w, 0) + 1
+
+    heap = []
+    for word, count in freq.items():
+        heapq.heappush(heap, Item(count, word))
+        if len(heap) > k:
+            heapq.heappop(heap)
+
+    res = []
+    for _ in range(k):
+        res.append(heapq.heappop(heap).word)
+
+    return res[::-1]`,
+  });
+  </script>
+
+  <div class="viz-panel">
+
+    <!-- Variable bar -->
+    <div class="var-bar" id="var-bar">
+      <span class="var-dim">变量将在此显示...</span>
+    </div>
+
+    <!-- Words input -->
+    <div class="card words-card">
+      <h3>words 输入数组</h3>
+      <div id="words-area" class="words-area-fixed"></div>
+    </div>
+
+    <div class="middle-row">
+      <!-- Freq map -->
+      <div class="card freq-card">
+        <h3>freq 词频表（dict，按首次出现顺序）</h3>
+        <div class="maps-table freq-table-fixed" id="freq-table">
+          <span style="color:#aaa; font-size:12px; font-family:'SF Mono',monospace;">{}</span>
+        </div>
+      </div>
+
+      <!-- Heap -->
+      <div class="card heap-card">
+        <h3>Heap（Item 自定义比较器：freq 小的或并列时 word 更大的排堆顶）</h3>
+        <div class="heap-area heap-area-fixed" id="heap-area">
+          <span class="heap-empty">heap = []</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="result-row">
+      <!-- Extract order -->
+      <div class="card res-card">
+        <h3>res（弹出顺序，尚未反转）</h3>
+        <div class="extract-area extract-area-fixed" id="extract-area">
+          <span style="color:#aaa; font-size:12px; font-family:'SF Mono',monospace;">[]</span>
+        </div>
+      </div>
+
+      <!-- Final answer -->
+      <div class="card final-card">
+        <h3>res[::-1]（最终答案，按词频从高到低排列）</h3>
+        <div class="extract-area extract-area-fixed" id="final-res-area"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<script>
+const WORDS = ["i", "love", "leetcode", "i", "love", "coding"];
+const K     = 2;
+
+// ── Min-heap using Item's custom comparator (freq asc; tie → word desc is "smaller") ──
+function itemLess(a, b) {
+  if (a.freq === b.freq) return a.word > b.word;
+  return a.freq < b.freq;
+}
+
+// ── Step builder ─────────────────────────────────────────────────────────────
+function buildSteps() {
+  const steps = [];
+
+  let freq = new Map();     // word -> count, insertion order preserved (like a Python dict)
+  let heap = [];             // {freq, word}
+  let extractOrder = [];     // words in pop order, pre-reverse
+  let finalRes = null;
+
+  let curWordIdx   = null;   // phase 'count': index into WORDS
+  let newestFreqKey = null;  // phase 'count': freq key just updated
+  let curEntryWord  = null;  // phase 'heap': entry being processed
+  let curEntryCount = null;
+  let poppingItem   = null;  // heap item about to be / just evicted or extracted
+  let pushingItem   = null;  // heap item just pushed
+  let newestExtractIdx = -1;
+  let phase = 'count';       // 'count' | 'heap' | 'extract' | 'done'
+
+  function snap(line, info) {
+    steps.push({
+      line, info, phase,
+      freq: new Map(freq),
+      heap: heap.map(h => ({...h})),
+      extractOrder: [...extractOrder],
+      finalRes: finalRes ? [...finalRes] : null,
+      curWordIdx, newestFreqKey,
+      curEntryWord, curEntryCount,
+      poppingItem: poppingItem ? {...poppingItem} : null,
+      pushingItem: pushingItem ? {...pushingItem} : null,
+      newestExtractIdx,
+    });
+  }
+
+  function heapPush(item) {
+    heap.push(item);
+    let i = heap.length - 1;
+    while (i > 0) {
+      const p = Math.floor((i - 1) / 2);
+      if (itemLess(heap[i], heap[p])) { [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; }
+      else break;
+    }
+  }
+
+  function heapPop() {
+    if (heap.length === 1) return heap.pop();
+    const top = heap[0];
+    heap[0] = heap.pop();
+    let i = 0;
+    while (true) {
+      let s = i, l = 2*i+1, r = 2*i+2;
+      if (l < heap.length && itemLess(heap[l], heap[s])) s = l;
+      if (r < heap.length && itemLess(heap[r], heap[s])) s = r;
+      if (s !== i) { [heap[i], heap[s]] = [heap[s], heap[i]]; i = s; } else break;
+    }
+    return top;
+  }
+
+  // ── Entry + freq init ────────────────────────────────────────────────────
+  snap(11, `enter topKFrequent(words, k=${K})  —  words.length = ${WORDS.length}`);
+  snap(12, `freq = {}`);
+
+  // ── Phase 1: count word frequencies ──────────────────────────────────────
+  for (let idx = 0; idx < WORDS.length; idx++) {
+    const w = WORDS[idx];
+    curWordIdx = idx;
+    newestFreqKey = null;
+    snap(13, `for w in words → w = "${w}"  (words[${idx}])`);
+
+    const newCount = (freq.get(w) || 0) + 1;
+    freq.set(w, newCount);
+    newestFreqKey = w;
+    snap(14, `freq["${w}"] = freq.get("${w}", 0) + 1 = ${newCount}`);
+  }
+  curWordIdx = null; newestFreqKey = null;
+
+  // ── Phase 2: build size-k heap ────────────────────────────────────────────
+  phase = 'heap';
+  const freqStr = '{' + [...freq].map(([w,c]) => `${w}: ${c}`).join(', ') + '}';
+  snap(16, `词频统计完成 → freq = ${freqStr}.  Now heap = []`);
+
+  const entries = [...freq.entries()]; // preserves first-seen order, like freq.items()
+  for (let idx = 0; idx < entries.length; idx++) {
+    const [word, count] = entries[idx];
+    curEntryWord = word; curEntryCount = count;
+    snap(17, `for word, count in freq.items() → word="${word}", count=${count}`);
+
+    heapPush({ freq: count, word });
+    pushingItem = { freq: count, word };
+    snap(18, `heapq.heappush(heap, Item(${count}, "${word}"))  →  len(heap) = ${heap.length}`);
+    pushingItem = null;
+
+    if (heap.length > K) {
+      poppingItem = { ...heap[0] };
+      snap(19, `len(heap)=${heap.length} > k=${K} → TRUE，堆顶是当前最差的候选（freq 最小，或并列时 word 最大）`);
+      const popped = heapPop();
+      poppingItem = null;
+      snap(20, `heapq.heappop(heap)  →  淘汰 Item(freq=${popped.freq}, word="${popped.word}")`);
+    } else {
+      snap(19, `len(heap)=${heap.length} > k=${K} → FALSE，heap 未满，继续保留`);
+    }
+  }
+  curEntryWord = null; curEntryCount = null;
+
+  // ── Phase 3: extract k times, then reverse ───────────────────────────────
+  phase = 'extract';
+  snap(22, `heap 构建完成 → heap 中保留了 top ${K} 个候选（顺序尚未确定）.  Now res = []`);
+
+  for (let i = 0; i < K; i++) {
+    poppingItem = { ...heap[0] };
+    snap(23, `for _ in range(k) → 第 ${i + 1}/${K} 次弹出堆顶`);
+
+    const popped = heapPop();
+    poppingItem = null;
+    extractOrder.push(popped.word);
+    newestExtractIdx = extractOrder.length - 1;
+    snap(24, `res.append(heapq.heappop(heap).word)  →  res = [${extractOrder.map(w => `"${w}"`).join(', ')}]`);
+  }
+  newestExtractIdx = -1;
+
+  phase = 'done';
+  finalRes = [...extractOrder].reverse();
+  snap(26, `return res[::-1] = [${finalRes.map(w => `"${w}"`).join(', ')}]  ✓  从高到低词频（并列按字典序）`);
+
+  return steps;
+}
+
+const STEPS = buildSteps();
+let cur = -1;
+
+// ── Build DOM ─────────────────────────────────────────────────────────────
+function buildDOM() {
+  const wArea = document.getElementById('words-area');
+  wArea.innerHTML = '';
+  WORDS.forEach((w, idx) => {
+    const grp = document.createElement('div');
+    grp.className = 'cell-group';
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.id = `w-${idx}`;
+    cell.textContent = w;
+    const idxLbl = document.createElement('div');
+    idxLbl.className = 'cell-idx';
+    idxLbl.textContent = `[${idx}]`;
+    grp.appendChild(cell);
+    grp.appendChild(idxLbl);
+    wArea.appendChild(grp);
+  });
+
+  const frArea = document.getElementById('final-res-area');
+  frArea.innerHTML = '';
+  for (let i = 0; i < K; i++) {
+    const c = document.createElement('div');
+    c.className = 'res-cell';
+    c.id = `fr-${i}`;
+    c.textContent = '?';
+    frArea.appendChild(c);
+  }
+}
+
+function appendFreqRow(parent, key, val, { hit = false, newest = false } = {}) {
+  const row = document.createElement('div');
+  row.className = 'maps-row';
+
+  const keyEl = document.createElement('div');
+  keyEl.className = 'maps-key' + (hit ? ' hit' : '');
+  keyEl.textContent = key;
+
+  const arr = document.createElement('span');
+  arr.className = 'maps-arrow';
+  arr.textContent = '→';
+
+  const valEl = document.createElement('div');
+  valEl.className = 'maps-val filled' + (newest ? ' newest' : '');
+  valEl.textContent = val;
+
+  row.appendChild(keyEl);
+  row.appendChild(arr);
+  row.appendChild(valEl);
+  parent.appendChild(row);
+}
+
+// 堆顶 heap[0] 一定是"最小"(按比较器),画成一块砖;其余元素的具体排列先当
+// black box:装进虚线盒子里只列成员,不画位置。配色沿用页头图例
+// (紫=在堆中,黄=当前处理,绿=被弹出)。
+function heapStackHtml(heap, popping, pushing) {
+  const state = (item) => {
+    if (popping && popping.word === item.word) return ' popping';
+    if (pushing && pushing.word === item.word) return ' pushing';
+    return '';
+  };
+  const root = heap.length
+    ? `<div class="hbrick hbrick-root${state(heap[0])}">${heap[0].word}</div>`
+    : `<div class="hbrick hbrick-root ghost">·</div>`;
+  const rest = heap.slice(1);
+  const chips = rest.length
+    ? rest.map(h => `<div class="hbb-chip${state(h)}">${h.word}</div>`).join('')
+    : `<span class="hbb-empty">·</span>`;
+  return `<div class="heap-stack">` +
+    `<div class="hbrick-cap">heap[0] — 一定是"最小"(按比较器,即最该被淘汰的候选)</div>` +
+    root +
+    `<div class="hbb"><div class="hbb-label">其余元素 — 具体排列暂时当 black box,不用管</div>` +
+    `<div class="hbb-chips">${chips}</div></div>` +
+    `</div>`;
+}
+
+// ── Render ────────────────────────────────────────────────────────────────
+function render() {
+  if (cur < 0) {
+    WORDS.forEach((_, i) => { const el = document.getElementById(`w-${i}`); if (el) el.className = 'cell'; });
+    document.getElementById('freq-table').innerHTML = `<span style="color:#aaa;font-size:12px;font-family:'SF Mono',monospace;">{}</span>`;
+    document.getElementById('heap-area').innerHTML = '<span class="heap-empty">heap = []</span>';
+    document.getElementById('extract-area').innerHTML = `<span style="color:#aaa;font-size:12px;font-family:'SF Mono',monospace;">[]</span>`;
+    for (let i = 0; i < K; i++) { const c = document.getElementById(`fr-${i}`); if (c) { c.textContent = '?'; c.className = 'res-cell'; } }
+    renderCtrl(-1, STEPS.length, '');
+    document.getElementById('var-bar').innerHTML = `<span class="var-dim">变量将在此显示...</span>`;
+    highlightLine(null);
+    return;
+  }
+
+  const s = STEPS[cur];
+  highlightLine(s.line);
+  renderCtrl(cur, STEPS.length, s.info);
+  // ── Variable bar ──────────────────────────────────────────────────────────
+  const parts = [];
+  const V = (name, val) =>
+    `<span><span class="var-name">${name}</span> <span class="var-eq">=</span> <span class="var-val">${val}</span></span>`;
+  parts.push(V('k', K));
+  if (s.phase === 'count') {
+    if (s.curWordIdx !== null) parts.push(V('w', `"${WORDS[s.curWordIdx]}"`));
+    if (s.newestFreqKey !== null) parts.push(V(`freq["${s.newestFreqKey}"]`, s.freq.get(s.newestFreqKey)));
+  } else if (s.phase === 'heap') {
+    if (s.curEntryWord !== null) { parts.push(V('word', `"${s.curEntryWord}"`)); parts.push(V('count', s.curEntryCount)); }
+    parts.push(V('len(heap)', s.heap.length));
+  } else if (s.phase === 'extract') {
+    parts.push(V('len(heap)', s.heap.length));
+    parts.push(V('len(res)', s.extractOrder.length));
+  } else if (s.phase === 'done') {
+    parts.push(V('res[::-1]', `[${s.finalRes.map(w => `"${w}"`).join(', ')}]`));
+  }
+  document.getElementById('var-bar').innerHTML = parts.join('');
+
+  // ── Word cells ─────────────────────────────────────────────────────────────
+  const heapWordsSet = new Set(s.heap.map(h => h.word));
+  WORDS.forEach((w, idx) => {
+    const el = document.getElementById(`w-${idx}`);
+    if (!el) return;
+    let cls = 'cell';
+    if (s.phase === 'count') {
+      if (s.curWordIdx === idx) cls += ' active';
+      else if (idx < (s.curWordIdx === null ? WORDS.length : s.curWordIdx)) cls += ' counted';
+    } else if (s.phase === 'heap') {
+      if (w === s.curEntryWord) cls += ' active';
+      else if (heapWordsSet.has(w)) cls += ' in-heap';
+      else cls += ' counted';
+    } else if (s.phase === 'extract') {
+      if (s.poppingItem && s.poppingItem.word === w) cls += ' active';
+      else if (heapWordsSet.has(w)) cls += ' in-heap';
+      else if (s.extractOrder.includes(w)) cls += ' done';
+      else cls += ' counted';
+    } else { // done
+      if (s.finalRes.includes(w)) cls += ' done';
+      else cls += ' counted';
+    }
+    el.className = cls;
+  });
+
+  // ── Freq table ────────────────────────────────────────────────────────────
+  const freqTable = document.getElementById('freq-table');
+  freqTable.innerHTML = '';
+  [...s.freq.entries()].forEach(([key, val]) => {
+    const hit = (s.phase === 'count' && s.newestFreqKey === key) || (s.phase === 'heap' && s.curEntryWord === key);
+    const newest = s.phase === 'count' && s.newestFreqKey === key;
+    appendFreqRow(freqTable, key, val, { hit, newest });
+  });
+  if (s.freq.size === 0) {
+    freqTable.innerHTML = `<span style="color:#aaa;font-size:12px;font-family:'SF Mono',monospace;">{}</span>`;
+  }
+
+  // ── Heap ─────────────────────────────────────────────────────────────────
+  const heapArea = document.getElementById('heap-area');
+  heapArea.innerHTML = '';
+
+  const stackBox = document.createElement('div');
+  stackBox.innerHTML = heapStackHtml(s.heap, s.poppingItem, s.pushingItem);
+  heapArea.appendChild(stackBox.firstChild);
+
+  // ── Extract order ────────────────────────────────────────────────────────
+  const exArea = document.getElementById('extract-area');
+  if (s.extractOrder.length === 0) {
+    exArea.innerHTML = `<span style="color:#aaa;font-size:12px;font-family:'SF Mono',monospace;">[]</span>`;
+  } else {
+    exArea.innerHTML = '';
+    s.extractOrder.forEach((w, idx) => {
+      const chip = document.createElement('div');
+      chip.className = 'extract-chip' + (idx === s.newestExtractIdx ? ' newest' : '');
+      chip.textContent = `"${w}"`;
+      exArea.appendChild(chip);
+    });
+  }
+
+  // ── Final answer ─────────────────────────────────────────────────────────
+  for (let i = 0; i < K; i++) {
+    const c = document.getElementById(`fr-${i}`);
+    if (!c) continue;
+    if (s.finalRes) {
+      c.textContent = `"${s.finalRes[i]}"`;
+      c.className = 'res-cell filled';
+    } else {
+      c.textContent = '?';
+      c.className = 'res-cell';
+    }
+  }
+}
+
+// 步进控件末尾加一个快进按钮:直接跳到 Line 16(词频统计完成、开始建堆),
+// 不用每次从 Step 1 逐步点过来
+(function () {
+  const btn = document.createElement('button');
+  btn.className = 'btn';
+  btn.textContent = '⏭ Line 16: heap = []';
+  btn.onclick = () => {
+    stopAuto();
+    cur = STEPS.findIndex(s => s.line === 16);
+    render();
+  };
+  document.querySelector('.header-row.ctrl').appendChild(btn);
+})();
+
+buildDOM();
+doReset();
+</script>
+</body>
+</html>

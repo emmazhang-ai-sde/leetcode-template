@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Product of Digits Minus Sum of Digits</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  /* 静态答题页（无动画）：单栏卡片，覆盖 .card 的 min-width:max-content
+     ——那是给动画页短小的变量栏准备的，长段落文字需要能换行。 */
+  .oa-layout { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+  .oa-layout .card { width: 100%; min-width: 0; line-height: 1.7; }
+  .oa-layout .card p { margin: 0 0 10px; }
+  .oa-layout .card p:last-child { margin-bottom: 0; }
+  .oa-layout .card ul, .oa-layout .card ol { margin: 0 0 10px 20px; }
+  .oa-layout .card li { margin-bottom: 8px; }
+  .oa-layout .card code { background: var(--ink-chip); border-radius: 4px; padding: 1px 5px; font-family: var(--ink-mono); font-size: 12.5px; }
+  .oa-tag { display: inline-block; font-family: var(--ink-mono); font-size: 11px; letter-spacing: .03em; background: var(--ink-chip); border: var(--ink-border); border-radius: 6px; padding: 2px 8px; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: 'Product of Digits Minus Sum of Digits',
+  controls: false,
+});
+</script>
+
+<div class="oa-layout">
+  <div class="card">
+    <span class="oa-tag">TikTok OA · 2026-08-08 · no official LeetCode number</span>
+    <h3>Problem</h3>
+    <p>Given a positive integer <code>n</code>, calculate the difference between the product of its digits and the sum of its digits.</p>
+    <p><strong>Note:</strong> order matters — the answer is <code>product - sum</code> (not <code>sum - product</code>).</p>
+    <p><strong>Example</strong></p>
+    <ul>
+      <li>For <code>n = 123456</code>, the output is <code>solution(n) = 699</code>.
+        <ul>
+          <li>Product of digits: <code>1 * 2 * 3 * 4 * 5 * 6 = 720</code>.</li>
+          <li>Sum of digits: <code>1 + 2 + 3 + 4 + 5 + 6 = 21</code>.</li>
+          <li>Final answer: <code>720 - 21 = 699</code>.</li>
+        </ul>
+      </li>
+      <li>For <code>n = 1010</code>, the output is <code>solution(n) = -2</code>.
+        <ul>
+          <li>Product of digits: <code>1 * 0 * 1 * 0 = 0</code>.</li>
+          <li>Sum of digits: <code>1 + 0 + 1 + 0 = 2</code>.</li>
+          <li>Final answer: <code>0 - 2 = -2</code>.</li>
+        </ul>
+      </li>
+    </ul>
+  </div>
+</div>
+</div>
+</body>
+</html>

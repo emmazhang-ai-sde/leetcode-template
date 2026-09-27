@@ -1,0 +1,19 @@
+<p>Given a string <font face="monospace">s</font> of <code>&#39;(&#39;</code> , <code>&#39;)&#39;</code> and lowercase English characters.</p>
+<p>Your task is to remove the minimum number of parentheses ( <code>&#39;(&#39;</code> or <code>&#39;)&#39;</code>, in any positions ) so that the resulting <em>parentheses string</em> is valid and return <strong>any</strong> valid string.</p>
+<p>Formally, a <em>parentheses string</em> is valid if and only if:</p>
+<ul>
+<li>It is the empty string, contains only lowercase characters, or</li>
+<li>It can be written as <code>AB</code> (<code>A</code> concatenated with <code>B</code>), where <code>A</code> and <code>B</code> are valid strings, or</li>
+<li>It can be written as <code>(A)</code>, where <code>A</code> is a valid string.</li>
+</ul>
+<h3>Example 1</h3>
+<p><strong>Input:</strong> <code>s = &quot;lee(t(c)o)de)&quot;</code><br><strong>Output:</strong> <code>&quot;lee(t(c)o)de&quot;</code><br><strong>Explanation:</strong> &quot;lee(t(co)de)&quot; , &quot;lee(t(c)ode)&quot; would also be accepted.</p>
+<h3>Example 2</h3>
+<p><strong>Input:</strong> <code>s = &quot;a)b(c)d&quot;</code><br><strong>Output:</strong> <code>&quot;ab(c)d&quot;</code></p>
+<h3>Example 3</h3>
+<p><strong>Input:</strong> <code>s = &quot;))((&quot;</code><br><strong>Output:</strong> <code>&quot;&quot;</code><br><strong>Explanation:</strong> An empty string is also valid.</p>
+<h3>Constraints</h3>
+<ul>
+<li><code>1 &lt;= s.length &lt;= 10<sup>5</sup></code></li>
+<li><code>s[i]</code> is either&nbsp;<code>&#39;(&#39;</code> , <code>&#39;)&#39;</code>, or lowercase English letter.</li>
+</ul>

@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>875. Koko Eating Bananas</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  .lc875-layout {
+    width: min(1320px, 100%);
+  }
+  .lc875-layout .code-half {
+    grid-column: 1;
+    grid-row: 1;
+    width: 620px;
+    max-width: 100%;
+    min-width: 0;
+    justify-self: end;
+  }
+  .lc875-layout .viz-panel {
+    grid-column: 2;
+    grid-row: 1;
+    width: fit-content;
+    max-width: 100%;
+    min-width: 0;
+    justify-self: start;
+    align-items: flex-start;
+  }
+  .lc875-layout .code-stack,
+  .lc875-layout .step-info,
+  .lc875-layout .code-panel {
+    width: 100%;
+    min-width: 0;
+  }
+  .lc875-layout .card {
+    width: fit-content;
+    max-width: 620px;
+    min-width: 0;
+  }
+  .lc875-layout .code-block { overflow-x: auto; }
+  .lc875-layout .step-info {
+    min-height: 48px;
+    padding: 8px 14px;
+    line-height: 20px;
+  }
+
+  /* ── Piles card ── */
+  .piles-row {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 10px;
+    min-height: 66px;
+  }
+  .pile-wrap {
+    width: 48px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    font-family: 'SF Mono', Menlo, monospace;
+  }
+  .pile-box {
+    width: 48px;
+    height: 44px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f5f5f5;
+    color: #1a1a1a;
+    font-size: 16px;
+    font-weight: 800;
+    transition: background 0.2s, transform 0.2s;
+  }
+  .pile-box.pile-cur { background: rgba(249,203,66,0.50); transform: scale(1.08); }
+  .pile-box.pile-done { background: rgba(139,133,212,0.22); }
+  .pile-hours {
+    height: 16px;
+    line-height: 16px;
+    font-size: 12px;
+    font-weight: 800;
+    color: #6B65B8;
+    white-space: nowrap;
+  }
+  .cf-call {
+    min-height: 20px;
+    text-align: center;
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 13px;
+    line-height: 20px;
+    font-weight: 700;
+    color: #555;
+    margin-bottom: 8px;
+  }
+  .cf-call .cf-true { color: #1D9E75; }
+  .cf-call .cf-false { color: #C4501E; }
+  .cf-time {
+    min-height: 20px;
+    text-align: center;
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 13px;
+    line-height: 20px;
+    color: #555;
+    margin-top: 6px;
+  }
+  .cf-time strong { color: #C4501E; }
+
+  /* ── Speed axis card ── */
+  .array-row {
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 6px;
+    min-height: 84px;
+  }
+  .cell-wrap {
+    position: relative;
+    width: 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    font-family: 'SF Mono', Menlo, monospace;
+  }
+  .cell-box {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f5f5f5;
+    color: #1a1a1a;
+    font-size: 15px;
+    font-weight: 800;
+    transition: background 0.2s, transform 0.2s, opacity 0.2s, border 0.2s;
+  }
+  .cell-box.in-range { background: rgba(139,133,212,0.22); }
+  .cell-box.cmp-test { background: rgba(249,203,66,0.50); transform: scale(1.08); }
+  .cell-box.eliminated { background: #f0f0f0; color: #aaa; opacity: 0.55; }
+  .cell-box.peak { background: rgba(93,202,165,0.45); border: 2px solid #1D9E75; transform: scale(1.06); }
+  .eval-badge {
+    position: absolute;
+    top: -6px;
+    right: -4px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 800;
+    font-family: 'SF Mono', monospace;
+    color: #fff;
+  }
+  .eval-badge.o { background: #1D9E75; }
+  .eval-badge.x { background: #b0b0b0; }
+  .cell-ptr {
+    height: 46px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-size: 11.5px;
+    line-height: 15px;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+  .ptr-arrow { font-size: 12px; line-height: 12px; color: #888; }
+  .lbl-s { color: #3A6FD4; }
+  .lbl-m { color: #B07800; }
+  .lbl-e { color: #C4501E; }
+
+  .brace-row {
+    position: relative;
+    height: 40px;
+    margin-top: 2px;
+  }
+  .brace-svg {
+    position: absolute;
+    top: 0;
+    visibility: hidden;
+  }
+  .brace-label {
+    position: absolute;
+    top: 18px;
+    transform: translateX(-50%);
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #6B65B8;
+    white-space: nowrap;
+    visibility: hidden;
+  }
+
+  .answer-line {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 14px;
+    font-weight: 700;
+    color: #1D9E75;
+    text-align: center;
+  }
+  .answer-line.empty {
+    color: #aaa;
+    font-weight: 500;
+  }
+
+  @media (max-width: 1100px) {
+    .main.layout-grid.lc875-layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .main.layout-grid.lc875-layout .code-half,
+    .main.layout-grid.lc875-layout .viz-panel {
+      grid-column: 1;
+      justify-self: center;
+    }
+    .main.layout-grid.lc875-layout .viz-panel { grid-row: 2; }
+  }
+
+  @media (max-width: 700px) {
+    .array-row { gap: 4px; }
+    .cell-wrap,
+    .cell-box {
+      width: 34px;
+    }
+    .cell-box {
+      height: 34px;
+      font-size: 13px;
+    }
+  }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '875. Koko Eating Bananas',
+  link: 'https://leetcode.com/problems/koko-eating-bananas/',
+  legend: [
+    { color: 'rgba(139,133,212,0.22)', label: 'current search range of speeds [start, end]' },
+    { color: 'rgba(249,203,66,0.50)', label: 'speed being tested by canFinish / current pile' },
+    { color: '#1D9E75', extra: 'border-radius:50%;width:12px;height:12px;', label: 'O — canFinish True (fast enough)' },
+    { color: '#b0b0b0', extra: 'border-radius:50%;width:12px;height:12px;', label: 'X — canFinish False (too slow)' },
+    { color: '#f0f0f0', extra: 'border:1px solid #ccc;', label: 'eliminated speeds' },
+    { color: 'rgba(93,202,165,0.45)', extra: 'border:2px solid #1D9E75;', label: 'answer — minimum workable speed' },
+  ],
+});
+</script>
+
+<div class="main layout-grid lc875-layout">
+  <script>
+  renderCodeBox({
+    code: `
+class Solution:
+    def canFinish(self, piles, h, speed):
+        time = 0
+        for pile in piles:
+            time += pile // speed
+            if pile % speed != 0:
+                time += 1
+        return time <= h
+
+    def minEatingSpeed(self, piles: List[int], h: int) -> int:
+        # Example 1: speed: 1 ~ 11
+        start = 1
+        end = max(piles)
+
+        while start + 1 < end:
+            mid = (start + end) // 2
+            if self.canFinish(piles, h, mid):
+                end = mid
+            else:
+                start = mid
+
+        if self.canFinish(piles, h, start):
+            return start
+        return end`,
+  });
+  </script>
+
+  <div class="viz-panel">
+    <div class="card">
+      <h3>piles = [3, 6, 7, 11] &nbsp;·&nbsp; h = 8 hours</h3>
+      <div class="cf-call" id="cf-call">canFinish 还没被调用</div>
+      <div class="piles-row" id="piles-row"></div>
+      <div class="cf-time" id="cf-time"></div>
+    </div>
+
+    <div class="card">
+      <h3>Speed axis (bananas / hour) — the answer space, 1 ~ max(piles) = 11</h3>
+      <div class="array-row" id="array-row"></div>
+      <div class="brace-row">
+        <svg class="brace-svg" id="brace-svg"><path id="brace-path" fill="none" stroke="#8B85D4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <div class="brace-label" id="brace-label"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Answer</h3>
+      <div class="answer-line empty" id="answer">no speed chosen yet</div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+const PILES = [3, 6, 7, 11];
+const H = 8;
+const MAX_SPEED = Math.max(...PILES);
+
+// data-l line numbers from renderCodeBox (no prereq block, numbering starts at 1)
+const L = {
+  TIME0: 3, FOR_PILE: 4, FLOOR: 5, REM_CHECK: 6, REM_ADD: 7, RET_CANF: 8,
+  INIT_START: 12, INIT_END: 13,
+  WHILE: 15, MID: 16, CALL_MID: 17, SET_END: 18, SET_START: 20,
+  CALL_START: 22, RET_START: 23, RET_END: 24,
+};
+
+function buildSteps() {
+  const steps = [];
+  let start = null, end = null, mid = null;
+  let verdicts = {};   // speed -> canFinish result, persists as O/X badge
+  let cf = null;       // in-flight canFinish: { speed, hours: [per-pile], time, curPile, result }
+  let finalAnswer = null;
+
+  function snap(line, info) {
+    steps.push({
+      line, info, start, end, mid,
+      verdicts: { ...verdicts },
+      cf: cf ? { speed: cf.speed, hours: [...cf.hours], time: cf.time, curPile: cf.curPile, result: cf.result } : null,
+      finalAnswer,
+    });
+  }
+
+  // Animates one canFinish(piles, h, speed) call, pile by pile.
+  function canFinishAnim(speed, callLine, argName) {
+    cf = { speed, hours: PILES.map(() => null), time: 0, curPile: null, result: null };
+    snap(callLine, `调用 canFinish(piles, h=${H}, speed=${argName}=${speed})：以每小时 ${speed} 根的速度，${H} 小时内能吃完所有堆吗？`);
+    snap(L.TIME0, 'time = 0 — 开始累计总耗时。');
+
+    for (let i = 0; i < PILES.length; i++) {
+      const pile = PILES[i];
+      cf.curPile = i;
+      const q = Math.floor(pile / speed);
+      const r = pile % speed;
+      cf.hours[i] = q;
+      cf.time += q;
+      snap(L.FLOOR, `pile = ${pile}: time += ${pile} // ${speed} = ${q} → time = ${cf.time}`);
+      if (r !== 0) {
+        cf.hours[i] = q + 1;
+        cf.time += 1;
+        snap(L.REM_ADD, `${pile} % ${speed} = ${r} ≠ 0 → 剩下的 ${r} 根还要再吃一小时 → time = ${cf.time}`);
+      }
+    }
+
+    cf.curPile = null;
+    const result = cf.time <= H;
+    cf.result = result;
+    verdicts[speed] = result;
+    snap(L.RET_CANF, `return time = ${cf.time} ${result ? '<=' : '>'} h = ${H} → ${result}（${result ? 'O — 速度 ' + speed + ' 来得及' : 'X — 速度 ' + speed + ' 太慢'}）`);
+    cf = null;
+    return result;
+  }
+
+  snap(null, `点击 Next 开始：对"答案本身"二分。速度越快越能吃完（单调性），所以速度轴长得像 XXX...XOOO...O — 我们要找第一个 O，也就是能吃完的最小速度。`);
+
+  start = 1;
+  snap(L.INIT_START, 'start = 1 — 最慢的可能速度（每小时至少吃 1 根）。');
+  end = MAX_SPEED;
+  snap(L.INIT_END, `end = max(piles) = ${MAX_SPEED} — 最快有意义的速度（一小时吃掉最大的一堆，再快也不会更省时间）。`);
+
+  while (true) {
+    const cond = start + 1 < end;
+    snap(L.WHILE, cond
+      ? `start + 1 = ${start + 1} < end = ${end} → 继续缩小范围。`
+      : `start + 1 = ${start + 1} >= end = ${end} → 停止；只剩两个候选速度。`);
+    if (!cond) break;
+
+    mid = Math.floor((start + end) / 2);
+    snap(L.MID, `mid = (start + end) // 2 = (${start} + ${end}) // 2 = ${mid}`);
+
+    const ok = canFinishAnim(mid, L.CALL_MID, 'mid');
+    if (ok) {
+      end = mid;
+      snap(L.SET_END, `canFinish(mid) = True → 速度 ${mid} 够快，最小可行速度在 mid 或它左边 → end = mid = ${end}。`);
+    } else {
+      start = mid;
+      snap(L.SET_START, `canFinish(mid) = False → 速度 ${mid} 太慢，答案只能在右边 → start = mid = ${start}。`);
+    }
+    mid = null;
+  }
+
+  const okStart = canFinishAnim(start, L.CALL_START, 'start');
+  if (okStart) {
+    finalAnswer = start;
+    snap(L.RET_START, `canFinish(start) = True → 两个候选里更小的 start 就可行 → return start = ${start}。`);
+  } else {
+    finalAnswer = end;
+    snap(L.RET_END, `canFinish(start) = False → start = ${start} 太慢，答案就是 end → return end = ${end}。`);
+  }
+
+  return steps;
+}
+
+let STEPS = buildSteps();
+let cur = -1;
+
+function buildDOM() {
+  const pilesRow = document.getElementById('piles-row');
+  pilesRow.innerHTML = '';
+  for (let i = 0; i < PILES.length; i++) {
+    const wrap = document.createElement('div');
+    wrap.className = 'pile-wrap';
+
+    const box = document.createElement('div');
+    box.className = 'pile-box';
+    box.id = `pile-${i}`;
+    box.textContent = PILES[i];
+    wrap.appendChild(box);
+
+    const hrs = document.createElement('div');
+    hrs.className = 'pile-hours';
+    hrs.id = `pile-hrs-${i}`;
+    wrap.appendChild(hrs);
+
+    pilesRow.appendChild(wrap);
+  }
+
+  const row = document.getElementById('array-row');
+  row.innerHTML = '';
+  for (let s = 1; s <= MAX_SPEED; s++) {
+    const wrap = document.createElement('div');
+    wrap.className = 'cell-wrap';
+
+    const box = document.createElement('div');
+    box.className = 'cell-box';
+    box.id = `cell-${s}`;
+    box.textContent = s;
+    wrap.appendChild(box);
+
+    const badge = document.createElement('div');
+    badge.className = 'eval-badge';
+    badge.id = `badge-${s}`;
+    badge.style.display = 'none';
+    wrap.appendChild(badge);
+
+    const ptr = document.createElement('div');
+    ptr.className = 'cell-ptr';
+    ptr.id = `ptr-${s}`;
+    wrap.appendChild(ptr);
+
+    row.appendChild(wrap);
+  }
+}
+
+function renderPiles(state) {
+  const call = document.getElementById('cf-call');
+  const timeEl = document.getElementById('cf-time');
+  const cf = state ? state.cf : null;
+
+  if (!cf) {
+    call.innerHTML = 'canFinish 还没被调用';
+    timeEl.innerHTML = '';
+  } else if (cf.result === null) {
+    call.innerHTML = `canFinish(speed = ${cf.speed}) ?`;
+    const parts = cf.hours.filter(hh => hh !== null);
+    timeEl.innerHTML = parts.length
+      ? `time = ${parts.join(' + ')} = <strong>${cf.time}</strong>`
+      : `time = <strong>0</strong>`;
+  } else {
+    call.innerHTML = `canFinish(speed = ${cf.speed}) = <span class="${cf.result ? 'cf-true' : 'cf-false'}">${cf.result ? 'True' : 'False'}</span>`;
+    timeEl.innerHTML = `time = ${cf.hours.join(' + ')} = <strong>${cf.time}</strong> ${cf.result ? '≤' : '>'} h = ${H}`;
+  }
+
+  for (let i = 0; i < PILES.length; i++) {
+    const box = document.getElementById(`pile-${i}`);
+    const hrs = document.getElementById(`pile-hrs-${i}`);
+    if (!box || !hrs) continue;
+    const isCur = cf && cf.curPile === i;
+    const isDone = cf && cf.hours[i] !== null && !isCur;
+    box.className = 'pile-box' + (isCur ? ' pile-cur' : isDone ? ' pile-done' : '');
+    hrs.textContent = cf && cf.hours[i] !== null ? `${cf.hours[i]}h` : '';
+  }
+}
+
+function renderSpeeds(state) {
+  const testSpeed = state && state.cf ? state.cf.speed : (state ? state.mid : null);
+  for (let s = 1; s <= MAX_SPEED; s++) {
+    const box = document.getElementById(`cell-${s}`);
+    const ptr = document.getElementById(`ptr-${s}`);
+    const badge = document.getElementById(`badge-${s}`);
+    if (!box || !ptr || !badge) continue;
+
+    const inRange = state && state.start != null && state.end != null && s >= state.start && s <= state.end;
+    const isEliminated = state && state.start != null && !inRange;
+    const isTest = testSpeed === s;
+    const isFinal = state && state.finalAnswer != null && s === state.finalAnswer;
+
+    let cls = 'cell-box';
+    if (isFinal) cls += ' peak';
+    else if (isTest) cls += ' cmp-test';
+    else if (inRange) cls += ' in-range';
+    else if (isEliminated) cls += ' eliminated';
+    box.className = cls;
+
+    const roles = [];
+    if (state && state.start === s) roles.push('<span class="lbl-s">start=' + s + '</span>');
+    if (state && state.mid === s) roles.push('<span class="lbl-m">mid=' + s + '</span>');
+    if (state && state.end === s) roles.push('<span class="lbl-e">end=' + s + '</span>');
+    ptr.innerHTML = roles.length
+      ? '<span class="ptr-arrow">↑</span>' + roles.join('')
+      : '';
+
+    const known = state && state.verdicts ? state.verdicts[s] : undefined;
+    if (known === undefined) {
+      badge.style.display = 'none';
+    } else {
+      badge.style.display = 'flex';
+      badge.className = 'eval-badge ' + (known ? 'o' : 'x');
+      badge.textContent = known ? 'O' : 'X';
+    }
+  }
+}
+
+// Draws an upward-pointing curly brace under the speed cells of the current
+// search range, sized from the cells' real offsets so it survives zoom
+// and the narrow-screen media query.
+function renderBrace(state) {
+  const svg = document.getElementById('brace-svg');
+  const label = document.getElementById('brace-label');
+  if (!state || state.start == null || state.end == null) {
+    svg.style.visibility = 'hidden';
+    label.style.visibility = 'hidden';
+    return;
+  }
+  const a = document.getElementById(`cell-${state.start}`).parentElement;
+  const b = document.getElementById(`cell-${state.end}`).parentElement;
+  const left = a.offsetLeft;
+  const w = b.offsetLeft + b.offsetWidth - left;
+  const H2 = 12, M = 7, c = w / 2;
+  const r = Math.min(10, c / 2);
+  const d = `M1,${H2} Q1,${M} ${1 + r},${M} L${c - r},${M} Q${c},${M} ${c},1 Q${c},${M} ${c + r},${M} L${w - 1 - r},${M} Q${w - 1},${M} ${w - 1},${H2}`;
+  svg.setAttribute('width', w);
+  svg.setAttribute('height', H2 + 2);
+  svg.setAttribute('viewBox', `0 0 ${w} ${H2 + 2}`);
+  document.getElementById('brace-path').setAttribute('d', d);
+  svg.style.left = left + 'px';
+  svg.style.visibility = 'visible';
+  label.textContent = `search range = speed ${state.start} ~ ${state.end}`;
+  label.style.left = (left + c) + 'px';
+  label.style.visibility = 'visible';
+}
+
+function renderAnswer(state) {
+  const answer = document.getElementById('answer');
+  if (!state || state.finalAnswer == null) {
+    answer.className = 'answer-line empty';
+    answer.textContent = 'no speed chosen yet';
+    return;
+  }
+  answer.className = 'answer-line';
+  answer.textContent = `minimum speed = ${state.finalAnswer} bananas / hour`;
+}
+
+function render() {
+  if (cur < 0) {
+    highlightLine(null);
+    renderCtrl(-1, STEPS.length, '');
+    renderPiles(null);
+    renderSpeeds(null);
+    renderBrace(null);
+    renderAnswer(null);
+    return;
+  }
+
+  const state = STEPS[cur];
+  highlightLine(state.line);
+  renderCtrl(cur, STEPS.length, state.info);
+  renderPiles(state);
+  renderSpeeds(state);
+  renderBrace(state);
+  renderAnswer(state);
+}
+
+buildDOM();
+render();
+window.addEventListener('resize', () => render());
+</script>
+</body>
+</html>

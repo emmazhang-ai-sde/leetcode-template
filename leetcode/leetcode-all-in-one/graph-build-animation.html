@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Build Adjacency List Animation</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  svg { display: block; width: 100%; }
+
+  /* Edge list */
+  .edges-box { margin-top: 14px; padding: 12px; background: #f5f5f5; border-radius: 8px; }
+  .edges-box-title { font-size: 11px; font-weight: 600; color: #1a1a1a; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+  .edges-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .edge-chip { padding: 3px 10px; border-radius: 6px; font-size: 12px; font-family: 'SF Mono', monospace; font-weight: 600; background: #ebebeb; color: #555; transition: all 0.2s; }
+  .edge-chip.active { background: rgba(249,203,66,0.45); color: #1a1a1a; }
+  .edge-chip.done { background: rgba(93,202,165,0.25); color: #1a1a1a; }
+
+  /* Breakdown */
+  .breakdown-box { margin-top: 12px; padding: 12px; background: #f5f5f5; border-radius: 8px; font-size: 12px; }
+  .breakdown-title { font-size: 11px; font-weight: 600; color: #1a1a1a; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+
+  /* Adjacency table */
+  .adj-table { width: 100%; border-collapse: separate; border-spacing: 0 6px; }
+  .adj-row td { padding: 0; }
+  .adj-key { font-family: 'SF Mono', monospace; font-size: 13px; font-weight: 700; color: #1a1a1a; width: 110px; padding-right: 8px; white-space: nowrap; }
+  .adj-key span.k { display: inline-block; padding: 4px 10px; background: #f5f5f5; border-radius: 6px; }
+  .adj-key span.k.active-key { background: rgba(249,203,66,0.45); }
+  .adj-values { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; min-height: 30px; }
+  .val-chip { height: 28px; min-width: 28px; padding: 0 10px; border-radius: 6px; font-family: 'SF Mono', monospace; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; transition: all 0.25s; }
+  .val-chip.normal { background: rgba(139,133,212,0.25); color: #1a1a1a; }
+  .val-chip.new-entry { background: rgba(93,202,165,0.35); color: #1a1a1a; animation: pop-in 0.3s ease; }
+  @keyframes pop-in { 0%{transform:scale(0.5);opacity:0} 70%{transform:scale(1.15)} 100%{transform:scale(1);opacity:1} }
+  .val-empty { font-size: 12px; color: #aaa; font-style: italic; }
+  .equals { font-size: 13px; color: #888; margin: 0 4px; font-family: 'SF Mono', monospace; }
+  .bracket { font-size: 14px; color: #888; font-family: 'SF Mono', monospace; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: 'Build Adjacency List — 建图动画',
+});
+</script>
+<div class="main layout-grid">
+  <!-- left: code -->
+  <script>
+  renderCodeBox({
+    code: `
+graphs = defaultdict(list)
+
+for edge in edges:
+    graphs[edge[0]].append(edge[1])
+    graphs[edge[1]].append(edge[0])`,
+    blocks: [
+      { html: `
+    <div class="edges-box">
+      <div class="edges-box-title">edges（遍历进度）</div>
+      <div class="edges-row" id="edges-row"></div>
+    </div>
+
+    <div id="breakdown-box" class="breakdown-box" style="display:none;">
+      <div class="breakdown-title">当前 edge 拆解</div>
+      <div id="breakdown-content" style="font-family:'SF Mono',monospace; line-height:2.2; font-size:12px;"></div>
+    </div>` },
+    ],
+  });
+  </script>
+
+  <!-- right: viz panel -->
+  <div class="viz-panel">
+
+    <div class="card">
+      <h3>图结构（可视化）</h3>
+      <svg id="graph-svg" viewBox="0 0 520 220">
+        <g id="g-edges"></g>
+        <g id="g-nodes"></g>
+      </svg>
+    </div>
+
+    <div class="card">
+      <h3>graphs（邻接表）</h3>
+      <table class="adj-table" id="adj-table"></table>
+    </div>
+  </div>
+</div><!-- /.main -->
+</div><!-- /.content-wrapper -->
+
+<script>
+const EDGES_DEF = [[0,1],[0,2],[0,3],[1,4]];
+const N = 5;
+const NODE_POS = {
+  0: {x:260, y:50},
+  1: {x:100, y:160},
+  2: {x:220, y:160},
+  3: {x:340, y:160},
+  4: {x:100, y:50},
+};
+
+// ── Build steps ──────────────────────────────────────────────────
+function buildSteps() {
+  const steps = [];
+  // adj: { nodeId: [{val, isNew}] }
+  const adj = {0:[],1:[],2:[],3:[],4:[]};
+  const doneEdges = new Set();
+  let activeEdge = -1;
+  let activeNodes = [];   // [a, b] being highlighted
+  let newlyAdded = null;  // {key, val} just appended
+
+  function snap(line, info) {
+    steps.push({
+      line, info,
+      adj: JSON.parse(JSON.stringify(adj)),
+      doneEdges: new Set(doneEdges),
+      activeEdge,
+      activeNodes: [...activeNodes],
+      newlyAdded: newlyAdded ? {...newlyAdded} : null,
+    });
+  }
+
+  snap(1, `第 1 行：graphs = defaultdict(list)\n创建空邻接表。每个 key 的默认值是空列表 []。`);
+
+  for (let i = 0; i < EDGES_DEF.length; i++) {
+    const [a, b] = EDGES_DEF[i];
+    activeEdge = i;
+    activeNodes = [a, b];
+    newlyAdded = null;
+
+    snap(3, `第 3 行：for edge in edges → 当前 edge = [${a}, ${b}]\nedge[0] = ${a}（起点），edge[1] = ${b}（终点）`);
+
+    // append direction 1
+    // mark previous new entries as normal
+    Object.keys(adj).forEach(k => adj[k].forEach(e => e.isNew = false));
+    adj[a].push({val: b, isNew: true});
+    newlyAdded = {key: a, val: b};
+    snap(4, `第 4 行：graphs[${a}].append(${b})\n在节点 ${a} 的列表里，加入 ${b}。（${a} 认识 ${b}）`);
+
+    // append direction 2
+    Object.keys(adj).forEach(k => adj[k].forEach(e => e.isNew = false));
+    adj[b].push({val: a, isNew: true});
+    newlyAdded = {key: b, val: a};
+    snap(5, `第 5 行：graphs[${b}].append(${a})\n在节点 ${b} 的列表里，加入 ${a}。（${b} 也认识 ${a}）\n无向边 → 两个方向都存！`);
+
+    doneEdges.add(i);
+    newlyAdded = null;
+    Object.keys(adj).forEach(k => adj[k].forEach(e => e.isNew = false));
+  }
+
+  // final state
+  activeEdge = -1;
+  activeNodes = [];
+  snap(3, `✅ 所有边处理完毕！\ngraphs 邻接表已建好，可以开始 BFS。`);
+
+  return steps;
+}
+
+const STEPS = buildSteps();
+let cur = -1;
+
+// ── Render helpers ───────────────────────────────────────────────
+function renderEdgeChips(state) {
+  const row = document.getElementById('edges-row');
+  row.innerHTML = EDGES_DEF.map((e, i) => {
+    let cls = 'edge-chip';
+    if (state.doneEdges.has(i)) cls += ' done';
+    else if (state.activeEdge === i) cls += ' active';
+    return `<div class="${cls}">[${e[0]},${e[1]}]</div>`;
+  }).join('');
+}
+
+function renderBreakdown(state) {
+  const box = document.getElementById('breakdown-box');
+  const content = document.getElementById('breakdown-content');
+  if (state.activeEdge < 0) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  const [a, b] = EDGES_DEF[state.activeEdge];
+  content.innerHTML =
+    `<span style="color:#5f5e5a">edge &nbsp;&nbsp;&nbsp;= </span><span style="color:#1D9E75;font-weight:700">[${a}, ${b}]</span><br>` +
+    `<span style="color:#5f5e5a">edge[0] = </span><span style="color:#F9CB42;font-weight:700;background:rgba(249,203,66,0.2);padding:1px 6px;border-radius:4px">${a}</span><span style="color:#888"> ← 起点</span><br>` +
+    `<span style="color:#5f5e5a">edge[1] = </span><span style="color:#5DCAA5;font-weight:700;background:rgba(93,202,165,0.15);padding:1px 6px;border-radius:4px">${b}</span><span style="color:#888"> ← 终点</span>`;
+}
+
+function renderGraph(state) {
+  const edgeG = document.getElementById('g-edges');
+  const nodeG = document.getElementById('g-nodes');
+  edgeG.innerHTML = ''; nodeG.innerHTML = '';
+
+  EDGES_DEF.forEach(([a, b], i) => {
+    const pa = NODE_POS[a], pb = NODE_POS[b];
+    const active = state.activeEdge === i;
+    const done = state.doneEdges.has(i);
+    const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1', pa.x); line.setAttribute('y1', pa.y);
+    line.setAttribute('x2', pb.x); line.setAttribute('y2', pb.y);
+    line.setAttribute('stroke', active ? '#F9CB42' : done ? '#5DCAA5' : '#d3d1c7');
+    line.setAttribute('stroke-width', active ? '3' : done ? '2' : '1');
+    edgeG.appendChild(line);
+  });
+
+  for (let id = 0; id < N; id++) {
+    const p = NODE_POS[id];
+    const isActive = state.activeNodes.includes(id);
+    const color = isActive ? '#F9CB42' : '#B4B2A9';
+    const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+
+    const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    circle.setAttribute('cx', p.x); circle.setAttribute('cy', p.y); circle.setAttribute('r', 22);
+    circle.setAttribute('fill', color);
+    circle.setAttribute('stroke', isActive ? '#d4a800' : '#888780');
+    circle.setAttribute('stroke-width', isActive ? '2.5' : '1');
+    g.appendChild(circle);
+
+    const txt = document.createElementNS('http://www.w3.org/2000/svg','text');
+    txt.setAttribute('x', p.x); txt.setAttribute('y', p.y);
+    txt.setAttribute('text-anchor','middle'); txt.setAttribute('dominant-baseline','central');
+    txt.setAttribute('font-size','16'); txt.setAttribute('font-weight','700'); txt.setAttribute('fill','#2C2C2A');
+    txt.textContent = id;
+    g.appendChild(txt);
+    nodeG.appendChild(g);
+  }
+}
+
+function renderAdj(state) {
+  const table = document.getElementById('adj-table');
+  table.innerHTML = '';
+  for (let id = 0; id < N; id++) {
+    const entries = state.adj[id] || [];
+    const isActiveKey = state.newlyAdded && state.newlyAdded.key === id;
+    const tr = document.createElement('tr');
+    tr.className = 'adj-row';
+
+    const tdKey = document.createElement('td');
+    tdKey.className = 'adj-key';
+    tdKey.innerHTML = `<span class="k${isActiveKey ? ' active-key' : ''}">graphs[${id}]</span>`;
+
+    const tdEq = document.createElement('td');
+    tdEq.style.width = '30px';
+    tdEq.innerHTML = `<span class="equals">=</span>`;
+
+    const tdVals = document.createElement('td');
+    const valRow = document.createElement('div');
+    valRow.className = 'adj-values';
+
+    valRow.innerHTML += `<span class="bracket">[</span>`;
+    if (entries.length === 0) {
+      valRow.innerHTML += `<span class="val-empty">empty</span>`;
+    } else {
+      entries.forEach((e, idx) => {
+        const chip = document.createElement('span');
+        chip.className = 'val-chip ' + (e.isNew ? 'new-entry' : 'normal');
+        chip.textContent = e.val;
+        valRow.appendChild(chip);
+        if (idx < entries.length - 1) {
+          const comma = document.createElement('span');
+          comma.style.cssText = 'font-size:13px;color:#888;font-family:SF Mono,monospace;';
+          comma.textContent = ',';
+          valRow.appendChild(comma);
+        }
+      });
+    }
+    valRow.innerHTML += `<span class="bracket">]</span>`;
+    tdVals.appendChild(valRow);
+
+    tr.appendChild(tdKey);
+    tr.appendChild(tdEq);
+    tr.appendChild(tdVals);
+    table.appendChild(tr);
+  }
+}
+
+function render() {
+  if (cur < 0) {
+    highlightLine(null);
+    renderEdgeChips({ doneEdges: new Set(), activeEdge: -1 });
+    renderBreakdown({ activeEdge: -1 });
+    renderGraph({ activeEdge: -1, activeNodes: [], doneEdges: new Set() });
+    renderAdj({ adj: {0:[],1:[],2:[],3:[],4:[]}, newlyAdded: null });
+    renderCtrl(-1, STEPS.length, '');
+    document.getElementById('breakdown-box').style.display = 'none';
+    return;
+  }
+  const s = STEPS[cur];
+  highlightLine(s.line);
+  renderEdgeChips(s);
+  renderBreakdown(s);
+  renderGraph(s);
+  renderAdj(s);
+  renderCtrl(cur, STEPS.length, s.info);
+}
+
+doReset();
+</script>
+</body>
+</html>

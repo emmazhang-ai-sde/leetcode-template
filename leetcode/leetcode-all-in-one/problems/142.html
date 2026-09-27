@@ -1,0 +1,19 @@
+<p>Given the <code>head</code> of a linked list, return <em>the node where the cycle begins. If there is no cycle, return </em><code>null</code>.</p>
+<p>There is a cycle in a linked list if there is some node in the list that can be reached again by continuously following the <code>next</code> pointer. Internally, <code>pos</code> is used to denote the index of the node that tail&#39;s <code>next</code> pointer is connected to (<strong>0-indexed</strong>). It is <code>-1</code> if there is no cycle. <strong>Note that</strong> <code>pos</code> <strong>is not passed as a parameter</strong>.</p>
+<p><strong>Do not modify</strong> the linked list.</p>
+<h3>Example 1</h3>
+<p><img src="https://assets.leetcode.com/uploads/2018/12/07/circularlinkedlist.png" alt=""></p>
+<p><strong>Input:</strong> <code>head = [3,2,0,-4], pos = 1</code><br><strong>Output:</strong> <code>tail connects to node index 1</code><br><strong>Explanation:</strong> There is a cycle in the linked list, where tail connects to the second node.</p>
+<h3>Example 2</h3>
+<p><img src="https://assets.leetcode.com/uploads/2018/12/07/circularlinkedlist_test2.png" alt=""></p>
+<p><strong>Input:</strong> <code>head = [1,2], pos = 0</code><br><strong>Output:</strong> <code>tail connects to node index 0</code><br><strong>Explanation:</strong> There is a cycle in the linked list, where tail connects to the first node.</p>
+<h3>Example 3</h3>
+<p><img src="https://assets.leetcode.com/uploads/2018/12/07/circularlinkedlist_test3.png" alt=""></p>
+<p><strong>Input:</strong> <code>head = [1], pos = -1</code><br><strong>Output:</strong> <code>no cycle</code><br><strong>Explanation:</strong> There is no cycle in the linked list.</p>
+<h3>Constraints</h3>
+<ul>
+<li>The number of the nodes in the list is in the range <code>[0, 10<sup>4</sup>]</code>.</li>
+<li><code>-10<sup>5</sup> &lt;= Node.val &lt;= 10<sup>5</sup></code></li>
+<li><code>pos</code> is <code>-1</code> or a <strong>valid index</strong> in the linked-list.</li>
+</ul>
+<p><strong>Follow up:</strong> Can you solve it using <code>O(1)</code> (i.e. constant) memory?</p>

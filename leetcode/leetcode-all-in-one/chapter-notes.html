@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chapter Notes</title>
+<link rel="stylesheet" href="shared.css">
+<!-- 章级笔记页（LC Notes / Life OS 集成）：壳子只管挂 sidebar，
+     实际内容由 notes.js 按 ?ch=chapter-N 从 LC_ANIM_DATA 渲染。
+     例外：?ch=chapter-7 时页面底部多一块 Max/Min Heap 演示动画
+     （#ch7-heap-demo，本文件自带），其它章节整块 remove。 -->
+<style>
+  /* ── Chapter 7 底部 Max/Min Heap 演示专属（样式全部圈在 #ch7-heap-demo 下,不碰 notes 内容） ── */
+  #ch7-heap-demo { border-top: 1.5px dashed #d5d5d5; margin-top: 8px; }
+  #ch7-heap-demo .legend-below { flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 0; max-width: none; }
+  #ch7-heap-demo .viz-row { display: flex; align-items: flex-start; gap: 16px; }
+  .hp-svg { display: block; width: 320px; height: 168px; }
+  .hp-edge { stroke: #d5d5d5; stroke-width: 2; }
+  .hp-node { fill: #f5f5f5; stroke: #c9c9c9; stroke-width: 1.5; transition: fill 0.2s; }
+  .hp-node.h-fresh { fill: rgba(93,202,165,0.4); stroke: rgba(60,160,125,0.5); }
+  .hp-node.h-cur   { fill: rgba(249,203,66,0.55); stroke: #1a1a1a; stroke-width: 2; }
+  .hp-node.h-cmp   { fill: rgba(120,160,225,0.3); stroke: rgba(90,130,200,0.55); }
+  .hp-val { font-family: var(--ink-mono); font-size: 12.5px; font-weight: 700; fill: #1a1a1a; }
+  .hp-idx { font-family: var(--ink-mono); font-size: 9px; fill: #b5b5b5; }
+  .hp-arr { display: flex; gap: 6px; margin-top: 12px; }
+  .hp-cell { width: 44px; }
+  .hp-box { height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+            font-family: var(--ink-mono); font-size: 14px; font-weight: 750; color: #1a1a1a;
+            background: #f5f5f5; border: 1px solid #c9c9c9; transition: background 0.2s; }
+  .hp-box.h-fresh { background: rgba(93,202,165,0.4); border-color: rgba(60,160,125,0.5); }
+  .hp-box.h-cur   { background: rgba(249,203,66,0.55); border-color: #1a1a1a; }
+  .hp-box.h-cmp   { background: rgba(120,160,225,0.3); border-color: rgba(90,130,200,0.55); }
+  .hp-box.h-done  { background: rgba(93,202,165,0.4); border-color: rgba(60,160,125,0.5); }
+  .hp-box.h-ghost { background: transparent; border: 1px dashed #d9d9d9; color: #d9d9d9; }
+  .hp-ci { text-align: center; font-family: var(--ink-mono); font-size: 10px; color: #aaa; margin-top: 3px; }
+  .hp-note { margin-top: 10px; font-family: var(--ink-mono); font-size: 11px; color: #999; }
+  .hp-res-line { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
+  .hp-res-line:first-of-type { margin-top: 0; }
+  .hp-res-label { min-width: 210px; font-family: var(--ink-mono); font-size: 12px; color: #555; }
+  .hp-res-row { display: flex; gap: 6px; }
+  .hp-res-row .hp-box { width: 44px; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+<div class="content-wrapper"></div>
+
+<!-- ── Chapter 7 专属：Max/Min Heap 演示动画 ─────────────────────────────
+     只在 ?ch=chapter-7 渲染；notes.js 的章节笔记注入上面那个空的
+     .content-wrapper,本块排在它后面,天然在页面底部。其它章节最后
+     一个 <script> 会把整块 remove。 -->
+<script>var IS_CH7 = new URLSearchParams(location.search).get('ch') === 'chapter-7';</script>
+<div id="ch7-heap-demo" class="content-wrapper">
+<script>
+if (IS_CH7) renderHeader({
+  title: 'Max Heap / Min Heap — heapq 怎么冒、怎么沉',
+  legend: [
+    { color: 'rgba(93,202,165,0.4)', label: '刚 push 进堆的新元素（先放数组末尾,再上冒）' },
+    { color: 'rgba(249,203,66,0.55)', label: '正在上冒 / 下沉的元素,或正被弹出的堆顶' },
+    { color: 'rgba(120,160,225,0.3)', label: '这一步正在跟它比较的父 / 孩子' },
+    { color: '#f5f5f5', extra: 'border:1px solid #c9c9c9;', label: '这一步不动的元素' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+  <script>
+  if (IS_CH7) renderCodeBox({
+    code: `
+import heapq
+
+nums = [5, 3, 8, 1, 2]
+min_heap, max_heap = [], []
+for num in nums:
+    heapq.heappush(min_heap, num)      # 直接 push,最小的自动在堆顶
+    heapq.heappush(max_heap, -num)     # 存 -num:最大的数取负后最小
+
+asc, desc = [], []
+while min_heap:
+    asc.append(heapq.heappop(min_heap))     # 每次弹出最小
+    desc.append(-heapq.heappop(max_heap))   # 弹出再取负 = 最大`,
+  });
+  </script>
+
+  <!-- 步骤说明 + 颜色图例从页头搬到代码框下面（ANIMATION_GUIDE 硬性规则） -->
+  <script>
+  if (IS_CH7) (function () {
+    const stack = document.querySelector('.code-stack');
+    stack.appendChild(document.getElementById('info'));
+    const legend = document.querySelector('.legend');
+    const legendRow = legend.parentElement;
+    legend.classList.add('legend-below');
+    stack.appendChild(legend);
+    legendRow.remove();
+  })();
+  </script>
+
+  <div class="viz-panel">
+    <div class="var-bar" id="var-bar"></div>
+
+    <div class="viz-row">
+      <div class="card">
+        <h3>Min Heap 小顶堆 — heap[0] 永远最小</h3>
+        <svg class="hp-svg" id="min-svg" viewBox="0 0 320 168"></svg>
+        <div class="hp-arr" id="min-arr"></div>
+        <div class="hp-note"># 堆就是一个 list:父 i 的孩子在 2i+1 / 2i+2</div>
+      </div>
+      <div class="card">
+        <h3>Max Heap 大顶堆 — 存 -num 的小顶堆</h3>
+        <svg class="hp-svg" id="max-svg" viewBox="0 0 320 168"></svg>
+        <div class="hp-arr" id="max-arr"></div>
+        <div class="hp-note"># 堆里存的是 -num,pop 出来再取负还原</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>弹出顺序 — 两种堆各自的用途</h3>
+      <div class="hp-res-line"><span class="hp-res-label">asc&nbsp; = heappop(min_heap) 依次</span><div class="hp-res-row" id="asc-row"></div></div>
+      <div class="hp-res-line"><span class="hp-res-label">desc = -heappop(max_heap) 依次</span><div class="hp-res-row" id="desc-row"></div></div>
+    </div>
+  </div>
+</div><!-- /.main -->
+</div><!-- /#ch7-heap-demo -->
+
+<script>
+(function () {
+  if (!IS_CH7) { document.getElementById('ch7-heap-demo').remove(); return; }
+
+  // ── heap 模拟（纯逻辑,无 DOM;验证脚本单独 eval 这一段）──────────────────
+  const INPUT = [5, 3, 8, 1, 2];
+  const fmt = (a) => '[' + a.join(', ') + ']';
+
+  /* 行号表:2/8 是空行不执行。heappush/heappop 的上冒/下沉发生在库函数内部,
+     所以一次调用在同一行上停多步（append→比较→交换→…),行高亮不动、画面在动。 */
+  const L = {
+    IMPORT: 1,     // import heapq
+    NUMS: 3,       // nums = [...]
+    INIT: 4,       // min_heap, max_heap = [], []
+    FOR: 5,        // for num in nums   每轮 + 取空各一步
+    PUSH_MIN: 6,   // heapq.heappush(min_heap, num)
+    PUSH_MAX: 7,   // heapq.heappush(max_heap, -num)
+    RES: 9,        // asc, desc = [], []
+    WHILE: 10,     // while min_heap    每轮 + 取空各一步
+    POP_MIN: 11,   // asc.append(heapq.heappop(min_heap))
+    POP_MAX: 12,   // desc.append(-heapq.heappop(max_heap))
+  };
+
+  function buildSteps() {
+    const steps = [];
+    const st = { minH: [], maxH: [], asc: [], desc: [], num: null };
+    function snap(line, info, hl) {
+      steps.push({ line, info, minH: [...st.minH], maxH: [...st.maxH],
+                   asc: [...st.asc], desc: [...st.desc], num: st.num, hl: hl || null });
+    }
+
+    // heappush:末尾 append,再跟父节点比着往上冒(sift up)
+    function push(which, val) {
+      const heap = which === 'min' ? st.minH : st.maxH;
+      const line = which === 'min' ? L.PUSH_MIN : L.PUSH_MAX;
+      const name = which === 'min' ? 'min_heap' : 'max_heap';
+      heap.push(val);
+      let k = heap.length - 1;
+      snap(line, 'Line ' + line + ': heappush(' + name + ', ' + val + ') — ' +
+        (which === 'max' ? 'push 的是 -num = ' + val + '(数越大,取负后越小,越往堆顶跑)。' : '') +
+        '新元素先 append 到 list 末尾(下标 ' + k + ')' +
+        (k === 0 ? ',堆原来是空的,它直接就是堆顶。' : ',再往上冒(sift up)。'),
+        { heap: which, fresh: k });
+      while (k > 0) {
+        const p = (k - 1) >> 1;
+        if (heap[k] < heap[p]) {
+          snap(line, 'Line ' + line + ': ' + heap[k] + '(下标 ' + k + ')跟父节点 ' + heap[p] + '(下标 ' + p +
+            ')比 — ' + heap[k] + ' < ' + heap[p] + ',比父节点还小,不能待在下面,换。',
+            { heap: which, cur: k, cmp: p });
+          const t = heap[k]; heap[k] = heap[p]; heap[p] = t;
+          snap(line, 'Line ' + line + ': 交换 — ' + heap[p] + ' 冒到下标 ' + p +
+            (p === 0 ? ',到堆顶了,上冒结束。' : ',继续跟新的父节点比。'),
+            { heap: which, cur: p, cmp: k });
+          k = p;
+        } else {
+          snap(line, 'Line ' + line + ': ' + heap[k] + '(下标 ' + k + ')跟父节点 ' + heap[p] + '(下标 ' + p +
+            ')比 — ' + heap[k] + ' >= ' + heap[p] + ',父节点更小,堆序没破,上冒结束。',
+            { heap: which, cur: k, cmp: p });
+          break;
+        }
+      }
+    }
+
+    // heappop:弹堆顶,末尾元素补位,再跟较小的孩子比着往下沉(sift down)
+    function pop(which) {
+      const heap = which === 'min' ? st.minH : st.maxH;
+      const line = which === 'min' ? L.POP_MIN : L.POP_MAX;
+      const name = which === 'min' ? 'min_heap' : 'max_heap';
+      const res = which === 'min' ? st.asc : st.desc;
+      const resName = which === 'min' ? 'asc' : 'desc';
+      const top = heap[0];
+      const out = which === 'min' ? top : -top;
+      snap(line, 'Line ' + line + ': heappop(' + name + ') — 堆顶 ' + name + '[0] = ' + top + ' 是全堆最小' +
+        (which === 'max' ? ',取负还原 = ' + out + ',正好是剩下的数里最大的' : ',也就是剩下的数里最小的') + ',弹它。',
+        { heap: which, pop: 0 });
+      const last = heap.pop();
+      if (heap.length) {
+        heap[0] = last;
+        res.push(out);
+        snap(line, 'Line ' + line + ': ' + out + ' append 进 ' + resName + ';末尾元素 ' + last +
+          ' 搬到堆顶补位(删头、补尾都在数组两端,O(1))— 但它未必够小,接下来往下沉(sift down)。',
+          { heap: which, cur: 0 });
+        let k = 0;
+        while (true) {
+          const l = 2 * k + 1, r = 2 * k + 2;
+          if (l >= heap.length) {
+            snap(line, 'Line ' + line + ': 下标 ' + k + ' 已经没有孩子 — ' + heap[k] + ' 落定,下沉结束。',
+              { heap: which, cur: k });
+            break;
+          }
+          const c = (r < heap.length && heap[r] < heap[l]) ? r : l;
+          const kids = r < heap.length
+            ? '孩子 ' + heap[l] + ' / ' + heap[r] + ' 里较小的 ' + heap[c] + '(下标 ' + c + ')'
+            : '唯一的孩子 ' + heap[l] + '(下标 ' + l + ')';
+          if (heap[c] < heap[k]) {
+            snap(line, 'Line ' + line + ': ' + heap[k] + '(下标 ' + k + ')跟' + kids + '比 — ' +
+              heap[c] + ' < ' + heap[k] + ',孩子更小,该上去,换。', { heap: which, cur: k, cmp: c });
+            const t = heap[k]; heap[k] = heap[c]; heap[c] = t;
+            snap(line, 'Line ' + line + ': 交换 — ' + heap[c] + ' 沉到下标 ' + c + '。',
+              { heap: which, cur: c, cmp: k });
+            k = c;
+          } else {
+            snap(line, 'Line ' + line + ': ' + heap[k] + '(下标 ' + k + ')跟' + kids + '比 — 孩子都不比它小,' +
+              '堆序成立,下沉结束。', { heap: which, cur: k, cmp: c });
+            break;
+          }
+        }
+      } else {
+        res.push(out);
+        snap(line, 'Line ' + line + ': ' + top + ' 是堆里最后一个元素,弹完堆空了 — ' + out +
+          ' append 进 ' + resName + '。', { heap: which });
+      }
+    }
+
+    snap(null, '点 Next 开始:同一份 nums 同时喂给一个 min-heap 和一个 max-heap,' +
+      '先看 heappush 怎么上冒,再看 heappop 怎么下沉。');
+    snap(L.IMPORT, 'Line 1: import heapq — Python 自带的堆。它只有小顶堆(min-heap):heap[0] 永远是全堆最小,' +
+      '没有大顶堆开关。');
+    snap(L.NUMS, 'Line 3: nums = ' + fmt(INPUT) + ' — 两个堆吃同一份输入,方便对照。');
+    snap(L.INIT, 'Line 4: min_heap, max_heap = [], [] — heapq 没有堆类,堆就是一个普通 list,' +
+      '父节点 i 的两个孩子在 2i+1 / 2i+2。');
+    INPUT.forEach(function (v, i) {
+      st.num = v;
+      snap(L.FOR, 'Line 5: for num in nums → 第 ' + (i + 1) + '/' + INPUT.length + ' 个,num = ' + v + '。');
+      push('min', v);
+      push('max', -v);
+    });
+    snap(L.FOR, 'Line 5: nums 取完了,for 结束 — min_heap 堆顶 ' + st.minH[0] + ' 是最小值;' +
+      'max_heap 堆顶 ' + st.maxH[0] + ' 对应最大值 ' + (-st.maxH[0]) + '。注意两个堆的形状不一样:堆序只管父子,不管左右。');
+    snap(L.RES, 'Line 9: asc, desc = [], [] — 收两种堆的弹出顺序。');
+    while (st.minH.length) {
+      snap(L.WHILE, 'Line 10: while min_heap → 堆里还有 ' + st.minH.length + ' 个元素,True — 两边各弹一个。');
+      pop('min');
+      pop('max');
+    }
+    snap(L.WHILE, 'Line 10: while min_heap → 空 list 是 False — 循环结束。');
+    snap(null, '✅ asc = ' + fmt(st.asc) + ':min-heap 每次弹最小,弹出顺序 = 升序;desc = ' + fmt(st.desc) +
+      ':max-heap 每次弹最大 = 降序。heapq 只有小顶堆,要大顶堆就 push -num、pop 出来再取负 — ' +
+      '本章 295 / 767 全是这个写法。push / pop 都是 O(log n),看堆顶 heap[0] 是 O(1)。');
+    return steps;
+  }
+  // ── 模拟结束 ──────────────────────────────────────────────────────────
+
+  window.STEPS = buildSteps();
+  window.cur = -1;
+
+  // ── 渲染（只读快照,无副作用）────────────────────────────────────────────
+  // 满二叉树前 7 个下标的画布坐标（本例最多 5 个节点）
+  const POS = [[160, 26], [85, 84], [235, 84], [47, 142], [123, 142], [197, 142], [273, 142]];
+
+  function stateCls(s, which, i) {
+    const h = s.hl;
+    if (!h || h.heap !== which) return '';
+    if (h.pop === i || h.cur === i) return ' h-cur';
+    if (h.cmp === i) return ' h-cmp';
+    if (h.fresh === i) return ' h-fresh';
+    return '';
+  }
+
+  function renderHeap(which, s) {
+    const arr = which === 'min' ? s.minH : s.maxH;
+    const parts = [];
+    for (let i = 1; i < arr.length; i++) {
+      const p = POS[(i - 1) >> 1], c = POS[i];
+      parts.push('<line class="hp-edge" x1="' + p[0] + '" y1="' + p[1] + '" x2="' + c[0] + '" y2="' + c[1] + '"/>');
+    }
+    for (let i = 0; i < arr.length; i++) {
+      const q = POS[i];
+      parts.push('<g><circle class="hp-node' + stateCls(s, which, i) + '" cx="' + q[0] + '" cy="' + q[1] + '" r="19"/>' +
+        '<text class="hp-val" x="' + q[0] + '" y="' + (q[1] + 4) + '" text-anchor="middle">' + arr[i] + '</text>' +
+        '<text class="hp-idx" x="' + (q[0] + 21) + '" y="' + (q[1] - 14) + '">' + i + '</text></g>');
+    }
+    document.getElementById(which + '-svg').innerHTML = parts.join('');
+
+    const cells = [];
+    for (let i = 0; i < 5; i++) {
+      cells.push(i < arr.length
+        ? '<div class="hp-cell"><div class="hp-box' + stateCls(s, which, i) + '">' + arr[i] + '</div><div class="hp-ci">' + i + '</div></div>'
+        : '<div class="hp-cell"><div class="hp-box h-ghost">·</div><div class="hp-ci">' + i + '</div></div>');
+    }
+    document.getElementById(which + '-arr').innerHTML = cells.join('');
+  }
+
+  function fillRes(id, arr) {
+    const out = [];
+    for (let i = 0; i < 5; i++) {
+      out.push(i < arr.length
+        ? '<div class="hp-box h-done">' + arr[i] + '</div>'
+        : '<div class="hp-box h-ghost">·</div>');
+    }
+    document.getElementById(id).innerHTML = out.join('');
+  }
+
+  function renderVars(s) {
+    const row = (n, v) => '<span class="var-row"><span class="var-name">' + n +
+      '</span><span class="var-eq"> = </span><span class="var-val">' + v + '</span></span>';
+    document.getElementById('var-bar').innerHTML =
+      row('num', s.num == null ? '-' : s.num) +
+      row('min_heap', fmt(s.minH)) +
+      row('max_heap', fmt(s.maxH)) +
+      row('asc', fmt(s.asc)) +
+      row('desc', fmt(s.desc));
+  }
+
+  const EMPTY = { line: null, minH: [], maxH: [], asc: [], desc: [], num: null, hl: null };
+
+  function renderAll() {
+    const step = cur >= 0 ? STEPS[cur] : null;
+    const s = step || EMPTY;
+    renderHeap('min', s);
+    renderHeap('max', s);
+    fillRes('asc-row', s.asc);
+    fillRes('desc-row', s.desc);
+    renderVars(s);
+    highlightLine(s.line);
+    renderCtrl(cur, STEPS.length, step ? step.info :
+      '点 Next 开始:nums = [5, 3, 8, 1, 2],同时 push 进 min-heap 和 max-heap,再逐个 pop 对照。');
+  }
+
+  window.render = renderAll;
+  doReset();
+})();
+</script>
+</body>
+</html>

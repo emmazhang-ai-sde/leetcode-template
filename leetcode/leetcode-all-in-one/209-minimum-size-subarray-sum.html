@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>209. Minimum Size Subarray Sum</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  .lc209-layout {
+    width: min(1320px, 100%);
+  }
+  .lc209-layout .code-half {
+    grid-column: 1;
+    grid-row: 1;
+    width: 620px;
+    max-width: 100%;
+    min-width: 0;
+    justify-self: end;
+  }
+  .lc209-layout .viz-panel {
+    grid-column: 2;
+    grid-row: 1;
+    width: fit-content;
+    max-width: 100%;
+    min-width: 0;
+    justify-self: start;
+    align-items: flex-start;
+  }
+  .lc209-layout .code-stack,
+  .lc209-layout .step-info,
+  .lc209-layout .code-panel {
+    width: 100%;
+    min-width: 0;
+  }
+  .lc209-layout .card,
+  .lc209-layout .var-bar {
+    width: fit-content;
+    max-width: 620px;
+    min-width: 0;
+  }
+  .lc209-layout .code-block { overflow-x: auto; }
+  .lc209-layout .step-info {
+    min-height: 48px;
+    padding: 8px 14px;
+    line-height: 20px;
+  }
+
+  .array-row {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 6px;
+    min-height: 80px;
+  }
+  .cell-wrap {
+    width: 48px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    font-family: 'SF Mono', Menlo, monospace;
+  }
+  .cell-box {
+    width: 48px;
+    height: 44px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f5f5f5;
+    color: #1a1a1a;
+    font-size: 16px;
+    font-weight: 800;
+    transition: background 0.2s, transform 0.2s, opacity 0.2s;
+  }
+  .cell-box.in-window { background: rgba(139,133,212,0.22); }
+  .cell-box.active-j { background: rgba(249,203,66,0.50); transform: scale(1.08); }
+  .cell-box.shrinking { background: rgba(93,202,165,0.45); transform: scale(1.08); }
+  .cell-box.candidate { background: rgba(247,140,108,0.26); }
+  .cell-box.best { background: rgba(196,80,30,0.28); transform: scale(1.04); }
+  .cell-box.done { opacity: 0.28; }
+  .cell-idx {
+    height: 14px;
+    font-size: 11px;
+    color: #aaa;
+  }
+  .cell-ptr {
+    height: 16px;
+    line-height: 16px;
+    font-size: 11px;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+  .ptr-i { color: #3A6FD4; }
+  .ptr-j { color: #B07800; }
+  .ptr-both { color: #C4501E; }
+
+  .window-bar {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    height: 5px;
+    margin-top: 5px;
+    margin-bottom: 8px;
+  }
+  .win-seg {
+    width: 48px;
+    height: 5px;
+    border-radius: 3px;
+    background: transparent;
+    transition: background 0.2s;
+  }
+  .win-seg.in-window { background: rgba(139,133,212,0.55); }
+  .win-seg.candidate { background: rgba(247,140,108,0.62); }
+  .win-seg.best { background: rgba(196,80,30,0.68); }
+
+  .window-label {
+    min-height: 20px;
+    text-align: center;
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 13px;
+    line-height: 20px;
+    color: #555;
+  }
+  .win-pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 6px;
+    background: rgba(139,133,212,0.18);
+  }
+
+  .lc209-state {
+    grid-template-columns: repeat(3, minmax(0, max-content));
+    column-gap: 18px;
+    row-gap: 6px;
+    max-width: 620px;
+  }
+  .lc209-state .var-row {
+    min-width: 0;
+  }
+  .lc209-state .state-wide {
+    grid-column: 1 / -1;
+    max-width: 580px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .lc209-state strong { color: #C4501E; }
+  .answer-line {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 14px;
+    font-weight: 700;
+    color: #C4501E;
+    text-align: center;
+  }
+  .answer-line.empty {
+    color: #aaa;
+    font-weight: 500;
+  }
+
+  @media (max-width: 1100px) {
+    .main.layout-grid.lc209-layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .main.layout-grid.lc209-layout .code-half,
+    .main.layout-grid.lc209-layout .viz-panel {
+      grid-column: 1;
+      justify-self: center;
+    }
+    .main.layout-grid.lc209-layout .viz-panel { grid-row: 2; }
+    .lc209-state { grid-template-columns: repeat(2, minmax(0, max-content)); }
+  }
+
+  @media (max-width: 700px) {
+    .array-row,
+    .window-bar {
+      gap: 4px;
+    }
+    .cell-wrap,
+    .cell-box,
+    .win-seg {
+      width: 40px;
+    }
+    .cell-box {
+      height: 40px;
+      font-size: 14px;
+    }
+    .lc209-state { grid-template-columns: minmax(0, max-content); }
+  }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '209. Minimum Size Subarray Sum',
+  link: 'https://leetcode.com/problems/minimum-size-subarray-sum/',
+  examples: [
+    { id: 'classic', label: 'target = 7, nums = [2,3,1,2,4,3] -> 2' },
+    { id: 'single', label: 'target = 4, nums = [1,4,4] -> 1' },
+    { id: 'none', label: 'target = 11, nums = [1,1,1,1,1,1,1,1] -> 0' },
+  ],
+  legend: [
+    { color: 'rgba(249,203,66,0.50)', label: 'nums[j] enters window' },
+    { color: 'rgba(139,133,212,0.22)', label: 'current window [i..j]' },
+    { color: 'rgba(93,202,165,0.45)', label: 'nums[i] leaves window' },
+    { color: 'rgba(247,140,108,0.26)', label: 'valid candidate sums >= target' },
+    { color: 'rgba(196,80,30,0.28)', label: 'best minLen window' },
+  ],
+});
+</script>
+
+<div class="main layout-grid lc209-layout">
+  <script>
+  renderCodeBox({
+    code: `
+class Solution:
+    def minSubArrayLen(self, target: int, nums: List[int]) -> int:
+        
+        if not nums or len(nums) == 0:
+            return 0
+        
+        i = 0
+        j = 0
+        minLen = len(nums) + 1
+        sums = 0
+
+        for j in range(len(nums)):
+            sums += nums[j]
+
+            # if sums < target:
+            while sums >= target:
+                minLen = min(minLen, j-i+1)
+                sums -= nums[i]
+                i += 1
+        
+        if minLen == len(nums) + 1:
+            return 0
+
+        return minLen`,
+  });
+  </script>
+
+  <div class="viz-panel">
+    <div class="card">
+      <h3 id="input-title">Input  target = 7, nums = [2, 3, 1, 2, 4, 3]</h3>
+      <div class="array-row" id="array-row"></div>
+      <div class="window-bar" id="window-bar"></div>
+      <div class="window-label" id="window-label"></div>
+    </div>
+
+    <div class="var-bar lc209-state" id="state-bar">
+      <span class="var-row"><span class="var-name">target</span><span class="var-eq"> = </span><span class="var-val" id="target-val">7</span></span>
+      <span class="var-row"><span class="var-name">i</span><span class="var-eq"> = </span><span class="var-val" id="i-val">-</span></span>
+      <span class="var-row"><span class="var-name">j</span><span class="var-eq"> = </span><span class="var-val" id="j-val">-</span></span>
+      <span class="var-row"><span class="var-name">sums</span><span class="var-eq"> = </span><span class="var-val" id="sums-val">0</span></span>
+      <span class="var-row"><span class="var-name">minLen</span><span class="var-eq"> = </span><span class="var-val" id="minlen-val">7</span></span>
+      <span class="var-row"><span class="var-name">windowLen</span><span class="var-eq"> = </span><span class="var-val" id="winlen-val">0</span></span>
+      <span class="var-row state-wide" id="formula-row">Waiting to start.</span>
+    </div>
+
+    <div class="card">
+      <h3>Answer</h3>
+      <div class="answer-line empty" id="answer">no valid subarray found yet</div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+const EXAMPLES = {
+  classic: { target: 7, nums: [2, 3, 1, 2, 4, 3] },
+  single: { target: 4, nums: [1, 4, 4] },
+  none: { target: 11, nums: [1, 1, 1, 1, 1, 1, 1, 1] },
+};
+
+let TARGET = EXAMPLES.classic.target;
+let NUMS = EXAMPLES.classic.nums.slice();
+
+function buildSteps() {
+  const steps = [];
+  let i = null;
+  let j = null;
+  let minLen = null;
+  let sums = null;
+  let addedIdx = null;
+  let shrinkIdx = null;
+  let candidateRange = null;
+  let bestRange = null;
+  let candidateLen = null;
+  let oldMinLen = null;
+  let minUpdated = false;
+  let finalAnswer = null;
+
+  function snap(line, info) {
+    steps.push({
+      line, info, i, j, minLen, sums, addedIdx, shrinkIdx,
+      candidateRange: candidateRange ? [...candidateRange] : null,
+      bestRange: bestRange ? [...bestRange] : null,
+      candidateLen, oldMinLen, minUpdated, finalAnswer,
+    });
+  }
+
+  if (!NUMS || NUMS.length === 0) {
+    snap(4, 'nums is empty, so the guard returns 0.');
+    finalAnswer = 0;
+    snap(5, 'return 0');
+    return steps;
+  }
+
+  snap(4, `nums has length ${NUMS.length}, so continue past the guard.`);
+  i = 0;
+  snap(7, 'i = 0  (left boundary of the sliding window)');
+  j = 0;
+  snap(8, 'j = 0  (right boundary before the loop starts)');
+  minLen = NUMS.length + 1;
+  snap(9, `minLen = len(nums) + 1 = ${minLen}  (sentinel means not found yet)`);
+  sums = 0;
+  snap(10, 'sums = 0  (current window sum)');
+
+  for (let jj = 0; jj < NUMS.length; jj++) {
+    j = jj;
+    addedIdx = jj;
+    shrinkIdx = null;
+    candidateRange = null;
+    candidateLen = null;
+    oldMinLen = null;
+    minUpdated = false;
+    snap(12, `j = ${jj}; read nums[${jj}] = ${NUMS[jj]}`);
+
+    sums += NUMS[jj];
+    snap(13, `sums += nums[${jj}] -> sums = ${sums}`);
+
+    if (sums >= TARGET) {
+      snap(16, `sums = ${sums} >= target = ${TARGET}; shrink while the window is valid.`);
+      while (sums >= TARGET) {
+        candidateRange = [i, j];
+        candidateLen = j - i + 1;
+        oldMinLen = minLen;
+        minLen = Math.min(minLen, candidateLen);
+        minUpdated = minLen !== oldMinLen;
+        if (minUpdated) bestRange = [i, j];
+        snap(17, `minLen = min(${oldMinLen}, ${j} - ${i} + 1) = min(${oldMinLen}, ${candidateLen}) = ${minLen}`);
+
+        shrinkIdx = i;
+        sums -= NUMS[i];
+        snap(18, `sums -= nums[${i}] -> sums = ${sums}; remove the leftmost value ${NUMS[i]}`);
+
+        i += 1;
+        shrinkIdx = null;
+        candidateRange = null;
+        candidateLen = null;
+        oldMinLen = null;
+        minUpdated = false;
+        snap(19, `i += 1 -> i = ${i}`);
+
+        if (sums >= TARGET) {
+          snap(16, `sums = ${sums} is still >= ${TARGET}; keep shrinking.`);
+        }
+      }
+      snap(16, `sums = ${sums} < target = ${TARGET}; exit while.`);
+    } else {
+      snap(16, `sums = ${sums} < target = ${TARGET}; skip while.`);
+    }
+  }
+
+  addedIdx = null;
+  shrinkIdx = null;
+  candidateRange = null;
+  candidateLen = null;
+  oldMinLen = null;
+  minUpdated = false;
+
+  if (minLen === NUMS.length + 1) {
+    snap(21, `minLen is still ${minLen}, the sentinel len(nums) + 1.`);
+    finalAnswer = 0;
+    snap(22, 'return 0  (no subarray can reach target)');
+  } else {
+    snap(21, `minLen = ${minLen}, so a valid subarray was found.`);
+    finalAnswer = minLen;
+    snap(24, `return minLen = ${minLen}`);
+  }
+
+  return steps;
+}
+
+let STEPS = buildSteps();
+let cur = -1;
+
+function formatArray(nums) {
+  return `[${nums.join(', ')}]`;
+}
+
+function displayMinLen(value) {
+  if (value == null) return '-';
+  return String(value);
+}
+
+function currentWindowText(state) {
+  if (!state || state.i == null || state.j == null || state.i > state.j) return '';
+  const values = NUMS.slice(state.i, state.j + 1);
+  return `Window [${state.i}..${state.j}] = [${values.join(', ')}]`;
+}
+
+function buildArrayDOM() {
+  const row = document.getElementById('array-row');
+  const bar = document.getElementById('window-bar');
+  row.innerHTML = '';
+  bar.innerHTML = '';
+  for (let idx = 0; idx < NUMS.length; idx++) {
+    const wrap = document.createElement('div');
+    wrap.className = 'cell-wrap';
+
+    const box = document.createElement('div');
+    box.className = 'cell-box';
+    box.id = `cell-${idx}`;
+    box.textContent = NUMS[idx];
+    wrap.appendChild(box);
+
+    const idxEl = document.createElement('div');
+    idxEl.className = 'cell-idx';
+    idxEl.textContent = idx;
+    wrap.appendChild(idxEl);
+
+    const ptr = document.createElement('div');
+    ptr.className = 'cell-ptr';
+    ptr.id = `ptr-${idx}`;
+    wrap.appendChild(ptr);
+
+    row.appendChild(wrap);
+
+    const seg = document.createElement('div');
+    seg.className = 'win-seg';
+    seg.id = `win-${idx}`;
+    bar.appendChild(seg);
+  }
+}
+
+function renderStateBar(state) {
+  document.getElementById('target-val').textContent = TARGET;
+  document.getElementById('i-val').textContent = state && state.i != null ? state.i : '-';
+  document.getElementById('j-val').textContent = state && state.j != null ? state.j : '-';
+  document.getElementById('sums-val').textContent = state && state.sums != null ? state.sums : 0;
+  document.getElementById('minlen-val').textContent = state ? displayMinLen(state.minLen) : NUMS.length + 1;
+  const winLen = state && state.i != null && state.j != null && state.i <= state.j ? state.j - state.i + 1 : 0;
+  document.getElementById('winlen-val').textContent = winLen;
+}
+
+function renderFormula(state) {
+  const box = document.getElementById('formula-row');
+  if (!state) {
+    box.textContent = 'Waiting to start.';
+    return;
+  }
+  if (state.line === 17 && state.candidateRange) {
+    const [a, b] = state.candidateRange;
+    const updated = state.minUpdated ? 'update best' : 'best stays';
+    box.innerHTML = `candidate nums[${a}..${b}], length = <strong>${state.candidateLen}</strong><br>` +
+      `minLen = min(${state.oldMinLen}, ${state.candidateLen}) = <strong>${state.minLen}</strong> (${updated})`;
+    return;
+  }
+  if (state.line === 18 && state.shrinkIdx != null) {
+    box.innerHTML = `Remove nums[${state.shrinkIdx}] = ${NUMS[state.shrinkIdx]} from sums, then the next line moves i right.`;
+    return;
+  }
+  if (state.line === 16) {
+    box.innerHTML = state.sums >= TARGET
+      ? `The current sum <strong>${state.sums}</strong> reaches target ${TARGET}, so this window is valid and can be shortened.`
+      : `The current sum <strong>${state.sums}</strong> is below target ${TARGET}, so expansion must continue.`;
+    return;
+  }
+  if (state.finalAnswer != null) {
+    box.innerHTML = `Final answer = <strong>${state.finalAnswer}</strong>.`;
+    return;
+  }
+  box.textContent = state.info;
+}
+
+function renderAnswer(state) {
+  const answer = document.getElementById('answer');
+  if (!state) {
+    answer.className = 'answer-line empty';
+    answer.textContent = 'no valid subarray found yet';
+    return;
+  }
+  if (state.finalAnswer != null) {
+    answer.className = state.finalAnswer === 0 ? 'answer-line empty' : 'answer-line';
+    answer.textContent = state.finalAnswer === 0
+      ? 'return 0'
+      : `return ${state.finalAnswer}`;
+    return;
+  }
+  if (state.bestRange) {
+    const [a, b] = state.bestRange;
+    answer.className = 'answer-line';
+    answer.textContent = `best so far: nums[${a}..${b}], minLen = ${state.minLen}`;
+  } else {
+    answer.className = 'answer-line empty';
+    answer.textContent = 'no valid subarray found yet';
+  }
+}
+
+function renderArray(state) {
+  for (let idx = 0; idx < NUMS.length; idx++) {
+    const box = document.getElementById(`cell-${idx}`);
+    const ptr = document.getElementById(`ptr-${idx}`);
+    const seg = document.getElementById(`win-${idx}`);
+    if (!box || !ptr || !seg) continue;
+
+    const isJ = state && state.j === idx;
+    const isI = state && state.i === idx;
+    const isAdded = state && state.addedIdx === idx && (state.line === 12 || state.line === 13);
+    const isShrink = state && state.shrinkIdx === idx;
+    const inWindow = state && state.i != null && state.j != null && idx >= state.i && idx <= state.j;
+    const isDone = state && state.i != null && idx < state.i;
+    const inCandidate = state && state.candidateRange && idx >= state.candidateRange[0] && idx <= state.candidateRange[1];
+    const inBest = state && state.bestRange && idx >= state.bestRange[0] && idx <= state.bestRange[1];
+
+    let cls = 'cell-box';
+    if (isShrink) cls += ' shrinking';
+    else if (inCandidate) cls += ' candidate';
+    else if (isAdded) cls += ' active-j';
+    else if (inBest) cls += ' best';
+    else if (inWindow) cls += ' in-window';
+    else if (isDone) cls += ' done';
+    box.className = cls;
+
+    if (isI && isJ) {
+      ptr.textContent = `i=j=${idx}`;
+      ptr.className = 'cell-ptr ptr-both';
+    } else if (isI) {
+      ptr.textContent = `i=${idx}`;
+      ptr.className = 'cell-ptr ptr-i';
+    } else if (isJ) {
+      ptr.textContent = `j=${idx}`;
+      ptr.className = 'cell-ptr ptr-j';
+    } else {
+      ptr.textContent = '';
+      ptr.className = 'cell-ptr';
+    }
+
+    let segCls = 'win-seg';
+    if (inCandidate) segCls += ' candidate';
+    else if (inBest) segCls += ' best';
+    else if (inWindow) segCls += ' in-window';
+    seg.className = segCls;
+  }
+}
+
+function render() {
+  if (cur < 0) {
+    highlightLine(null);
+    renderCtrl(-1, STEPS.length, '');
+    renderArray(null);
+    renderStateBar(null);
+    renderFormula(null);
+    renderAnswer(null);
+    document.getElementById('window-label').innerHTML = '';
+    return;
+  }
+
+  const state = STEPS[cur];
+  highlightLine(state.line);
+  renderCtrl(cur, STEPS.length, state.info);
+  renderArray(state);
+  renderStateBar(state);
+  renderFormula(state);
+  renderAnswer(state);
+  const winText = currentWindowText(state);
+  document.getElementById('window-label').innerHTML = winText
+    ? `<span class="win-pill">${winText}</span>`
+    : '';
+}
+
+function loadExample(id) {
+  const ex = EXAMPLES[id];
+  if (!ex) return;
+  stopAuto();
+  TARGET = ex.target;
+  NUMS = ex.nums.slice();
+  document.getElementById('input-title').textContent =
+    `Input  target = ${TARGET}, nums = ${formatArray(NUMS)}`;
+  buildArrayDOM();
+  STEPS = buildSteps();
+  cur = -1;
+  render();
+  lockStableSizes();
+  Object.keys(EXAMPLES).forEach(key => {
+    const btn = document.getElementById('ex-' + key);
+    if (btn) btn.classList.toggle('auto-active', key === id);
+  });
+}
+
+loadExample('classic');
+</script>
+</body>
+</html>

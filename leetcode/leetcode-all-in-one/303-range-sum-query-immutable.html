@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>303. Range Sum Query - Immutable</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  /* Fixed panel widths hanging off the shared center line: code ends at the
+     center, viz starts at it (shared .code-half/.viz-panel justify-self). */
+  .prefix-layout .code-half { width: 610px; min-width: 0; }
+  .prefix-layout .viz-panel { width: max-content; min-width: 0; align-items: flex-start; }
+  .prefix-layout .code-stack, .prefix-layout .code-panel { width: 100%; min-width: 0; }
+  .prefix-layout .var-bar, .prefix-layout .card { width: fit-content; min-width: 0; max-width: 560px; }
+  .array-row { display: flex; align-items: flex-end; gap: 6px; min-height: 70px; }
+  .cell-wrap { width: 54px; text-align: center; font-family: 'SF Mono', Menlo, monospace; }
+  .cell-index { height: 17px; color: #aaa; font-size: 11px; }
+  .cell {
+    width: 54px; height: 44px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    background: #f5f5f5; font-size: 18px; font-weight: 700;
+    transition: background .2s, transform .2s, opacity .2s;
+  }
+  .cell.unbuilt { color: #bbb; font-weight: 400; }
+  /* nums 行开头空一格：nums[i] 正对 prefix[i+1]（prefix[0] 下面没有 nums），
+     prefix[i+1] = prefix[i] + nums[i] 竖着就能看出来 */
+  .cell.spacer { background: transparent; }
+  .cell.source { background: rgba(249,203,66,.50); transform: scale(1.08); }
+  .cell.built { background: rgba(139,133,212,.22); }
+  .cell.new { background: rgba(93,202,165,.45); transform: scale(1.08); }
+  .cell.bound { background: rgba(247,140,108,.35); transform: scale(1.08); }
+  .cell.range { background: rgba(249,203,66,.32); }
+  .nums-marker-row {
+    display: flex;
+    gap: 6px;
+    min-height: 34px;
+    margin-top: 2px;
+    font: 700 11px/1.15 'SF Mono', Menlo, monospace;
+  }
+  .formula {
+    min-height: 58px; padding: 4px 0 0;
+    font: 13px/1.5 'SF Mono', Menlo, monospace; color: #555;
+    display: flex; align-items: flex-start;
+  }
+  .formula strong { color: #C4501E; }
+  .formula-lines { display: inline-grid; grid-template-columns: max-content max-content max-content; column-gap: 8px; row-gap: 2px; }
+  .formula-line { display: contents; }
+  .formula-lhs { text-align: right; white-space: nowrap; }
+  .formula-eq { color: #007EA8; font-weight: 700; text-align: center; }
+  .formula-rhs { white-space: nowrap; }
+  .i-ref {
+    display: inline-block;
+    padding: 0 4px;
+    border-radius: 4px;
+    background: rgba(249,203,66,.50);
+    color: #1a1a1a;
+    font-weight: 700;
+  }
+  .prefix-state {
+    margin-top: 8px;
+    font: 13px/1.5 'SF Mono', Menlo, monospace;
+    color: #555;
+    white-space: nowrap;
+  }
+  .prefix-state .var-name { color: #9333C0; }
+  .prefix-state .var-eq { color: #007EA8; font-weight: 700; }
+  .prefix-state .var-val { color: #C4501E; font-weight: 700; }
+  .marker-row {
+    display: flex;
+    gap: 6px;
+    min-height: 35px;
+    margin-top: 2px;
+    font: 700 11px/1.15 'SF Mono', Menlo, monospace;
+  }
+  .marker-cell {
+    width: 54px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    color: transparent;
+  }
+  .marker-cell.active { color: #C4501E; }
+  .marker-arrow { color: #007EA8; font-size: 14px; line-height: 12px; }
+  .marker-label { white-space: nowrap; }
+  .query-result {
+    width: 448px; min-height: 44px; display: flex; align-items: center; justify-content: center;
+    border-radius: 8px; background: rgba(93,202,165,.18);
+    font: 700 15px 'SF Mono', Menlo, monospace; color: #246b55;
+  }
+  .query-result.empty { background: #f5f5f5; color: #aaa; font-weight: 400; }
+  .prefix-layout .step-info { min-height: 52px; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '303. Range Sum Query - Immutable',
+  link: 'https://leetcode.com/problems/range-sum-query-immutable/',
+  legend: [
+    { color: 'rgba(249,203,66,.50)', label: 'current nums[i] / queried range' },
+    { color: 'rgba(139,133,212,.22)', label: 'built prefix sum' },
+    { color: 'rgba(93,202,165,.45)', label: 'new prefix value' },
+    { color: 'rgba(247,140,108,.35)', label: 'subtraction bounds' },
+  ],
+});
+</script>
+  <div class="main layout-grid prefix-layout">
+    <script>
+    renderCodeBox({
+      code: `
+class NumArray:
+
+    def __init__(self, nums: List[int]):
+        self.prefix = [0] * (len(nums) + 1)
+        for i, val in enumerate(nums):
+            self.prefix[i+1] = self.prefix[i] + val
+
+    def sumRange(self, left: int, right: int) -> int:
+        return self.prefix[right+1] - self.prefix[left]`,
+    });
+    </script>
+
+    <div class="viz-panel">
+      <div class="card">
+        <h3>Input Array　nums = [-2, 0, 3, -5, 2, -1]</h3>
+        <div class="array-row" id="numsRow"></div>
+        <div class="nums-marker-row" id="numsMarkers"></div>
+      </div>
+      <div class="card">
+        <h3>Prefix Sum Array　prefix[i] = sum(nums[0:i])</h3>
+        <div class="array-row" id="prefixRow"></div>
+        <div class="marker-row" id="prefixMarkers"></div>
+        <div class="formula" id="formula"></div>
+        <div class="prefix-state">
+          <span class="var-name">prefix</span><span class="var-eq"> = </span><span class="var-val" id="vPrefix"></span>
+        </div>
+      </div>
+      <div class="card">
+        <h3>sumRange calls</h3>
+        <div class="query-result empty" id="result">no calls yet</div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+const NUMS = [-2, 0, 3, -5, 2, -1];
+const PREFIX = [0, -2, -2, 1, -4, -2, -3];
+const STEPS = [
+  { line:3, built:-1, info:'Create NumArray with nums = [-2, 0, 3, -5, 2, -1].' },
+  { line:4, built:0, info:'Allocate n + 1 prefix slots. prefix[0] = 0 represents an empty prefix.' },
+  ...NUMS.flatMap((val, i) => [
+    { line:5, built:i, active:i, i, val, info:`Read nums[${i}] = ${val}.` },
+    { line:6, built:i+1, active:i, fresh:i+1, i, val, info:`prefix[${i+1}] = prefix[${i}] + nums[${i}] = ${PREFIX[i]} + ${val} = ${PREFIX[i+1]}.` }
+  ]),
+  { line:8, built:6, left:0, right:2, info:'Call sumRange(0, 2): find the sum of nums[0…2].' },
+  { line:9, built:6, left:0, right:2, query:true, result:1, info:'Subtract the prefix before left from the prefix through right.' },
+  { line:8, built:6, left:2, right:5, info:'Call sumRange(2, 5): reuse the same precomputed prefix array.' },
+  { line:9, built:6, left:2, right:5, query:true, result:-1, info:'One subtraction returns the range sum in O(1) time.' },
+  { line:8, built:6, left:0, right:5, info:'Call sumRange(0, 5): query the entire array.' },
+  { line:9, built:6, left:0, right:5, query:true, result:-3, info:'prefix[6] − prefix[0] = −3 − 0 = −3.' }
+];
+let cur = -1;
+
+function formulaLines(lines) {
+  return `<div class="formula-lines">${lines.map(([lhs, rhs]) => `
+    <div class="formula-line">
+      <span class="formula-lhs">${lhs}</span>
+      <span class="formula-eq">=</span>
+      <span class="formula-rhs">${rhs}</span>
+    </div>
+  `).join('')}</div>`;
+}
+
+function cell(value, index, classes='') {
+  return `<div class="cell-wrap"><div class="cell-index">${index}</div><div class="cell ${classes}">${value}</div></div>`;
+}
+
+function numsMarkers(s) {
+  const spacer = '<div class="marker-cell"></div>';
+  if (s.i == null) {
+    return spacer + NUMS.map(() => '<div class="marker-cell"></div>').join('');
+  }
+  return spacer + NUMS.map((_, i) => {
+    if (i !== s.i) return '<div class="marker-cell"></div>';
+    return `<div class="marker-cell active">
+      <div class="marker-arrow">↑</div>
+      <div class="marker-label">i = ${s.i}</div>
+      <div class="marker-label">val = ${s.val}</div>
+    </div>`;
+  }).join('');
+}
+
+function prefixMarkers(s) {
+  if (s.left == null) {
+    return PREFIX.map(() => '<div class="marker-cell"></div>').join('');
+  }
+  return PREFIX.map((_, i) => {
+    const labels = [];
+    if (i === s.left) labels.push('left');
+    if (i === s.right + 1) labels.push('right+1');
+    const active = labels.length ? ' active' : '';
+    return `<div class="marker-cell${active}">
+      ${labels.length ? '<div class="marker-arrow">↑</div>' : ''}
+      <div class="marker-label">${labels.join(' / ')}</div>
+    </div>`;
+  }).join('');
+}
+
+function iRef() {
+  return '<span class="i-ref">i</span>';
+}
+
+function render() {
+  const s = cur < 0 ? { built:-1, info:'Build prefix sums once, then answer each range query with one subtraction.' } : STEPS[cur];
+  highlightLine(cur < 0 ? null : s.line);
+  const shown = PREFIX.map((v, i) => i <= s.built ? v : '·');
+  document.getElementById('vPrefix').textContent = `[${shown.join(', ')}]`;
+
+  document.getElementById('numsRow').innerHTML = cell('', '', 'spacer') + NUMS.map((v, i) => {
+    let cls = i === s.active ? 'source' : '';
+    if (s.query && i >= s.left && i <= s.right) cls = 'range';
+    return cell(v, i, cls);
+  }).join('');
+  document.getElementById('numsMarkers').innerHTML = numsMarkers(s);
+  document.getElementById('prefixRow').innerHTML = PREFIX.map((v, i) => {
+    let cls = i <= s.built ? 'built' : 'unbuilt';
+    if (i === s.fresh) cls = 'new';
+    if (s.left != null && (i === s.left || i === s.right + 1)) cls = 'bound';
+    return cell(i <= s.built ? v : '·', i, cls);
+  }).join('');
+  document.getElementById('prefixMarkers').innerHTML = prefixMarkers(s);
+
+  const formula = document.getElementById('formula');
+  if (s.query) {
+    formula.innerHTML = formulaLines([
+      [`sumRange(${s.left}, ${s.right})`, 'prefix[right + 1] − prefix[left]'],
+      ['', `prefix[${s.right+1}] − prefix[${s.left}]`],
+      ['', `${PREFIX[s.right+1]} − ${PREFIX[s.left]}`],
+      ['', `<strong>${s.result}</strong>`],
+    ]);
+  } else if (s.fresh != null) {
+    formula.innerHTML = formulaLines([
+      [`prefix[${iRef()} + 1]`, `prefix[${iRef()}] + nums[${iRef()}]`],
+      ['', `prefix[${s.i}] + nums[${s.i}]`],
+      ['', `${PREFIX[s.i]} + ${s.val}`],
+      ['', `<strong>${PREFIX[s.fresh]}</strong>`],
+    ]);
+  } else {
+    formula.textContent = 'prefix[i + 1] stores the sum of the first i + 1 numbers';
+  }
+
+  const result = document.getElementById('result');
+  if (s.query) {
+    result.className = 'query-result';
+    result.textContent = `sumRange(${s.left}, ${s.right}) = ${s.result}`;
+  } else if (s.left != null) {
+    result.className = 'query-result empty';
+    result.textContent = `sumRange(${s.left}, ${s.right})`;
+  } else {
+    result.className = 'query-result empty';
+    result.textContent = 'no calls yet';
+  }
+  renderCtrl(cur, STEPS.length, s.info);
+}
+render();
+</script>
+</body>
+</html>

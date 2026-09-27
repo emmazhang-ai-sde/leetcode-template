@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Breadth First Search / Depth First Search All-in-One</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<link rel="stylesheet" href="algo-all-in-one.css">
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+
+<div class="content-wrapper">
+  <div class="algo-home">
+    <div class="algo-hero">
+      <h1 class="algo-title">Breadth First Search / Depth First Search</h1>
+    </div>
+    <div class="combo-compare">
+      <div class="combo-compare-head">
+        <div></div>
+        <div class="cmp-bfs">BFS</div>
+        <div class="cmp-dfs">DFS</div>
+      </div>
+      <div class="combo-compare-row">
+        <div class="combo-compare-label">Core idea</div>
+        <div class="combo-compare-cell cmp-bfs-cell">Expands outward layer by layer: first to arrive is shortest / optimal</div>
+        <div class="combo-compare-cell cmp-dfs-cell">Follows one path to the end, backtracks to try another when stuck</div>
+      </div>
+      <div class="combo-compare-row">
+        <div class="combo-compare-label">Data structure</div>
+        <div class="combo-compare-cell cmp-bfs-cell">Queue (<code>deque</code>) + level batching: snapshot <code>size = len(queue)</code>, finish one level before the next</div>
+        <div class="combo-compare-cell cmp-dfs-cell">Recursive call stack, no explicit queue</div>
+      </div>
+      <div class="combo-compare-row">
+        <div class="combo-compare-label">Visited set?</div>
+        <div class="combo-compare-cell cmp-bfs-cell">Yes, added but never removed: first arrival is already shortest, no need to revisit</div>
+        <div class="combo-compare-cell cmp-dfs-cell">Yes, added then removed (backtrack), undone on the way back so other paths can reuse the state</div>
+      </div>
+      <div class="combo-compare-row">
+        <div class="combo-compare-label">Special case</div>
+        <div class="combo-compare-cell cmp-bfs-cell">Dijkstra: swaps the queue for a heap (<code>heapq</code>), greedily pops by distance instead of by level</div>
+        <div class="combo-compare-cell cmp-dfs-cell">Tree: divide-and-conquer, no visited / backtracking needed, merges results from subtree return values</div>
+      </div>
+      <div class="combo-compare-row">
+        <div class="combo-compare-label">What it collects / returns</div>
+        <div class="combo-compare-cell cmp-bfs-cell">Step count, reachability, shortest distance</div>
+        <div class="combo-compare-cell cmp-dfs-cell">Merged subtree result, or all paths / all combinations (enumeration-style)</div>
+      </div>
+      <div class="combo-compare-row">
+        <div class="combo-compare-label">Template count</div>
+        <div class="combo-compare-cell cmp-bfs-cell">4 categories · 4 templates (Tree / Grid / Graph / Dijkstra)</div>
+        <div class="combo-compare-cell cmp-dfs-cell">4 categories · 5 templates (Backtracking includes both Combination and Permutation)</div>
+      </div>
+    </div>
+    <div id="algo-sections"></div>
+  </div>
+</div>
+
+<script src="algo-all-in-one.js"></script>
+<script>renderAlgoComboPage();</script>
+</body>
+</html>

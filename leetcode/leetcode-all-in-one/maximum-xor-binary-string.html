@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maximum XOR Binary String</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  /* 图例挪到代码框下面后改纵向单列（ANIMATION_GUIDE 硬性规则） */
+  .legend-below { flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 0; max-width: none; }
+
+  /* 位串行（x / y / XOR 三行共用）：格子 + 下标 + 指针行 */
+  .bit-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .bit-cell { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .bit-box { width: 44px; height: 44px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; font-family: var(--ink-mono); background: #f5f5f5; border: 1px solid #c9c9c9; color: var(--ink); transition: background 0.2s; }
+  .bit-box.cur   { background: rgba(249,203,66,0.55); border-color: transparent; }
+  .bit-box.seen  { background: rgba(93,202,165,0.4);  border-color: transparent; }
+  .bit-box.spent { background: rgba(120,160,225,0.3); border-color: transparent; }
+  .bit-box.empty { color: #c9c9c9; font-weight: 400; }
+  .bit-idx { font-size: 11px; color: #aaa; font-family: var(--ink-mono); }
+  .bit-ptr { font-size: 10.5px; font-weight: 700; font-family: var(--ink-mono); color: #B07800; height: 14px; line-height: 14px; }
+
+  /* '1' 配额 chips：还剩几个 '1' 能花 */
+  .quota-row { display: flex; gap: 6px; }
+  .quota-chip { width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; font-family: var(--ink-mono); background: rgba(120,160,225,0.3); color: var(--ink); transition: background 0.2s, opacity 0.2s; }
+  .quota-chip.spent { background: #f5f5f5; border: 1px dashed #c9c9c9; color: #c9c9c9; }
+
+  /* OA 题面（notes.js 会挪进 Notes 区；后端不在时显示在动画下面） */
+  .oa-layout { max-width: 760px; margin: 24px auto 0; display: flex; flex-direction: column; gap: 16px; }
+  .oa-layout .card { width: 100%; min-width: 0; line-height: 1.7; }
+  .oa-layout .card p { margin: 0 0 10px; }
+  .oa-layout .card p:last-child { margin-bottom: 0; }
+  .oa-layout .card ul, .oa-layout .card ol { margin: 0 0 10px 20px; }
+  .oa-layout .card li { margin-bottom: 8px; }
+  .oa-layout .card code { background: var(--ink-chip); border-radius: 4px; padding: 1px 5px; font-family: var(--ink-mono); font-size: 12.5px; }
+  .oa-tag { display: inline-block; font-family: var(--ink-mono); font-size: 11px; letter-spacing: .03em; background: var(--ink-chip); border: var(--ink-border); border-radius: 6px; padding: 2px 8px; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: 'Maximum XOR Binary String',
+  legend: [
+    { color: 'rgba(249,203,66,0.55)', label: '当前 — 正在处理的位' },
+    { color: 'rgba(120,160,225,0.3)', label: "y 里花掉配额填的 '1' / 还没花掉的配额" },
+    { color: 'rgba(93,202,165,0.4)', label: '已处理完的位 / XOR 收获的 1' },
+    { color: '#f5f5f5', extra: 'border:1px solid #c9c9c9;', label: '还没处理到' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+  <script>
+  renderCodeBox({
+    code: `
+def findYValue(bits, maxSet, x):
+    y = []
+    used = 0
+
+    for ch in x:
+        if ch == '0' and used < maxSet:
+            y.append('1')
+            used += 1
+        else:
+            y.append('0')
+
+    return ''.join(y)`,
+  });
+  </script>
+  <script>
+  (function () {
+    const stack = document.querySelector('.code-stack');
+    stack.appendChild(document.getElementById('info'));
+    const legend = document.querySelector('.legend');
+    const legendRow = legend.parentElement;
+    legend.classList.add('legend-below');
+    stack.appendChild(legend);
+    legendRow.remove();
+  })();
+  </script>
+
+  <div class="viz-panel">
+    <div class="var-bar" id="var-bar"></div>
+
+    <div class="card">
+      <h3>x — 给定的位串（高位在左）</h3>
+      <div class="bit-row" id="x-row"></div>
+    </div>
+
+    <div class="card">
+      <h3>'1' 配额 — y 里最多能放 maxSet 个 '1'</h3>
+      <div class="quota-row" id="quota-row"></div>
+    </div>
+
+    <div class="card">
+      <h3>y — 正在构造的答案</h3>
+      <div class="bit-row" id="y-row"></div>
+    </div>
+
+    <div class="card">
+      <h3>x XOR y — 要最大化的结果</h3>
+      <div class="bit-row" id="xor-row"></div>
+    </div>
+  </div>
+</div><!-- /.main -->
+
+<!-- OA 题面：notes.js（problemToNotes）会把这块挪进 Notes 区当只读 Problem 卡 -->
+<div class="oa-layout">
+  <div class="card">
+    <span class="oa-tag">JPMorgan OA · HackerRank · 2026-08-08 · no official LeetCode number</span>
+    <h3>Problem</h3>
+    <p>You are given <code>bits</code>, <code>maxSet</code>, and <code>x</code>, where:</p>
+    <ul>
+      <li><code>bits</code> is the length of the binary string.</li>
+      <li><code>x</code> is a binary string of length <code>bits</code>.</li>
+      <li><code>maxSet</code> is the maximum number of bits that may be set to <code>'1'</code> in another binary string <code>y</code>.</li>
+    </ul>
+    <p>Construct a binary string <code>y</code> of the same length such that <code>x XOR y</code> is maximized.</p>
+    <p>The string <code>y</code> must satisfy:</p>
+    <ul>
+      <li>The number of <code>'1'</code> bits in <code>y</code> is at most <code>maxSet</code>.</li>
+      <li>Leading zeros are allowed.</li>
+    </ul>
+    <p>Return the binary string <code>y</code> that produces the maximum XOR value.</p>
+    <p><strong>Example</strong></p>
+    <p>For <code>bits = 3</code>, <code>x = "101"</code>, <code>maxSet = 1</code>:</p>
+    <ul>
+      <li>Possible <code>y</code> with at most one <code>'1'</code>: <code>000</code> / <code>001</code> / <code>010</code> / <code>100</code></li>
+      <li>XOR values: <code>101</code> / <code>100</code> / <code>111</code> / <code>001</code></li>
+      <li>The maximum is <code>111</code>, so <code>y = "010"</code>.</li>
+    </ul>
+    <p><strong>Key observation:</strong> <code>x[i] == '1'</code> 的位永远填 <code>y[i] = '0'</code>（XOR 已经是 1）；<code>x[i] == '0'</code> 的位填 <code>'1'</code> 才能把 XOR 变成 1——但 <code>'1'</code> 的配额只有 <code>maxSet</code> 个。高位数值最大，所以把配额从左往右贪心地花在 <code>x[i] == '0'</code> 的位置上，一趟扫完。</p>
+  </div>
+</div>
+</div><!-- /.content-wrapper -->
+
+<script>
+// ── Data ───────────────────────────────────────────────────────────────────
+// 例子比 Problem 卡里的 "101" 长一点：6 位、配额 2 个 '1'，故意让配额在
+// 中途花完——后面再遇到 x 的 '0'（下标 4）就只能填 '0'，把"贪心花在最高
+// 位"和"配额用完"两种情形都演出来。
+const BITS = 6;
+const X = '100101';
+const MAX_SET = 2;
+
+// 行号表（renderCodeBox 从 1 起连续编号，空行也占号：4/11 是空行）
+const L = { DEF: 1, Y: 2, USED: 3, FOR: 5, IF: 6, APP1: 7, INC: 8, ELSE: 9, APP0: 10, RET: 12 };
+
+// ── Step builder：真实模拟算法本身 ─────────────────────────────────────────
+function buildSteps() {
+  const steps = [];
+  let y = null;        // 构造中的 y（null = 还没执行到 y = []）
+  let used = null;
+  let i = null;        // 当前处理的下标，null = 不在循环里
+  let done = false;
+
+  function snap(line, info) {
+    steps.push({ line, info, i, used, done, y: y ? y.slice() : null });
+  }
+
+  snap(null, `初始状态：x = "${X}"（${BITS} 位），maxSet = ${MAX_SET} — 构造 y 让 x XOR y 最大。点击 Next 开始`);
+  snap(L.DEF, `Line 1: 进入 findYValue(bits=${BITS}, maxSet=${MAX_SET}, x="${X}")`);
+
+  y = [];
+  snap(L.Y, 'Line 2: y = [] — 从左往右一位一位拼答案');
+  used = 0;
+  snap(L.USED, `Line 3: used = 0 — 已经花掉的 '1' 配额，上限 maxSet = ${MAX_SET}`);
+
+  for (let k = 0; k < X.length; k++) {
+    const ch = X[k];
+    i = k;
+    snap(L.FOR, `Line 5: for 取下一位 — ch = x[${k}] = '${ch}'（第 ${k + 1}/${BITS} 位）`);
+
+    const canSpend = ch === '0' && used < MAX_SET;
+    if (ch === '0') {
+      snap(L.IF, `Line 6: ch == '0' 成立，used (${used}) < maxSet (${MAX_SET}) → ${canSpend
+        ? "True — 这一位 x 是 0，填 '1' 能把 XOR 变成 1，而且配额还有剩"
+        : "False — x 是 0 但配额已经花完，进 else"}`);
+    } else {
+      snap(L.IF, `Line 6: ch == '0' → False（x 这一位是 '1'，XOR 已经是 1，'1' 配额留给别处）→ 进 else`);
+    }
+
+    if (canSpend) {
+      y.push('1');
+      snap(L.APP1, `Line 7: y.append('1') — 下标 ${k} 花掉一个配额，这一位 XOR = 0^1 = 1`);
+      used += 1;
+      snap(L.INC, `Line 8: used += 1 → ${used}${used === MAX_SET ? ' — 配额到此花完，后面的 0 位只能干瞪眼' : ''}`);
+    } else {
+      snap(L.ELSE, 'Line 9: else 分支 — 这一位不花配额');
+      y.push('0');
+      snap(L.APP0, `Line 10: y.append('0') — 这一位 XOR = ${ch}^0 = ${ch === '1' ? '1（x 自带的）' : '0（没配额了，只能认 0）'}`);
+    }
+  }
+
+  i = null;
+  snap(L.FOR, 'Line 5: x 扫完了，退出 for 循环');
+  done = true;
+  const yStr = y.join('');
+  const xorStr = X.split('').map((c, k) => (c === y[k] ? '0' : '1')).join('');
+  snap(L.RET, `✅ Line 12: return ''.join(y) = "${yStr}" — x XOR y = ${X} ^ ${yStr} = ${xorStr}，最终答案 = "${yStr}"`);
+
+  return steps;
+}
+
+const STEPS = buildSteps();
+var cur = -1;
+
+// ── DOM init ───────────────────────────────────────────────────────────────
+(function buildDOM() {
+  document.getElementById('x-row').innerHTML = X.split('').map((c, k) =>
+    `<div class="bit-cell"><div class="bit-box" id="x-${k}">${c}</div><div class="bit-idx">${k}</div><div class="bit-ptr" id="xp-${k}"></div></div>`
+  ).join('');
+  document.getElementById('quota-row').innerHTML = Array.from({ length: MAX_SET }, (_, k) =>
+    `<span class="quota-chip" id="q-${k}">1</span>`
+  ).join('');
+  document.getElementById('y-row').innerHTML = X.split('').map((_, k) =>
+    `<div class="bit-cell"><div class="bit-box empty" id="y-${k}">·</div><div class="bit-idx">${k}</div></div>`
+  ).join('');
+  document.getElementById('xor-row').innerHTML = X.split('').map((_, k) =>
+    `<div class="bit-cell"><div class="bit-box empty" id="r-${k}">·</div><div class="bit-idx">${k}</div></div>`
+  ).join('');
+})();
+
+function renderVarBar(s) {
+  const v = x => (x === null || x === undefined) ? '-' : x;
+  const chTxt = s && s.i !== null ? `'${X[s.i]}'` : '-';
+  return `<span><span class="var-name">x</span> <span class="var-eq">=</span> <span class="var-val">"${X}"</span></span>` +
+    `<span><span class="var-name">maxSet</span> <span class="var-eq">=</span> <span class="var-val">${MAX_SET}</span></span>` +
+    `<span><span class="var-name">ch</span> <span class="var-eq">=</span> <span class="var-val">${chTxt}</span></span>` +
+    `<span><span class="var-name">used</span> <span class="var-eq">=</span> <span class="var-val">${v(s && s.used)}</span></span>` +
+    `<span><span class="var-name">y</span> <span class="var-eq">=</span> <span class="var-val">${s && s.y ? '"' + s.y.join('') + '"' : '-'}</span></span>`;
+}
+
+// ── Render（只读快照，无副作用）────────────────────────────────────────────
+function render() {
+  const s = cur < 0 ? null : STEPS[cur];
+  highlightLine(s ? s.line : null);
+  renderCtrl(cur < 0 ? -1 : cur, STEPS.length, s ? s.info : '');
+  document.getElementById('var-bar').innerHTML = renderVarBar(s);
+
+  const built = s && s.y ? s.y.length : 0;
+  X.split('').forEach((c, k) => {
+    const box = document.getElementById(`x-${k}`);
+    const ptr = document.getElementById(`xp-${k}`);
+    const isCur = s && s.i === k;
+    box.className = 'bit-box' + (isCur ? ' cur' : (k < built ? ' seen' : ''));
+    ptr.textContent = isCur ? '▲ ch' : '';
+  });
+
+  for (let k = 0; k < MAX_SET; k++) {
+    const chip = document.getElementById(`q-${k}`);
+    chip.className = 'quota-chip' + (s && s.used !== null && k < s.used ? ' spent' : '');
+  }
+
+  X.split('').forEach((c, k) => {
+    const yBox = document.getElementById(`y-${k}`);
+    const rBox = document.getElementById(`r-${k}`);
+    if (s && s.y && k < s.y.length) {
+      const yv = s.y[k];
+      const newest = s.i === k;
+      yBox.textContent = yv;
+      yBox.className = 'bit-box' + (newest ? ' cur' : (yv === '1' ? ' spent' : ''));
+      const xor = c === yv ? '0' : '1';
+      rBox.textContent = xor;
+      rBox.className = 'bit-box' + (newest ? ' cur' : (xor === '1' ? ' seen' : ''));
+    } else {
+      yBox.textContent = '·';
+      yBox.className = 'bit-box empty';
+      rBox.textContent = '·';
+      rBox.className = 'bit-box empty';
+    }
+  });
+}
+
+doReset();
+</script>
+</body>
+</html>

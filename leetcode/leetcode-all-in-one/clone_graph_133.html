@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>133. Clone Graph — BFS Animation</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  .phase-badge { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 11px; font-weight: 700; margin-bottom: 6px; }
+  .phase-badge.p1 { background: rgba(93,202,165,0.15); color: #1D9E75; }
+  .phase-badge.p2 { background: rgba(139,133,212,0.2); color: #5550a0; }
+  .divider { border: none; border-top: 1px solid #f0f0f0; margin: 8px 0; }
+  svg { display: block; width: 100%; max-height: 180px; }
+
+  /* 原图 / 克隆图 两张卡并排一行；svg 给个定宽，免得 flex 里 width:100% 算不出来 */
+  .viz-row { display: flex; align-items: stretch; gap: 16px; }
+  .viz-row .card svg { width: 380px; }
+
+  /* 图卡下面的 Phase 2 变量读数行 */
+  .graph-vars { display: flex; flex-direction: column; gap: 5px; margin-top: 10px;
+                font-family: 'SF Mono', 'Menlo', monospace; font-size: 13.5px; }
+  .gv-chip { padding: 1px 5px; border-radius: 4px; }
+
+  /* Queue */
+  .queue-items { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; min-height: 26px; }
+  .q-item { padding: 2px 10px; border-radius: 5px; background: #f5f5f5; font-family: 'SF Mono', monospace; font-size: 12px; }
+  .q-item.head { background: rgba(249,203,66,0.45); font-weight: 700; }
+  .q-empty { color: #aaa; font-style: italic; font-size: 12px; }
+
+  /* Maps */
+  .maps-grid { display: flex; flex-direction: column; gap: 5px; }
+  .maps-row { display: flex; align-items: center; gap: 8px; font-family: 'SF Mono', monospace; font-size: 11.5px; }
+  .maps-arrow { color: #888; }
+  .maps-old { padding: 2px 8px; border-radius: 4px; background: #f5f5f5; }
+  .maps-new { padding: 2px 8px; border-radius: 4px; background: rgba(93,202,165,0.2); }
+  .maps-nei { font-size: 10.5px; color: #5550a0; margin-left: 4px; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '133. Clone Graph — BFS Animation',
+  legend: [
+    { color: '#5DCAA5', extra: 'width:11px;height:11px;border-radius:50%;', label: '当前处理 curr' },
+    { color: '#F9CB42', extra: 'width:11px;height:11px;border-radius:50%;', label: '在 Queue 中' },
+    { color: '#AFA9EC', extra: 'width:11px;height:11px;border-radius:50%;', label: '已加入 maps' },
+    { color: '#f5f5f5', extra: 'border:1px solid #ccc;width:11px;height:11px;border-radius:50%;', label: '未访问' },
+    { color: '#5DCAA5', extra: 'width:11px;height:11px;border-radius:50%;', label: '刚被创建' },
+    { color: '#AFA9EC', extra: 'width:11px;height:11px;border-radius:50%;', label: '已存在' },
+    { color: '#8B85D4', extra: 'border-radius:2px;width:14px;height:3px;', label: '刚连上的边' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+  <!-- Left: code panel — two phase blocks; line numbers continue across them -->
+  <script>
+  // 代码是 0-Lyon-Python/133. Clone Graph.py 逐字原版：
+  // Node 定义的 docstring 放 prereq（行 1-7），正文行号紧接着编到 28。
+  renderCodeBox({
+    prereq: `
+"""
+# Definition for a Node.
+class Node:
+    def __init__(self, val = 0, neighbors = None):
+        self.val = val
+        self.neighbors = neighbors if neighbors is not None else []
+"""`,
+    blocks: [
+      { html: '<div class="phase-badge p1" id="badge-p1">Phase 1 — BFS 建克隆节点</div>' },
+      { code: `
+
+from typing import Optional
+class Solution:
+    def cloneGraph(self, node: Optional['Node']) -> Optional['Node']:
+        if node is None:
+            return None
+
+        queue = collections.deque([node])
+        maps = {}
+        while len(queue) > 0:
+            curr = queue.popleft()
+            maps[curr] = Node(curr.val)
+            for nei in curr.neighbors:
+                if nei not in maps:
+                    queue.append(nei)
+` },
+      { html: '<hr class="divider"><div class="phase-badge p2" id="badge-p2">Phase 2 — 连 neighbors</div>' },
+      { code: `
+
+        for old_node, new_node in maps.items():
+            for old_nei in old_node.neighbors:
+                newNei = maps[old_nei]
+                new_node.neighbors.append(newNei)
+        return maps[node]` },
+    ],
+  });
+  </script>
+
+  <!-- Right: viz panel -->
+  <div class="viz-panel">
+
+    <!-- Original + cloned graph side by side -->
+    <div class="viz-row">
+      <div class="card">
+        <h3>原图 (Original Graph)</h3>
+        <svg id="svg-orig" viewBox="0 0 380 260"></svg>
+        <div class="graph-vars" id="orig-vars"></div>
+      </div>
+
+      <div class="card">
+        <h3>克隆图 (Cloned Graph)</h3>
+        <svg id="svg-clone" viewBox="0 0 380 260"></svg>
+        <div class="graph-vars" id="clone-vars"></div>
+      </div>
+    </div>
+
+    <!-- BFS Queue -->
+    <div class="card">
+      <h3>BFS Queue（双端队列）</h3>
+      <div class="queue-items" id="queue-display"><span class="q-empty">空</span></div>
+    </div>
+
+    <!-- Maps -->
+    <div class="card">
+      <h3>maps { old → new_clone }</h3>
+      <div class="maps-grid" id="maps-display"><span style="color:#aaa;font-size:12px;font-style:italic">空</span></div>
+    </div>
+  </div>
+</div><!-- /.main -->
+</div><!-- /.content-wrapper -->
+
+<script>
+// ── Phase 2 四个变量的专属色：图上标注、代码框 token、读数行变量名 三处同色 ──
+const VAR_COLORS = {
+  old_node: '#1D9E75',   // 绿
+  old_nei:  '#C4501E',   // 红橙
+  new_node: '#3A6FD4',   // 蓝
+  newNei:   '#C026D3',   // 品红
+};
+// 同色系的淡色底：罩在变量（以及跟在后面的 .neighbors）整体上
+const VAR_TINTS = {
+  old_node: 'rgba(29,158,117,0.16)',
+  old_nei:  'rgba(196,80,30,0.14)',
+  new_node: 'rgba(58,111,212,0.14)',
+  newNei:   'rgba(192,38,211,0.12)',
+};
+
+// Phase 2 代码块（24-28 行）：四个变量染专属色 + 淡色底，紧跟着的
+// ".neighbors" 也罩进同一块淡色底（字保持黑）；其余 token 一律纯黑
+(function () {
+  document.querySelectorAll('.code-line').forEach(function (el) {
+    const l = +el.dataset.l;
+    if (l < 24 || l > 28) return;
+    const spans = Array.prototype.filter.call(el.querySelectorAll('span'), function (s) { return !s.classList.contains('ln'); });
+    spans.forEach(function (sp) { sp.style.color = '#1a1a1a'; });
+    for (let i = 0; i < spans.length; i++) {
+      const name = spans[i].textContent;
+      const c = VAR_COLORS[name];
+      if (!c) continue;
+      spans[i].style.color = c;
+      spans[i].style.fontWeight = '700';
+      // 只有 "变量.neighbors" 整体才罩淡色底；变量单独出现时只染色不加底
+      if (i + 2 < spans.length && spans[i + 1].textContent === '.' && spans[i + 2].textContent === 'neighbors') {
+        const seq = [spans[i], spans[i + 1], spans[i + 2]];
+        seq.forEach(function (sp) {
+          sp.style.background = VAR_TINTS[name];
+          sp.style.paddingTop = '2px';
+          sp.style.paddingBottom = '2px';
+        });
+        seq[0].style.borderRadius = '4px 0 0 4px';
+        seq[2].style.borderRadius = '0 4px 4px 0';
+      }
+    }
+  });
+})();
+
+// ── Graph definition ──────────────────────────────────────────────────────
+// 4 nodes: 1-2, 2-3, 3-4, 4-1  (undirected)
+const GRAPH = {
+  1: [2, 4],
+  2: [1, 3],
+  3: [2, 4],
+  4: [1, 3]
+};
+
+// SVG positions for each node (original)
+const POS = {
+  1: { x: 100, y: 80  },
+  2: { x: 280, y: 80  },
+  3: { x: 280, y: 190 },
+  4: { x: 100, y: 190 }
+};
+// Clone graph slightly offset for visual separation
+const CPOS = {
+  1: { x: 100, y: 80  },
+  2: { x: 280, y: 80  },
+  3: { x: 280, y: 190 },
+  4: { x: 100, y: 190 }
+};
+
+// Edges (undirected, store once each direction to avoid dupe drawing)
+const EDGES = [[1,2],[2,3],[3,4],[4,1]];
+
+/* 行号表：prereq（Node 定义 docstring）占 1-7，正文 8-28。行号只用常量，
+   不写裸数字。RETURN_NONE(13) 这个例子走不到（node 不是 None），不进轨迹。 */
+const L = {
+  IMPORT_TYPING: 9, DEF: 11, CHECK_NONE: 12,
+  Q_INIT: 15, MAPS_INIT: 16, WHILE: 17, POP: 18, CREATE: 19,
+  FOR_NEI: 20, CHECK_MAPS: 21, Q_APPEND: 22,
+  FOR_ITEMS: 24, FOR_OLDNEI: 25, GET_NEWNEI: 26, CONNECT: 27, RETURN: 28,
+};
+
+// ── Build steps：真跑一遍 Lyon 的解法生成步骤，不手写 ─────────────────────
+// 注意这份代码的一个真实行为：maps 兼当 visited，但节点是"被 popleft 时"才
+// 进 maps，不是"入队时"。所以节点 3 会被 2 和 4 各塞进队列一次、被 popleft
+// 两次、克隆两次（第二只把第一只覆盖掉）。结果仍然正确，动画如实展示。
+function buildSteps() {
+  const steps = [];
+  let queue = [];
+  const maps = {};        // val -> true（克隆体已存在）
+  const insertOrder = []; // maps 的插入顺序（Python dict 按插入序遍历）
+  let cloneEdges = [];
+  let curr = null, justCreated = null, highlightOrigEdge = null;
+  let oldNei = null, hasNewNei = false; // Phase 2：当前 old_nei / newNei 是否已取到
+  let phase = 1;
+
+  function snap(line, info) {
+    steps.push({
+      line, phase, info,
+      queue: queue.slice(), maps: Object.assign({}, maps), curr, justCreated,
+      cloneEdges: cloneEdges.map(e => e.slice()),
+      highlightOrigEdge: highlightOrigEdge ? highlightOrigEdge.slice() : null,
+      oldNei, hasNewNei,
+    });
+  }
+
+  snap(null, '开始！cloneGraph(node=Node 1)，无向图 1-2、2-3、3-4、4-1。\n' +
+    '深拷贝一张图分两个阶段：Phase 1 用 BFS 把每个节点的克隆体造出来（只造节点不连边），Phase 2 再遍历 maps 把边一条条接上。');
+  snap(L.IMPORT_TYPING, 'from typing import Optional：类型标注要用 Optional。');
+  snap(L.DEF, '进入 cloneGraph(node=Node 1)。');
+  snap(L.CHECK_NONE, 'if node is None → False（node 是节点 1），不走 return None 这条空图捷径。');
+  queue = [1];
+  snap(L.Q_INIT, 'queue = collections.deque([node])：BFS 队列，起点节点 1 入队。');
+  snap(L.MAPS_INIT, 'maps = {}：旧节点 → 克隆体 的映射表，同时兼当 visited 用（在不在 maps 里 = 克隆过没有）。');
+
+  while (queue.length > 0) {
+    snap(L.WHILE, `while len(queue) > 0 → True（队列里还有 ${queue.length} 个），继续。`);
+    curr = queue.shift();
+    snap(L.POP, `curr = queue.popleft() = 节点 ${curr}。`);
+    const reclone = !!maps[curr];
+    if (!reclone) insertOrder.push(curr);
+    maps[curr] = true;
+    justCreated = curr;
+    snap(L.CREATE, reclone
+      ? `maps[curr] = Node(curr.val)：注意！节点 ${curr} 被排进队列两次，这是它第二次被 popleft——又 new 了一个克隆体，把上一只覆盖掉。结果仍然正确（Phase 2 连边只认 maps 里最新那只），只是白造了一只。`
+      : `maps[curr] = Node(curr.val)：给节点 ${curr} 造克隆体，登记进 maps（克隆图里闪出 Node'${curr}）。`);
+    justCreated = null;
+    for (const nei of GRAPH[curr]) {
+      highlightOrigEdge = [curr, nei];
+      snap(L.FOR_NEI, `for nei in curr.neighbors：nei = 节点 ${nei}（原图高亮这条边）。`);
+      const notIn = !maps[nei];
+      const alreadyQueued = notIn && queue.indexOf(nei) !== -1;
+      snap(L.CHECK_MAPS, `if nei not in maps → ${notIn}` +
+        (notIn
+          ? (alreadyQueued ? `。注意：节点 ${nei} 其实已经在队列里排着了，只是还没被 popleft、还没进 maps——所以这里会重复入队。这就是"popleft 时才标记"的代价。` : `（节点 ${nei} 还没克隆过）`)
+          : `（节点 ${nei} 已经在 maps 里，跳过）`));
+      if (notIn) {
+        queue.push(nei);
+        snap(L.Q_APPEND, `queue.append(节点 ${nei})：入队（变黄）。`);
+      }
+    }
+    highlightOrigEdge = null;
+  }
+  curr = null;
+  snap(L.WHILE, `while len(queue) > 0 → False：队列空了。Phase 1 结束——popleft 了 5 次，造了 ${insertOrder.length} 个克隆节点（节点 3 被造了两次，浪费一只）。克隆图现在只有孤零零的节点，一条边都没有。`);
+
+  phase = 2;
+  for (const old of insertOrder) {
+    curr = old;
+    snap(L.FOR_ITEMS, `for old_node, new_node in maps.items()：old_node = 节点 ${old}，new_node = 克隆体 Node'${old}（dict 按插入顺序遍历：${insertOrder.join(' → ')}）。`);
+    for (const nb of GRAPH[old]) {
+      highlightOrigEdge = [old, nb];
+      oldNei = nb;
+      hasNewNei = false;
+      snap(L.FOR_OLDNEI, `for old_nei in old_node.neighbors：old_nei = 节点 ${nb}（照着原图的边抄）。`);
+      hasNewNei = true;
+      snap(L.GET_NEWNEI, `newNei = maps[old_nei] = 克隆体 Node'${nb}——原图这条边指到谁，就去 maps 里换成谁的克隆体。`);
+      cloneEdges.push([old, nb]);
+      snap(L.CONNECT, `new_node.neighbors.append(newNei)：克隆图连上 Node'${old} → Node'${nb}（紫色新边）。`);
+    }
+    highlightOrigEdge = null;
+    oldNei = null;
+    hasNewNei = false;
+  }
+  curr = null;
+  snap(L.RETURN, "return maps[node]：返回起点的克隆体 Node'1。");
+  snap(null, '✅ 完成！返回 Node\'1 — 克隆图和原图结构一模一样，但每个节点、每条 neighbors 引用都是新对象（不同内存地址）。');
+
+  return steps;
+}
+
+const STEPS = buildSteps();
+let cur = -1;
+
+// ── Rendering ─────────────────────────────────────────────────────────────
+function renderSVG(svgId, positions, edges, nodeStates, activeEdge, cloneEdges, cloneNodeStates, isClone, annots) {
+  const svg = document.getElementById(svgId);
+  svg.innerHTML = '';
+
+  function mkEl(tag) { return document.createElementNS('http://www.w3.org/2000/svg', tag); }
+
+  // Draw edges
+  const drawnEdges = new Set();
+  for (const [a, b] of edges) {
+    const key = [Math.min(a,b), Math.max(a,b)].join('-');
+    if (drawnEdges.has(key)) continue;
+    drawnEdges.add(key);
+
+    const pa = positions[a], pb = positions[b];
+    const isActive = activeEdge && (
+      (activeEdge[0]===a && activeEdge[1]===b) || (activeEdge[0]===b && activeEdge[1]===a)
+    );
+    const line = mkEl('line');
+    line.setAttribute('x1', pa.x); line.setAttribute('y1', pa.y);
+    line.setAttribute('x2', pb.x); line.setAttribute('y2', pb.y);
+    line.setAttribute('stroke', isActive ? '#5DCAA5' : '#c8c6be');
+    line.setAttribute('stroke-width', isActive ? '2.5' : '1.5');
+    svg.appendChild(line);
+  }
+
+  // Draw clone edges (Phase 2)
+  if (isClone) {
+    const drawnClone = new Set();
+    for (const [a, b] of cloneEdges) {
+      const key = [Math.min(a,b), Math.max(a,b)].join('-');
+      // Check if this is the last-added edge (most recent)
+      const isNewest = cloneEdges.length > 0 &&
+        cloneEdges[cloneEdges.length-1][0]===a && cloneEdges[cloneEdges.length-1][1]===b;
+      if (drawnClone.has(key)) continue;
+      drawnClone.add(key);
+      const pa = positions[a], pb = positions[b];
+      const line = mkEl('line');
+      line.setAttribute('x1', pa.x); line.setAttribute('y1', pa.y);
+      line.setAttribute('x2', pb.x); line.setAttribute('y2', pb.y);
+      line.setAttribute('stroke', isNewest ? '#8B85D4' : '#AFA9EC');
+      line.setAttribute('stroke-width', isNewest ? '3' : '1.5');
+      svg.appendChild(line);
+    }
+  }
+
+  // Draw nodes
+  for (const id of [1,2,3,4]) {
+    const p = positions[id];
+    const state = isClone ? cloneNodeStates[id] : nodeStates[id];
+
+    let fill = '#e8e6df', stroke = '#b4b2a9', strokeW = 1;
+    if (state === 'curr') { fill = '#5DCAA5'; stroke = '#1D9E75'; strokeW = 2.5; }
+    else if (state === 'queue') { fill = '#F9CB42'; stroke = '#d4a800'; strokeW = 1.5; }
+    else if (state === 'mapped') { fill = '#AFA9EC'; stroke = '#7771c8'; strokeW = 1.5; }
+    else if (state === 'created') { fill = '#F9CB42'; stroke = '#1D9E75'; strokeW = 2.5; }
+
+    const g = mkEl('g');
+    const circle = mkEl('circle');
+    circle.setAttribute('cx', p.x); circle.setAttribute('cy', p.y); circle.setAttribute('r', 24);
+    circle.setAttribute('fill', fill); circle.setAttribute('stroke', stroke); circle.setAttribute('stroke-width', strokeW);
+    g.appendChild(circle);
+
+    const text = mkEl('text');
+    text.setAttribute('x', p.x); text.setAttribute('y', p.y);
+    text.setAttribute('text-anchor', 'middle'); text.setAttribute('dominant-baseline', 'central');
+    text.setAttribute('font-size', '13'); text.setAttribute('font-weight', '700'); text.setAttribute('fill', '#2C2C2A');
+    text.setAttribute('font-family', 'SF Mono, Menlo, monospace');
+    text.textContent = id;
+    g.appendChild(text);
+
+    // Phase 2 的变量标注（old_node / old_nei / new_node / newNei），画在节点上方
+    if (annots && annots[id]) {
+      const an = mkEl('text');
+      an.setAttribute('x', p.x); an.setAttribute('y', p.y - 36);
+      an.setAttribute('text-anchor', 'middle'); an.setAttribute('font-size', '15');
+      an.setAttribute('font-weight', '700'); an.setAttribute('fill', annots[id].c);
+      an.setAttribute('font-family', 'SF Mono, Menlo, monospace');
+      an.textContent = annots[id].t;
+      g.appendChild(an);
+    }
+
+    // Label below
+    if (isClone && state !== 'none') {
+      const lbl = mkEl('text');
+      lbl.setAttribute('x', p.x); lbl.setAttribute('y', p.y + 36);
+      lbl.setAttribute('text-anchor', 'middle'); lbl.setAttribute('font-size', '10');
+      lbl.setAttribute('fill', '#888'); lbl.setAttribute('font-family', 'SF Mono, monospace');
+      lbl.textContent = `Node'${id}`;
+      g.appendChild(lbl);
+    }
+
+    svg.appendChild(g);
+  }
+}
+
+function computeNodeStates(step) {
+  if (!step) return { orig: {1:'none',2:'none',3:'none',4:'none'}, clone: {1:'none',2:'none',3:'none',4:'none'} };
+  const { curr, queue, maps, justCreated, phase } = step;
+  const orig = {}, clone = {};
+  for (const id of [1,2,3,4]) {
+    // Original graph
+    if (id === curr) orig[id] = 'curr'; // Phase 2 时 curr = old_node，原图上也点亮
+    else if (maps[id]) orig[id] = 'mapped';
+    else if (queue.includes(id)) orig[id] = 'queue';
+    else orig[id] = 'none';
+
+    // Clone graph
+    if (phase === 2 && id === curr) clone[id] = 'curr';
+    else if (id === justCreated) clone[id] = 'created';
+    else if (maps[id]) clone[id] = 'mapped';
+    else clone[id] = 'none';
+  }
+  return { orig, clone };
+}
+
+// 读数行跟 Phase 2 代码块同一个规矩：变量名带色 + 同色淡底（.neighbors 一起
+// 罩住、字黑），= 和值纯黑
+function gvRow(name, val) {
+  const base = name.split('.')[0];
+  const c = VAR_COLORS[base];
+  const rest = name.slice(base.length); // ".neighbors" 或 ""
+  // 淡色底只给 "变量.neighbors" 整体；变量单独一行时只染色不加底
+  const nameHtml = c
+    ? (rest
+        ? '<span class="gv-chip" style="background:' + VAR_TINTS[base] + '">' +
+            '<span style="color:' + c + ';font-weight:700">' + base + '</span>' +
+            '<span style="color:#1a1a1a">' + rest + '</span>' +
+          '</span>'
+        : '<span class="var-name" style="color:' + c + ';font-weight:700">' + name + '</span>')
+    : '<span class="var-name" style="color:#1a1a1a;font-weight:700">' + name + '</span>';
+  return '<span class="var-row">' + nameHtml +
+    '<span class="var-eq" style="color:#1a1a1a"> = </span>' +
+    '<span class="var-val" style="color:#1a1a1a">' + val + '</span></span>';
+}
+function gvEmpty(names) { return names.map(function (nm) { return gvRow(nm, '-'); }).join(''); }
+
+function renderAll() {
+  const step = cur >= 0 ? STEPS[cur] : null;
+
+  if (!step) {
+    // reset both SVGs
+    renderSVG('svg-orig', POS, EDGES, {1:'none',2:'none',3:'none',4:'none'}, null, [], {}, false);
+    renderSVG('svg-clone', CPOS, [], {1:'none',2:'none',3:'none',4:'none'}, null, [], {}, true);
+    document.getElementById('orig-vars').innerHTML = gvEmpty(['old_node', 'old_node.neighbors', 'old_nei']);
+    document.getElementById('clone-vars').innerHTML = gvEmpty(['new_node', 'newNei', 'new_node.neighbors']);
+    document.getElementById('queue-display').innerHTML = '<span class="q-empty">空</span>';
+    document.getElementById('maps-display').innerHTML = '<span style="color:#aaa;font-size:12px;font-style:italic">空</span>';
+    renderCtrl(-1, STEPS.length, '');
+    highlightLine(null);
+    return;
+  }
+
+  const { orig, clone } = computeNodeStates(step);
+
+  // Phase 2：在两张图上标出 old_node / old_nei 和 new_node / newNei
+  const p2 = step.phase === 2 && step.curr != null;
+  let origAnnots = null, cloneAnnots = null;
+  if (p2) {
+    origAnnots = { [step.curr]: { t: 'old_node', c: VAR_COLORS.old_node } };
+    cloneAnnots = { [step.curr]: { t: 'new_node', c: VAR_COLORS.new_node } };
+    if (step.oldNei != null) origAnnots[step.oldNei] = { t: 'old_nei', c: VAR_COLORS.old_nei };
+    if (step.hasNewNei) cloneAnnots[step.oldNei] = { t: 'newNei', c: VAR_COLORS.newNei };
+  }
+
+  // Original edges always shown; highlight active edge
+  renderSVG('svg-orig', POS, EDGES, orig, step.highlightOrigEdge, [], {}, false, origAnnots);
+
+  // Clone: only show edges that have been connected
+  renderSVG('svg-clone', CPOS, [], clone, null, step.cloneEdges, clone, true, cloneAnnots);
+
+  // Queue display
+  const qd = document.getElementById('queue-display');
+  if (step.queue.length === 0) {
+    qd.innerHTML = '<span class="q-empty">空</span>';
+  } else {
+    qd.innerHTML = step.queue.map((v, i) =>
+      `<span class="q-item${i===0?' head':''}">${v}</span>${i < step.queue.length-1 ? '<span style="color:#aaa;font-size:11px">→</span>' : ''}`
+    ).join('');
+  }
+
+  // Maps display
+  const md = document.getElementById('maps-display');
+  const keys = Object.keys(step.maps).map(Number).sort();
+  if (keys.length === 0) {
+    md.innerHTML = '<span style="color:#aaa;font-size:12px;font-style:italic">空</span>';
+  } else {
+    const phase2 = step.phase === 2;
+    md.innerHTML = keys.map(k => {
+      // In phase 2, show neighbors connected so far
+      const connectedNeis = step.cloneEdges.filter(([a,b]) => a === k).map(([a,b]) => b);
+      const neiStr = phase2 ? (connectedNeis.length > 0 ? ` .neighbors=[${connectedNeis.join(',')}]` : '') : '';
+      const isActive = step.curr === k && step.phase === 2;
+      return `<div class="maps-row">
+        <span class="maps-old${isActive?' hl':''}" style="${isActive?'background:rgba(249,203,66,0.4);':''}">Node ${k}</span>
+        <span class="maps-arrow">→</span>
+        <span class="maps-new">Node' ${k}</span>
+        ${neiStr ? `<span class="maps-nei">${neiStr}</span>` : ''}
+      </div>`;
+    }).join('');
+  }
+
+  // 图卡下面的变量读数：行数固定、没值写 "-"，防止步进时卡片高度跳
+  document.getElementById('orig-vars').innerHTML =
+    gvRow('old_node', p2 ? 'Node ' + step.curr : '-') +
+    gvRow('old_node.neighbors', p2 ? '[' + GRAPH[step.curr].join(', ') + ']' : '-') +
+    gvRow('old_nei', p2 && step.oldNei != null ? 'Node ' + step.oldNei : '-');
+  const connectedNow = p2 ? step.cloneEdges.filter(e => e[0] === step.curr).map(e => "Node'" + e[1]) : [];
+  document.getElementById('clone-vars').innerHTML =
+    gvRow('new_node', p2 ? "Node'" + step.curr : '-') +
+    gvRow('newNei', p2 && step.hasNewNei ? "Node'" + step.oldNei : '-') +
+    gvRow('new_node.neighbors', p2 ? '[' + connectedNow.join(', ') + ']' : '-');
+
+  // Phase badges
+  document.getElementById('badge-p1').style.opacity = step.phase === 1 ? '1' : '0.4';
+  document.getElementById('badge-p2').style.opacity = step.phase === 2 ? '1' : '0.4';
+
+  highlightLine(step.line);
+  renderCtrl(cur, STEPS.length, step.info);
+}
+
+function highlightLine(line) {
+  document.querySelectorAll('.code-line').forEach(el => el.classList.remove('hl'));
+  if (line) {
+    document.querySelectorAll(`.code-line[data-l="${line}"]`).forEach(el => {
+      el.classList.add('hl');
+      el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
+  }
+}
+
+// ── Phase 2 跳转按钮：直接跳到连边阶段的第一步 ────────────────────────────
+function jumpToPhase2() {
+  stopAuto();
+  const idx = STEPS.findIndex(s => s.phase === 2);
+  if (idx >= 0) { cur = idx; render(); }
+}
+(function () {
+  const ctrl = document.querySelector('.header-row.ctrl');
+  const b = document.createElement('button');
+  b.className = 'btn';
+  b.textContent = '⏩ Phase 2';
+  b.onclick = jumpToPhase2;
+  ctrl.appendChild(b);
+})();
+
+var render = renderAll;
+doReset();
+</script>
+</body>
+</html>

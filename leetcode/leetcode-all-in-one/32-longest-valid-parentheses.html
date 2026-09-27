@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>32. Longest Valid Parentheses</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  .lc32-layout .code-half { width: 660px; min-width: 0; }
+  .lc32-layout .viz-panel { width: max-content; min-width: 0; align-items: flex-start; }
+  .lc32-layout .code-stack,
+  .lc32-layout .code-panel { width: 100%; min-width: 0; }
+  .lc32-layout .code-panel { overflow-x: auto; }
+  .lc32-layout .card { width: fit-content; min-width: 0; max-width: 620px; }
+  /* No step-explanation box on this page — the code highlight, the condition
+     readout and the stack carry the explanation. renderCodeBox still emits
+     #info, and renderCtrl still writes to it; it is just never shown. */
+  .lc32-layout .step-info { display: none; }
+
+  /* ── Input string ─────────────────────────────────────────────────────── */
+  .char-row { display: flex; align-items: flex-end; gap: 6px; min-height: 66px; }
+  .char-wrap { width: 48px; text-align: center; font-family: 'SF Mono', Menlo, monospace; }
+  .char-index { height: 17px; color: #aaa; font-size: 11px; }
+  .char {
+    width: 48px; height: 44px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    background: #f5f5f5; color: #1a1a1a;
+    font-size: 20px; font-weight: 750;
+    transition: background .2s, transform .2s;
+  }
+  .char.onstack { background: rgba(139,133,212,.22); }
+  .char.current { background: rgba(249,203,66,.50); transform: scale(1.08); }
+  .char.matched { background: rgba(93,202,165,.42); }
+  .char.barrier { background: rgba(196,80,30,.30); }
+
+  /* The maxLen span, drawn as one continuous bar under the chars it covers. */
+  .best-track { position: relative; height: 12px; margin-top: 5px; }
+  .best-bar {
+    position: absolute; top: 3px; height: 6px; border-radius: 3px;
+    background: #3f9d80;
+    transition: left .2s, width .2s;
+  }
+
+  .marker-row {
+    display: flex; gap: 6px; min-height: 34px; margin-top: 4px;
+    font: 700 11px/1.15 'SF Mono', Menlo, monospace;
+  }
+  .marker-cell {
+    width: 48px; display: flex; flex-direction: column;
+    align-items: center; justify-content: flex-start; color: transparent;
+  }
+  .marker-cell.active { color: #C4501E; }
+  .marker-cell.pop { color: #246b55; }
+  .marker-arrow { color: #007EA8; font-size: 14px; line-height: 12px; }
+  .marker-label { white-space: nowrap; }
+
+  /* ── Stack ────────────────────────────────────────────────────────────── */
+  .stack-box {
+    min-height: 204px;
+    display: flex; flex-direction: column; justify-content: flex-end; gap: 6px;
+  }
+  .stk-row { display: flex; align-items: center; gap: 8px; }
+  .ghost-row { margin-bottom: 8px; }
+  .stk-cell {
+    width: 252px; height: 42px; border-radius: 8px;
+    display: flex; align-items: center; gap: 10px; padding: 0 12px;
+    background: #f5f5f5;
+    font-family: 'SF Mono', Menlo, monospace;
+    transition: background .2s, transform .2s;
+  }
+  .stk-cell.open  { background: rgba(139,133,212,.22); }
+  .stk-cell.len   { background: rgba(93,202,165,.42); }
+  .stk-cell.close { background: rgba(196,80,30,.30); }
+  .stk-cell.top { transform: scale(1.03); }
+  .stk-cell.ghost { background: rgba(249,203,66,.50); }
+  .stk-cell.ghost.dropped { background: #f0f0f0; opacity: .55; }
+  .stk-ch { font-size: 19px; font-weight: 750; color: #1a1a1a; min-width: 20px; }
+  .stk-exp { font-size: 12px; color: #555; }
+  .stk-exp b { color: #C4501E; font-weight: 700; }
+  .stk-note { font: 700 11px 'SF Mono', Menlo, monospace; color: #9333C0; white-space: nowrap; }
+  .stk-note.drop { color: #a8341a; }
+  .stk-note .dim { color: #aaa; font-weight: 400; }
+  .stack-empty-box {
+    width: 252px; min-height: 42px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    color: #aaa; background: #f5f5f5;
+    font-family: 'SF Mono', Menlo, monospace; font-size: 13px;
+  }
+
+  /* ── Live condition + matchedLen readout ──────────────────────────────── */
+  .check {
+    margin-top: 14px; min-height: 46px;
+    display: flex; flex-direction: column; gap: 6px;
+    font: 13px/1.5 'SF Mono', Menlo, monospace; color: #555;
+  }
+  .check-row { white-space: nowrap; }
+  .check-row.formula { white-space: normal; }
+  .f-var  { color: #C4501E; font-weight: 700; }
+  .f-ok   { color: #246b55; font-weight: 700; }
+  .f-bad  { color: #a8341a; font-weight: 700; }
+  .f-dim  { color: #aaa; }
+  .f-plus { color: #007EA8; }
+  .f-tag  { color: #999; font-size: 11px; }
+
+  /* ── Result ───────────────────────────────────────────────────────────── */
+  .answer-strip {
+    min-height: 48px; border-radius: 8px; padding: 10px 14px;
+    display: flex; align-items: center; justify-content: center;
+    font: 750 14px 'SF Mono', Menlo, monospace;
+  }
+  .answer-strip.pending { background: #f5f5f5; color: #aaa; font-weight: 400; }
+  .answer-strip.ok { background: rgba(93,202,165,.30); color: #1d5c48; }
+
+  @media (max-width: 1600px) {
+    .main.layout-grid.lc32-layout { grid-template-columns: minmax(0, 1fr); }
+    .main.layout-grid.lc32-layout .code-half,
+    .main.layout-grid.lc32-layout .viz-panel {
+      grid-column: 1; justify-self: center; width: fit-content; min-width: 0;
+    }
+    .main.layout-grid.lc32-layout .viz-panel { grid-row: 2; }
+  }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '32. Longest Valid Parentheses',
+  link: 'https://leetcode.com/problems/longest-valid-parentheses/',
+  examples: [
+    { id: 'nest',     label: '()(())' },
+    { id: 'adjacent', label: '()()' },
+    { id: 'barrier',  label: ')()())' },
+    { id: 'leftover', label: '(()' },
+  ],
+  legend: [
+    { color: 'rgba(249,203,66,.50)', label: 'current char / just popped' },
+    { color: 'rgba(139,133,212,.22)', label: "'(' still waiting on the stack" },
+    { color: 'rgba(93,202,165,.42)', label: 'matched pair / finished valid run' },
+    { color: '#3f9d80', label: 'longest valid run so far (maxLen)' },
+    { color: 'rgba(196,80,30,.30)', label: "')' that can never match — a wall" },
+  ],
+});
+</script>
+  <div class="main layout-grid lc32-layout">
+    <script>
+    renderCodeBox({
+      code: `
+class Solution:
+    def longestValidParentheses(self, s: str) -> int:
+        if s == None:
+            return 0
+
+        stack = []
+        maxLen = 0
+
+        for i in range(len(s)):
+            if s[i] == '(':
+                stack.append('(')
+                continue
+
+            matchedLen = 0
+            if stack and type(stack[-1]) == int:
+                matchedLen += stack.pop()
+
+            if stack and stack[-1] == '(':
+                stack.pop() # 从最近的'('作为起点
+                matchedLen += 2   # 计算长度
+
+                while stack and type(stack[-1]) == int:
+                    matchedLen += stack.pop()
+                maxLen = max(maxLen, matchedLen) # 更新当前匹配括号序列长度
+                stack.append(matchedLen)
+            else:
+                stack.append(')')
+        return maxLen`,
+    });
+    </script>
+
+    <div class="viz-panel">
+      <div class="card">
+        <h3 id="strTitle">Input String</h3>
+        <div class="char-row" id="charRow"></div>
+        <div class="best-track"><div class="best-bar" id="bestBar"></div></div>
+        <div class="marker-row" id="charMarkers"></div>
+      </div>
+
+      <div class="var-bar" id="vars"></div>
+
+      <div class="card">
+        <h3>Stack　('(' waiting · ')' wall · number = a finished valid run)</h3>
+        <div class="stack-box" id="stackBox"></div>
+        <div class="check" id="check"></div>
+      </div>
+
+      <div class="card">
+        <h3>Result</h3>
+        <div class="answer-strip pending" id="answer">maxLen = 0 — nothing valid closed yet</div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+const EXAMPLES = {
+  nest:     '()(())',
+  adjacent: '()()',
+  barrier:  ')()())',
+  leftover: '(()',
+};
+let S = EXAMPLES.nest;
+
+// ── Steps ────────────────────────────────────────────────────────────────
+// One snapshot per (code line x event). Each snapshot carries the whole world —
+// stack, matched chars, walls, matchedLen and how it was built up, maxLen — so
+// render() is a pure function of a single step.
+//
+// A stack entry is one of:
+//   { kind: 'open',  idx }                 an unmatched '('
+//   { kind: 'close', idx }                 an unmatched ')' — a wall
+//   { kind: 'len',   len, start, end }     a finished valid run s[start..end]
+function buildSteps() {
+  const steps = [];
+  const stack = [];
+  const matched = new Set();    // indices that are part of some matched pair
+  const barriers = new Set();   // indices of ')' that can never be matched
+  let maxLen = 0;
+  let best = null;              // [start, end] of the current maxLen run
+  let matchedLen = null;        // null = not in scope (we are on an opener)
+  let contrib = [];             // how matchedLen was built, term by term
+
+  const snap = (line, phase, extra, info) => steps.push({
+    line, phase, maxLen, matchedLen,
+    best: best ? [...best] : null,
+    contrib: contrib.map(c => ({ ...c })),
+    stack: stack.map(e => ({ ...e })),
+    matched: new Set(matched),
+    barriers: new Set(barriers),
+    ...extra, info,
+  });
+
+  const top = () => (stack.length ? stack[stack.length - 1] : null);
+  const topDesc = () => {
+    const t = top();
+    if (!t) return 'stack is empty';
+    if (t.kind === 'open') return `top is '(' from s[${t.idx}]`;
+    if (t.kind === 'close') return `top is the wall ')' from s[${t.idx}]`;
+    return `top is the number ${t.len}`;
+  };
+
+  snap(3, 'guard', { cond: { expr: 's == None', val: false } },
+    'The guard. s is a real string, so we do not return early.');
+  snap(6, 'init', { cond: { expr: 'stack = []' } },
+    "The stack starts empty. It will hold three kinds of entries: an unmatched '(', an unmatched ')', and a number — the length of a valid run that is already finished.");
+  snap(7, 'init', { cond: { expr: 'maxLen = 0' } },
+    'maxLen remembers the longest valid run seen anywhere in the string.');
+
+  for (let i = 0; i < S.length; i++) {
+    const ch = S[i];
+    matchedLen = null;
+    contrib = [];
+
+    snap(9, 'read', { i, cond: { expr: `i = ${i}` } }, `Read s[${i}] = '${ch}'.`);
+    snap(10, 'test-open', { i, cond: { expr: `s[${i}] == '('`, val: ch === '(' } },
+      ch === '('
+        ? `'${ch}' is an opener, so take the if-branch.`
+        : `'${ch}' is a closer, so skip the if-branch and fall through to the closing logic below.`);
+
+    if (ch === '(') {
+      stack.push({ kind: 'open', idx: i });
+      snap(11, 'push-open', { i, cond: { expr: "stack.append('(')" } },
+        "Push '('. An opener is only a promise — we cannot know yet whether anything will close it, so it just waits on the stack.");
+      continue;
+    }
+
+    // ── s[i] is ')' — try to close something ──
+    matchedLen = 0;
+    snap(14, 'ml-init', { i, cond: { expr: 'matchedLen = 0' } },
+      `matchedLen will measure the valid run that ends right here at s[${i}] — if one exists at all.`);
+
+    const innerIsLen = !!(top() && top().kind === 'len');
+    snap(15, 'test-inner', { i, cond: { expr: 'type(stack[-1]) == int', val: innerIsLen, note: topDesc() } },
+      innerIsLen
+        ? "A number on top means a finished valid run is sitting directly inside this ')'. Take it — whatever we close here wraps around it, so it counts."
+        : "No number on top, so nothing already-valid is nested inside this ')'. matchedLen stays 0.");
+
+    let inner = null;
+    if (innerIsLen) {
+      inner = stack.pop();
+      matchedLen += inner.len;
+      contrib.push({ amount: inner.len, label: `inner s[${inner.start}..${inner.end}]` });
+      snap(16, 'pop-inner', { i, popped: { ...inner }, cond: { expr: `matchedLen += ${inner.len}` } },
+        `Pop ${inner.len} — the run s[${inner.start}..${inner.end}] nested inside. matchedLen = ${matchedLen}.`);
+    }
+
+    const openerOnTop = !!(top() && top().kind === 'open');
+    snap(18, 'test-opener', { i, cond: { expr: "stack[-1] == '('", val: openerOnTop, note: topDesc() } },
+      openerOnTop
+        ? "An unmatched '(' is waiting, and it is the most recent one. This ')' closes it."
+        : "There is no '(' left to close, so this ')' can never be matched by anything. Go to the else-branch.");
+
+    if (openerOnTop) {
+      const op = stack.pop();
+      matched.add(op.idx);
+      matched.add(i);
+      snap(19, 'pop-open', { i, popped: { ...op }, cond: { expr: 'stack.pop()' } },
+        `Pop the '(' at s[${op.idx}] — the nearest unclosed opener. That is where the run we are measuring starts.`);
+
+      matchedLen += 2;
+      contrib.push({ amount: 2, label: `pair s[${op.idx}],s[${i}]` });
+      let start = op.idx;
+      const end = i;
+      snap(20, 'add2', { i, cond: { expr: 'matchedLen += 2' } },
+        `The pair s[${op.idx}] and s[${i}] adds 2. matchedLen = ${matchedLen}.`);
+
+      let merges = 0;
+      while (top() && top().kind === 'len') {
+        snap(22, 'test-merge', { i, cond: { expr: 'type(stack[-1]) == int', val: true, note: topDesc() } },
+          `Another number is on top: a valid run that ends exactly where ours begins (s[${start}]). Two valid runs side by side are one longer valid run, so absorb it.`);
+        const p = stack.pop();
+        matchedLen += p.len;
+        contrib.push({ amount: p.len, label: `merge s[${p.start}..${p.end}]` });
+        start = p.start;
+        merges++;
+        snap(23, 'pop-merge', { i, popped: { ...p }, cond: { expr: `matchedLen += ${p.len}` } },
+          `Absorb the run s[${p.start}..${p.end}]. matchedLen = ${matchedLen}, and our run now reaches back to s[${start}].`);
+      }
+      snap(22, 'test-merge-end', { i, cond: { expr: 'type(stack[-1]) == int', val: false, note: topDesc() } },
+        merges
+          ? `No more numbers on top, so the run cannot grow to the left any further. It is s[${start}..${end}], length ${matchedLen}.`
+          : `No number on top, so no earlier run is touching ours. It is just s[${start}..${end}], length ${matchedLen}.`);
+
+      const prev = maxLen;
+      maxLen = Math.max(maxLen, matchedLen);
+      if (matchedLen > prev) best = [start, end];
+      snap(24, 'update-max', { i, cond: { expr: `maxLen = max(${prev}, ${matchedLen})` } },
+        matchedLen > prev
+          ? `New best: maxLen = ${maxLen}, from s[${start}..${end}].`
+          : `max(${prev}, ${matchedLen}) = ${maxLen} — this run is not longer than the best we already have, so maxLen does not change.`);
+
+      stack.push({ kind: 'len', len: matchedLen, start, end });
+      snap(25, 'push-len', { i, cond: { expr: `stack.append(${matchedLen})` } },
+        `Push ${matchedLen} back on the stack. It is no longer brackets, just a length — which is exactly what lets a later ')' absorb it the same way we just absorbed the runs below.`);
+    } else {
+      barriers.add(i);
+      stack.push({ kind: 'close', idx: i });
+      snap(27, 'push-close', { i, discarded: inner ? { ...inner } : null, cond: { expr: "stack.append(')')" } },
+        inner
+          ? `Push ')' as a wall: nothing to its left can ever pair with anything to its right. So the run of ${inner.len} we popped a moment ago is simply dropped — maxLen already recorded it, and it can never grow again.`
+          : "Push ')' as a wall: nothing to its left can ever pair with anything to its right. Any later valid run has to start fresh on the other side of it.");
+    }
+  }
+
+  matchedLen = null;
+  contrib = [];
+  snap(28, 'return', { done: true, cond: { expr: `return ${maxLen}` } },
+    maxLen === 0
+      ? 'The scan is over and nothing was ever validly closed. Return 0.'
+      : `The scan is over. The longest valid run was s[${best[0]}..${best[1]}] = "${S.slice(best[0], best[1] + 1)}", of length ${maxLen}. Return ${maxLen}.`);
+  return steps;
+}
+
+let STEPS = buildSteps();
+let cur = -1;
+
+const START = {
+  phase: 'start', stack: [], matched: new Set(), barriers: new Set(),
+  contrib: [], matchedLen: null, maxLen: 0, best: null,
+  info: "Valid parentheses close in last-in-first-out order, so a stack is the natural tool — but here the stack does not only hold brackets. It also holds numbers: the length of each valid run already finished. A ')' closes the nearest '(' and swallows every number touching that pair, which is how two runs sitting side by side become one longer run.",
+};
+
+function loadExample(id) {
+  S = EXAMPLES[id];
+  STEPS = buildSteps();
+  Object.keys(EXAMPLES).forEach(k => {
+    const b = document.getElementById('ex-' + k);
+    if (b) b.classList.toggle('auto-active', k === id);
+  });
+  doReset();
+  lockStableSizes(); // re-pin block heights for the new example's steps
+}
+
+// ── Input string ─────────────────────────────────────────────────────────
+function charClass(st, i) {
+  if (st.barriers.has(i)) return 'barrier';
+  if (st.matched.has(i)) return 'matched';
+  if (st.i === i) return 'current';
+  if (st.stack.some(e => e.kind === 'open' && e.idx === i)) return 'onstack';
+  return '';
+}
+
+function markerCell(labels, kind = 'active') {
+  if (!labels.length) return '<div class="marker-cell"></div>';
+  return `<div class="marker-cell ${kind}">
+    <div class="marker-arrow">&uarr;</div>
+    ${labels.map(l => `<div class="marker-label">${l}</div>`).join('')}
+  </div>`;
+}
+
+function renderChars(st) {
+  document.getElementById('charRow').innerHTML = [...S].map((ch, i) =>
+    `<div class="char-wrap"><div class="char-index">${i}</div><div class="char ${charClass(st, i)}">${ch}</div></div>`
+  ).join('');
+
+  document.getElementById('charMarkers').innerHTML = [...S].map((_, i) => {
+    if (st.popped && st.popped.kind === 'open' && st.popped.idx === i) return markerCell(["pop '('"], 'pop');
+    if (st.i === i) return markerCell(['i'], 'active');
+    return markerCell([]);
+  }).join('');
+
+  // One continuous bar under the chars covered by the current maxLen run.
+  const bar = document.getElementById('bestBar');
+  if (!st.best) {
+    bar.style.visibility = 'hidden';
+  } else {
+    const [a, b] = st.best;
+    bar.style.visibility = 'visible';
+    bar.style.left = (a * 54) + 'px';
+    bar.style.width = ((b - a + 1) * 48 + (b - a) * 6) + 'px';
+  }
+}
+
+// ── Variables ────────────────────────────────────────────────────────────
+function vrow(name, val, dim) {
+  return `<div class="var-row"><span class="var-name">${name}</span><span class="var-eq"> = </span>` +
+    `<span class="var-val">${val}</span>${dim ? `<span class="var-dim">　${dim}</span>` : ''}</div>`;
+}
+
+function renderVars(st) {
+  const i = st.i != null ? st.i : null;
+  document.getElementById('vars').innerHTML =
+    vrow('i', i == null ? '—' : i, i == null ? '' : `s[i] = '${S[i]}'`) +
+    vrow('matchedLen', st.matchedLen == null ? '—' : st.matchedLen,
+      st.matchedLen == null ? 'only exists while closing a \')\'' : '') +
+    vrow('maxLen', st.maxLen);
+}
+
+// ── Stack ────────────────────────────────────────────────────────────────
+function cellInner(e) {
+  if (e.kind === 'open')  return `<span class="stk-ch">(</span><span class="stk-exp">unmatched opener　<b>from s[${e.idx}]</b></span>`;
+  if (e.kind === 'close') return `<span class="stk-ch">)</span><span class="stk-exp">wall, never matches　<b>s[${e.idx}]</b></span>`;
+  return `<span class="stk-ch">${e.len}</span><span class="stk-exp">valid run　<b>s[${e.start}..${e.end}]</b></span>`;
+}
+
+function renderStack(st) {
+  const box = document.getElementById('stackBox');
+  let html = '';
+
+  // What just came off the stack this step, shown as a ghost above it.
+  const ghost = st.popped || st.discarded;
+  if (ghost) {
+    const dropped = !!st.discarded;
+    html += `<div class="stk-row ghost-row">` +
+      `<div class="stk-cell ghost ${dropped ? 'dropped' : ''}">${cellInner(ghost)}</div>` +
+      `<div class="stk-note ${dropped ? 'drop' : ''}">${dropped ? '&darr; dropped' : '&darr; just popped'}</div>` +
+      `</div>`;
+  }
+
+  if (!st.stack.length) {
+    html += '<div class="stack-empty-box">stack = []</div>';
+  } else {
+    // Rendered top-first into a bottom-anchored box, so the stack grows upward.
+    html += [...st.stack].reverse().map((e, k) =>
+      `<div class="stk-row">` +
+        `<div class="stk-cell ${e.kind} ${k === 0 ? 'top' : ''}">${cellInner(e)}</div>` +
+        `<div class="stk-note">${k === 0 ? '&larr; top' : '<span class="dim">&nbsp;</span>'}</div>` +
+      `</div>`
+    ).join('');
+  }
+  box.innerHTML = html;
+}
+
+// ── Condition + matchedLen readout ───────────────────────────────────────
+function renderCheck(st) {
+  const c = st.cond;
+  let cond;
+  if (!c) {
+    cond = '<span class="f-dim">—</span>';
+  } else if (c.val == null) {
+    cond = `<span class="f-dim">${c.expr}</span>`;
+  } else {
+    cond = `${c.expr} &rarr; ` +
+      (c.val ? '<span class="f-ok">True</span>' : '<span class="f-bad">False</span>') +
+      (c.note ? ` <span class="f-tag">(${c.note})</span>` : '');
+  }
+
+  let formula;
+  if (st.matchedLen == null) {
+    formula = '<span class="f-dim">matchedLen — not in scope on an opener</span>';
+  } else if (!st.contrib.length) {
+    formula = 'matchedLen = <span class="f-var">0</span>';
+  } else {
+    const terms = st.contrib
+      .map(t => `<span class="f-var">${t.amount}</span> <span class="f-tag">(${t.label})</span>`)
+      .join(' <span class="f-plus">+</span> ');
+    formula = 'matchedLen = ' + terms +
+      (st.contrib.length > 1 ? ` <span class="f-plus">=</span> <span class="f-var">${st.matchedLen}</span>` : '');
+  }
+
+  document.getElementById('check').innerHTML =
+    `<div class="check-row">${cond}</div>` +
+    `<div class="check-row formula">${formula}</div>`;
+}
+
+// ── Result ───────────────────────────────────────────────────────────────
+function renderAnswer(st) {
+  const el = document.getElementById('answer');
+  if (!st.best) {
+    el.className = 'answer-strip pending';
+    el.textContent = 'maxLen = 0 — nothing valid closed yet';
+    return;
+  }
+  const [a, b] = st.best;
+  el.className = 'answer-strip ok';
+  el.textContent = `${st.done ? 'return ' : ''}maxLen = ${st.maxLen}　—　s[${a}..${b}] = "${S.slice(a, b + 1)}"`;
+}
+
+function render() {
+  const st = cur < 0 ? START : STEPS[cur];
+  highlightLine(cur < 0 ? null : st.line);
+  document.getElementById('strTitle').textContent = `Input String　s = "${S}"`;
+  renderChars(st);
+  renderVars(st);
+  renderStack(st);
+  renderCheck(st);
+  renderAnswer(st);
+  renderCtrl(cur, STEPS.length, st.info);
+}
+
+loadExample('nest');
+</script>
+</body>
+</html>

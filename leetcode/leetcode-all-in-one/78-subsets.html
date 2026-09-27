@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>78. Subsets</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  /* nums 数组：格子 + 下面的 index / i 指针行 */
+  .nums-row { display: flex; gap: 8px; }
+  .num-cell { width: 52px; height: 46px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+              font-family: var(--ink-mono); font-size: 17px; font-weight: 700; color: #1a1a1a;
+              background: #f5f5f5; border: 1px solid #c9c9c9; transition: background 0.2s, opacity 0.2s, transform 0.15s; }
+  /* i 指着的元素 = 这一步正要放进 path 的那个 */
+  .num-cell.at-i { background: rgba(249,203,66,0.55); border-color: rgba(200,160,30,0.6); transform: translateY(-2px); }
+  /* < index 的元素本层再也挑不到了——组合与排列的分水岭，单独压暗表示 */
+  .num-cell.locked { opacity: 0.32; }
+  .num-idx-row { display: flex; gap: 8px; margin-top: 4px; }
+  .num-idx { width: 52px; text-align: center; font-family: var(--ink-mono); font-size: 10.5px; color: #aaa; }
+  .num-ptr-row { display: flex; gap: 8px; margin-top: 3px; min-height: 18px; }
+  .num-ptr { width: 52px; height: 18px; line-height: 18px; text-align: center;
+             font-family: var(--ink-mono); font-size: 11px; font-weight: 700; white-space: nowrap; }
+  .num-ptr .p-index { color: #007EA8; }
+  .num-ptr .p-i { color: #C4501E; }
+
+  /* path chips：当前正在拼的那个子集 */
+  .path-label { margin: 16px 0 8px; }
+  .path-row { display: flex; gap: 6px; align-items: center; min-height: 34px; }
+  .path-chip { min-width: 34px; height: 32px; padding: 0 10px; border-radius: 7px; display: flex; align-items: center; justify-content: center;
+               font-family: var(--ink-mono); font-size: 14px; font-weight: 700; color: #1a1a1a;
+               background: rgba(120,160,225,0.3); transition: background 0.2s, transform 0.15s; }
+  .path-chip.just-pushed { background: rgba(249,203,66,0.55); transform: scale(1.08); }
+  /* 刚被 pop 掉的那个用虚线幽灵格占位，让"回溯"这一步看得见 */
+  .path-chip.ghost { background: transparent; border: 1.5px dashed #d0a0a0; color: #c08080; }
+  .path-empty { font-family: var(--ink-mono); font-size: 13px; color: #bbb; }
+  /* 色块下面再写一遍 path 的字面值：色块看的是"现在拿着哪几个"，这一行看的
+     是它作为一个列表长什么样——正好对上代码里传来传去的那个 path */
+  .path-val { margin-top: 10px; font-family: var(--ink-mono); font-size: 12.5px; }
+
+  /* 递归树 */
+  #tree-svg { display: block; width: 480px; height: 312px; }
+  .edge { stroke: #d5d5d5; stroke-width: 2; }
+  .edge.on-path { stroke: #3A6FD4; stroke-width: 3; }
+  .edge-tag { font-family: var(--ink-mono); font-size: 10px; fill: #b0b0b0; }
+  .edge-tag.on-path { fill: #3A6FD4; font-weight: 700; }
+  /* 在调用栈上的节点，fill 由 JS 写成"这次调用自己的颜色"（跟调用链的那一行、
+     代码里的高亮行同一种），所以这里不写 fill，只管描边：栈顶一圈黑框 =
+     正在执行；走完的统一绿色，还没走到的灰色。 */
+  .node-box { fill: #f5f5f5; stroke: #c9c9c9; stroke-width: 1; transition: fill 0.2s; }
+  .node-box.n-current { stroke: #1a1a1a; stroke-width: 2.5; }
+  .node-box.n-stack   { stroke: rgba(90,130,200,0.55); }
+  .node-box.n-done    { fill: rgba(93,202,165,0.4); stroke: rgba(60,160,125,0.5); }
+  .node-text { font-family: var(--ink-mono); font-size: 12px; font-weight: 700; fill: #1a1a1a; }
+  .node-text.dim { fill: #b5b5b5; }
+
+  /* 调用链 + 参数读数（var-bar）并排一行，var-bar 放右边；其余卡片各自
+     另起一行（跟 126-word-ladder-ii 同一个路数）。 */
+  .viz-row { display: flex; align-items: flex-start; gap: 16px; }
+
+  /* 颜色图例从页头搬到代码框下面（跟 step-info 一起塞进 .code-stack） */
+  .legend-below { flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 0; max-width: none; }
+
+  /* 当前所在函数（本页有 subsets / dfs 两个，同名局部变量容易看串） */
+  .fn-tag { display: inline-block; padding: 1px 8px; border-radius: 5px; background: rgba(199,146,234,0.18);
+            color: #6b3fa0; font-family: var(--ink-mono); font-size: 12px; font-weight: 700; }
+  .fn-note { margin-left: 8px; font-family: -apple-system, sans-serif; font-size: 11px; color: #aaa; }
+  /* result 那一行会长到装不下一行：放开 .var-row 的 nowrap 并限宽折行，
+     省得 var-bar 被越撑越宽、把 .viz-row 挤到换行 */
+  .var-row.var-result { white-space: normal; max-width: 300px; line-height: 1.6; }
+
+  /* 调用链：一层一行、按深度缩进，底色就是这次调用在代码面板里的高亮底色 */
+  .call-chain { display: flex; flex-direction: column; gap: 4px; min-height: 132px; }
+  .chain-row { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 10px;
+               border-radius: 7px; font-family: var(--ink-mono); font-size: 12px;
+               color: #1a1a1a; white-space: nowrap; align-self: flex-start;
+               transition: box-shadow 0.15s; }
+  /* 栈顶那一帧 = 正在执行的那次调用，加个黑描边，跟代码里的高亮行对应 */
+  .chain-row.top { box-shadow: 0 0 0 1.5px #1a1a1a; font-weight: 700; }
+  .chain-i { color: #C4501E; font-weight: 700; }
+  .chain-dim { color: #8a8a8a; font-weight: 400; }
+  .chain-empty { font-family: var(--ink-mono); font-size: 12px; color: #bbb; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '78. Subsets',
+  link: 'https://leetcode.com/problems/subsets/',
+  legend: [
+    { color: 'rgba(249,203,66,0.30)', extra: 'box-shadow:inset 0 0 0 2px #1a1a1a;', label: '黑框 = 正在执行这一行的那次调用' },
+    { color: 'rgba(120,160,225,0.22)', label: '还在调用栈上的帧 — 每次调用一种颜色，代码高亮行 / 调用链 / 树节点同色' },
+    { color: 'rgba(93,202,165,0.4)', label: '子树走完 — 已收进 result' },
+    { color: '#f5f5f5', extra: 'border:1px solid #c9c9c9;', label: '还没访问到' },
+    { color: '#3A6FD4', extra: 'border-radius:2px;width:14px;height:3px;', label: '根 → 当前帧（就是调用栈）' },
+    { color: 'rgba(249,203,66,0.55)', label: 'nums 里 i 指着的那个元素' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+  <script>
+  renderCodeBox({
+    code: `
+class Solution:
+    def subsets(self, nums: List[int]) -> List[List[int]]:
+        path = []
+        result = []
+        self.dfs(nums, path, result, 0)
+        return result
+
+    def dfs(self, nums, path, result, index):
+        newPath = path + []
+        result.append(newPath)
+
+        for i in range(index,len(nums)):
+            path.append(nums[i])
+            self.dfs(nums,path,result,i+1)
+            path.pop(-1)`,
+  });
+  </script>
+
+  <!-- 步骤说明 + 颜色图例从页头搬到代码框下面（ANIMATION_GUIDE 硬性规则） -->
+  <script>
+  (function () {
+    const stack = document.querySelector('.code-stack');
+    stack.appendChild(document.getElementById('info'));
+    const legend = document.querySelector('.legend');
+    const legendRow = legend.parentElement;
+    legend.classList.add('legend-below');
+    stack.appendChild(legend);
+    legendRow.remove();
+  })();
+  </script>
+
+  <div class="viz-panel">
+    <div class="viz-row">
+      <div class="card">
+        <h3>调用链 — 现在这行代码是谁在跑</h3>
+        <div class="call-chain" id="call-chain"></div>
+      </div>
+
+      <!-- 变量读数：它读的就是当前高亮行里那几个名字，跟调用链放一行、
+           摆最右边，一眼能对上当前是哪次调用。 -->
+      <div class="var-bar" id="var-bar"></div>
+    </div>
+
+    <div class="card">
+      <h3>nums — 从哪里挑</h3>
+      <div class="nums-row" id="nums-row"></div>
+      <div class="num-idx-row" id="nums-idx-row"></div>
+      <div class="num-ptr-row" id="nums-ptr-row"></div>
+      <h3 class="path-label">path — 当前正在拼的子集</h3>
+      <div class="path-row" id="path-row"></div>
+      <div class="path-val" id="path-val"></div>
+    </div>
+
+    <div class="card">
+      <h3>递归树 — 每个节点就是一个子集</h3>
+      <svg id="tree-svg" viewBox="0 0 480 312"></svg>
+    </div>
+  </div>
+</div><!-- /.main -->
+</div><!-- /.content-wrapper -->
+
+<script>
+
+// ── 例子：LeetCode 78 官方 Example 1 ──────────────────────────────────────
+const NUMS = [1, 2, 3];
+
+// 递归树写死成常量（同 104 / 1120 的做法）。nums 固定，树形也就固定：
+// 每个节点 = 一次 dfs 调用 = 一个子集，节点 id 用 path 拼出来（"" 是根）。
+// x 坐标先给叶子按左到右排格子（0..3），内部节点取"首尾子节点中点"；
+// y 按递归深度。pick = 从父节点走到这里时 path.append 的那个元素。
+const SLOT = 118, X0 = 60, Y0 = 34, DY = 76;
+const px = (slot) => X0 + slot * SLOT;
+const py = (depth) => Y0 + depth * DY;
+const NODES = [
+  { id: '',      path: [],        depth: 0, x: px(1.75), y: py(0), parent: null, pick: null },
+  { id: '1',     path: [1],       depth: 1, x: px(0.5),  y: py(1), parent: '',      pick: 1 },
+  { id: '1,2',   path: [1, 2],    depth: 2, x: px(0),    y: py(2), parent: '1',     pick: 2 },
+  { id: '1,2,3', path: [1, 2, 3], depth: 3, x: px(0),    y: py(3), parent: '1,2',   pick: 3 },
+  { id: '1,3',   path: [1, 3],    depth: 2, x: px(1),    y: py(2), parent: '1',     pick: 3 },
+  { id: '2',     path: [2],       depth: 1, x: px(2),    y: py(1), parent: '',      pick: 2 },
+  { id: '2,3',   path: [2, 3],    depth: 2, x: px(2),    y: py(2), parent: '2',     pick: 3 },
+  { id: '3',     path: [3],       depth: 1, x: px(3),    y: py(1), parent: '',      pick: 3 },
+];
+const NODE_BY_ID = {};
+NODES.forEach(n => { NODE_BY_ID[n.id] = n; });
+const NODE_W = 76, NODE_H = 28;
+
+/* 每次 dfs 调用一种底色。递归最难受的就是"同样几行代码反复走，分不清这遍是
+   谁在走"——所以当前高亮行的底色跟着"正在执行的那一次调用"变，颜色一换就知道
+   换人了；调用链卡片里每一帧也用同一种色，两边对得上。
+   索引 = 这个节点在 NODES 里的下标（8 次调用 8 种色）。深浅控制在 0.2 上下，
+   底色再重就压不住代码的语法高亮了。 */
+const CALL_TINT = [
+  'rgba(120,160,225,0.22)',  // []       蓝
+  'rgba(93,202,165,0.24)',   // [1]      绿
+  'rgba(249,203,66,0.30)',   // [1,2]    黄
+  'rgba(232,140,110,0.24)',  // [1,2,3]  橙
+  'rgba(199,146,234,0.24)',  // [1,3]    紫
+  'rgba(110,200,215,0.26)',  // [2]      青
+  'rgba(205,175,120,0.30)',  // [2,3]    棕
+  'rgba(230,130,175,0.22)',  // [3]      粉
+];
+const SUBSETS_TINT = 'rgba(150,150,150,0.18)';   // 外层 subsets()，不是 dfs
+const FRAME_IDX = {};
+NODES.forEach((n, k) => { FRAME_IDX[n.id] = k; });
+const tintOf = (id) => (id == null ? SUBSETS_TINT : CALL_TINT[FRAME_IDX[id]]);
+
+/* data-l 行号表（本页没有 prereq，正文从 1 开始；空行也占号——renderCodeBox
+   连空行一起编，第 7、11 行是空行，不执行也就不停步）。
+   按 ANIMATION_GUIDE.md：每行可执行代码 ≥ 1 步，for 头每轮重走、取空也停，
+   函数调用行走两遍（发起 + 返回），def 行进入时也停。 */
+const L = {
+  SUBSETS:  2,   // def subsets(self, nums)
+  PATH:     3,   // path = []
+  RESULT:   4,   // result = []
+  CALL:     5,   // self.dfs(nums, path, result, 0)   调用 + 返回各一次
+  RET:      6,   // return result
+  DFS:      8,   // def dfs(self, nums, path, result, index)
+  NEWPATH:  9,   // newPath = path + []
+  APPEND:  10,   // result.append(newPath)
+  FOR:     12,   // for i in range(index,len(nums))   每轮 + 取空各一次
+  PUSH:    13,   // path.append(nums[i])
+  RECURSE: 14,   // self.dfs(nums,path,result,i+1)    调用 + 返回各一次
+  POP:     15,   // path.pop(-1)
+};
+
+const fmt = (a) => '[' + a.join(', ') + ']';
+
+// ── 真跑一遍 Lyon 的解法生成步骤 ──────────────────────────────────────────
+// 逐行规则（ANIMATION_GUIDE 核心条款）：每行可执行代码至少一步，for 头每轮
+// 都停、耗尽时再停一次，递归调用行走两遍（发起 + 返回），def 行进入时也停。
+function buildSteps() {
+  const steps = [];
+  let path = [];        // 当前路径（会被 push/pop 反复改）
+  let result = [];      // 已收集的子集
+  let stack = [];       // 调用栈：[{ id, index, i }]
+  let done = [];        // 已经返回的帧（子树走完）
+  let pushed = false;   // 本步刚 push 进 path
+  let popped = null;    // 本步刚从 path 弹出的值
+  let fn = null;        // 当前在哪个函数里（subsets / dfs），给 var-bar 显示
+
+  function snap(line, info) {
+    const top = stack.length ? stack[stack.length - 1] : null;
+    steps.push({
+      line, info, fn,
+      path: [...path],
+      result: result.map(r => [...r]),
+      // 存整帧而不只是 id：调用链卡片要逐帧显示它自己的 index / i
+      // （index 是按值传进去的，每层一份；i 是每层 for 自己的局部变量）
+      stack: stack.map(f => ({ id: f.id, index: f.index, i: f.i })),
+      done: [...done],
+      index: top ? top.index : null,
+      i: top && top.i != null ? top.i : null,
+      pushed, popped,
+    });
+    pushed = false; popped = null;   // 这两个只属于刚生成的那一步
+  }
+
+  snap(null, 'DFS 把"每个元素选或不选"展开成一棵树：每进入一个节点就把当前的 path 原样收下当作一个子集。' +
+    '所以 8 个节点 = 8 个子集，而 result 的顺序就是这棵树的先序遍历。');
+  fn = 'subsets';
+  snap(L.SUBSETS, 'Line 2: 进入 subsets(nums=[1, 2, 3]) — 入口函数，只负责准备好三样东西然后交给 dfs。');
+  path = [];
+  snap(L.PATH, 'Line 3: path = [] — 当前正在拼的子集。它全程只有这一个数组，靠 append/pop 反复改。');
+  result = [];
+  snap(L.RESULT, 'Line 4: result = [] — 收集答案。最后它会装下 2³ = 8 个子集。');
+  snap(L.CALL, 'Line 5: self.dfs(nums, path, result, 0) — 从 index=0 开始搜，进入递归树的根。');
+
+  function dfs(index) {
+    const id = path.join(',');
+    const frame = { id, index, i: null };
+    stack.push(frame);
+    fn = 'dfs';
+    snap(L.DFS, 'Line 8: 进入 dfs(index=' + index + ') — 当前 path = ' + fmt(path) +
+      '。这一层做两件事：先把 path 本身收下，再从 nums[' + index + '] 往后挑元素继续深入。');
+
+    const newPath = [...path];
+    snap(L.NEWPATH, 'Line 9: newPath = path + [] — 拷一份 path。必须拷：path 后面还会被 pop 改，' +
+      '直接存进去的话 result 里已经收好的子集会跟着一起变。');
+
+    result.push(newPath);
+    snap(L.APPEND, 'Line 10: result.append(newPath) — 收下子集 ' + fmt(newPath) +
+      '。注意这里没有任何判断：每进一个节点就收一个，所以 result 的顺序就是这棵树的先序遍历。');
+
+    for (let i = index; i < NUMS.length; i++) {
+      frame.i = i;
+      snap(L.FOR, 'Line 12: for i in range(' + index + ', 3) → i = ' + i +
+        ' — 只从 index=' + index + ' 往后挑，不回头看前面的元素。这一条就是组合和排列的分水岭。');
+
+      path.push(NUMS[i]);
+      pushed = true;
+      snap(L.PUSH, 'Line 13: path.append(nums[' + i + '] = ' + NUMS[i] + ') — 把它放进 path，' +
+        'path 变成 ' + fmt(path) + '。');
+
+      snap(L.RECURSE, 'Line 14: self.dfs(nums, path, result, ' + i + '+1) — 带着 index=' + (i + 1) +
+        ' 往下一层。下一层只能从 nums[' + (i + 1) + '] 之后挑，' + NUMS[i] + ' 不会被重复选。');
+      dfs(i + 1);
+      fn = 'dfs';
+      snap(L.RECURSE, 'Line 14: dfs 返回 — ' + fmt(path) + ' 这棵子树全部收完了，回到 dfs(index=' + index + ')。');
+
+      const gone = path.pop();
+      popped = gone;
+      snap(L.POP, 'Line 15: path.pop(-1) — 回溯：把 ' + gone + ' 弹掉，path 退回 ' + fmt(path) +
+        '。push → 递归 → pop 三步一组，弹回原样后 i 才能往后挪去试下一个元素。');
+    }
+
+    frame.i = null;
+    snap(L.FOR, 'Line 12: range(' + index + ', 3) 已经走完 — 这一层没有元素可挑了，' +
+      'dfs(index=' + index + ') 到此结束，返回上一层。');
+    stack.pop();
+    done.push(id);
+  }
+
+  dfs(0);
+
+  fn = 'subsets';
+  snap(L.CALL, 'Line 5: dfs 返回 — 整棵递归树走完，8 个节点对应 8 个子集。');
+  snap(L.RET, 'Line 6: return result — 把收集好的 result 交回去。');
+  fn = null;
+  snap(null, '✅ subsets 返回 [' + result.map(fmt).join(', ') + ']，共 ' + result.length +
+    ' 个子集（2³ = 8）。回头看递归树：result 的顺序就是它的先序遍历，而 path 全程只有一个数组，' +
+    '靠 append/pop 反复变形走遍了每个节点。');
+  return steps;
+}
+
+const STEPS = buildSteps();
+let cur = -1;
+
+// ── 渲染（只读快照，无副作用；Prev / Reset / lockStableSizes 干跑都靠这点）──
+function renderNums(s) {
+  const row = document.getElementById('nums-row');
+  const idxRow = document.getElementById('nums-idx-row');
+  const ptrRow = document.getElementById('nums-ptr-row');
+  row.innerHTML = NUMS.map((v, k) => {
+    const cls = ['num-cell'];
+    if (s.i === k) cls.push('at-i');
+    if (s.index != null && k < s.index) cls.push('locked');
+    return '<div class="' + cls.join(' ') + '">' + v + '</div>';
+  }).join('');
+  idxRow.innerHTML = NUMS.map((v, k) => '<div class="num-idx">' + k + '</div>').join('');
+  ptrRow.innerHTML = NUMS.map((v, k) => {
+    const tags = [];
+    if (s.index === k) tags.push('<span class="p-index">↑index</span>');
+    if (s.i === k) tags.push('<span class="p-i">↑i</span>');
+    return '<div class="num-ptr">' + tags.join(' ') + '</div>';
+  }).join('');
+}
+
+function renderPath(s) {
+  const row = document.getElementById('path-row');
+  if (!s.path.length && s.popped == null) {
+    row.innerHTML = '<span class="path-empty">（空集也是一个子集）</span>';
+  } else {
+    let html = s.path.map((v, k) => {
+      const last = k === s.path.length - 1;
+      return '<div class="path-chip' + (last && s.pushed ? ' just-pushed' : '') + '">' + v + '</div>';
+    }).join('');
+    if (s.popped != null) html += '<div class="path-chip ghost">' + s.popped + '</div>';
+    row.innerHTML = html;
+  }
+  document.getElementById('path-val').innerHTML =
+    '<span class="var-name">path</span><span class="var-eq"> = </span>' +
+    '<span class="var-val">' + fmt(s.path) + '</span>';
+}
+
+const stackIds = (s) => s.stack.map(f => f.id);
+
+function nodeState(s, id) {
+  if (s.done.indexOf(id) >= 0) return 'n-done';
+  const at = stackIds(s).indexOf(id);
+  if (at >= 0) return at === s.stack.length - 1 ? 'n-current' : 'n-stack';
+  return '';
+}
+
+function renderTree(s) {
+  const parts = [];
+  const ids = stackIds(s);
+  // 先画边：根 → 当前帧那条链标蓝，它就是调用栈
+  NODES.forEach(n => {
+    if (n.parent == null) return;
+    const p = NODE_BY_ID[n.parent];
+    const onPath = ids.indexOf(n.id) >= 0 && ids.indexOf(n.parent) >= 0;
+    const x1 = p.x, y1 = p.y + NODE_H / 2, x2 = n.x, y2 = n.y - NODE_H / 2;
+    parts.push('<line class="edge' + (onPath ? ' on-path' : '') + '" x1="' + x1 + '" y1="' + y1 +
+      '" x2="' + x2 + '" y2="' + y2 + '"/>');
+    parts.push('<text class="edge-tag' + (onPath ? ' on-path' : '') + '" x="' + ((x1 + x2) / 2 + 7) +
+      '" y="' + ((y1 + y2) / 2 + 4) + '">+' + n.pick + '</text>');
+  });
+  // 再画节点，压在边上面
+  NODES.forEach(n => {
+    const st = nodeState(s, n.id);
+    // 还在栈上的帧用它自己那次调用的底色，跟调用链里对应的那一行、以及代码
+    // 面板里高亮的那一行完全同色——三处一眼对得上，这是"分不清是谁在跑"的解药
+    const onStack = st === 'n-current' || st === 'n-stack';
+    const fill = onStack ? ' style="fill:' + tintOf(n.id) + '"' : '';
+    parts.push('<g>' +
+      '<rect class="node-box ' + st + '"' + fill + ' x="' + (n.x - NODE_W / 2) + '" y="' + (n.y - NODE_H / 2) +
+        '" width="' + NODE_W + '" height="' + NODE_H + '" rx="7"/>' +
+      '<text class="node-text' + (st ? '' : ' dim') + '" x="' + n.x + '" y="' + (n.y + 4) +
+        '" text-anchor="middle">' + fmt(n.path) + '</text>' +
+      '</g>');
+  });
+  document.getElementById('tree-svg').innerHTML = parts.join('');
+}
+
+function renderVars(s) {
+  const row = (name, val) => '<span class="var-row"><span class="var-name">' + name +
+    '</span><span class="var-eq"> = </span><span class="var-val">' + val + '</span></span>';
+  // 顺序照 def dfs(self, nums, path, result, index) 的形参表来排，跟代码
+  // 面板一一对得上；i 是 for 循环自己的局部变量、不是形参，所以排在最后
+  // 并单独标一下。index / i 显示的永远是当前栈顶那一帧的值——每层都有自己
+  // 的一份，跟紫色高亮行对得上。
+  document.getElementById('var-bar').innerHTML =
+    '<span class="var-row"><span class="fn-tag">' + (s.fn ? s.fn + '()' : '—') +
+      '</span><span class="fn-note">当前所在函数</span></span>' +
+    row('nums', fmt(NUMS)) +
+    row('path', fmt(s.path)) +
+    // result 显示完整的列表而不是长度：这题的看点就是"收进去的是哪几个子集、
+    // 按什么顺序收的"，只报个数字看不出来。它会越变越长，所以单独允许折行
+    // （.var-row 默认 nowrap），高度交给 lockStableSizes 按最长那步锁死。
+    '<span class="var-row var-result"><span class="var-name">result</span>' +
+      '<span class="var-eq"> = </span><span class="var-val">[' +
+      s.result.map(fmt).join(', ') + ']</span></span>' +
+    row('index', s.index == null ? '-' : s.index) +
+    '<span class="var-row"><span class="var-name">i</span><span class="var-eq"> = </span>' +
+      '<span class="var-val">' + (s.i == null ? '-' : s.i) + '</span>' +
+      '<span class="fn-note">for 循环局部变量，不是形参</span></span>';
+}
+
+/* 调用链卡片：从最外层往里一层一层列，缩进 = 递归深度。
+   每帧写清自己的实参——共享的 nums / path / result 只写名字（它们全程是同一个
+   对象，写值等于把同一份东西抄四遍），按值传的 index 和每层的 i 写具体数。 */
+function renderChain(s) {
+  const host = document.getElementById('call-chain');
+  if (!s.fn) {
+    host.innerHTML = '<span class="chain-empty">还没开始 / 已经全部返回</span>';
+    return;
+  }
+  const rows = [];
+  rows.push({ id: null, text: 'subsets(nums)', depth: 0, top: !s.stack.length });
+  s.stack.forEach((f, k) => {
+    const node = NODE_BY_ID[f.id];
+    rows.push({
+      id: f.id, depth: k + 1, top: k === s.stack.length - 1,
+      text: 'dfs(nums, path, result, index=<span class="chain-i">' + f.index + '</span>)',
+      i: f.i, node: fmt(node.path),
+    });
+  });
+  host.innerHTML = rows.map(r =>
+    '<div class="chain-row' + (r.top ? ' top' : '') + '"' +
+      ' style="background:' + tintOf(r.id) + ';margin-left:' + (r.depth * 18) + 'px">' +
+      '<span>' + r.text + '</span>' +
+      (r.i != null ? '<span class="chain-i">i = ' + r.i + '</span>' : '') +
+      (r.node ? '<span class="chain-dim">→ 节点 ' + r.node + '</span>' : '') +
+    '</div>').join('');
+}
+
+/* 给当前高亮行换上"这次调用"的底色。shared.js 的 highlightLine 只管加 .hl
+   （固定的淡紫），这里在它之后把 background 改成本次调用的颜色——只动底色，
+   不加任何元素，代码面板的宽度不会随步数变化。 */
+function tintLine(s) {
+  document.querySelectorAll('.code-line').forEach(el => { el.style.background = ''; });
+  if (s.line == null || !s.fn) return;
+  const el = document.querySelector('.code-line[data-l="' + s.line + '"]');
+  if (!el) return;
+  el.style.background = tintOf(s.stack.length ? s.stack[s.stack.length - 1].id : null);
+}
+
+const EMPTY = { path: [], result: [], stack: [], done: [], index: null, i: null,
+                pushed: false, popped: null, line: null, fn: null };
+
+function renderAll() {
+  const step = cur >= 0 ? STEPS[cur] : null;
+  const s = step || EMPTY;
+
+  renderChain(s);
+  renderNums(s);
+  renderPath(s);
+  renderTree(s);
+  renderVars(s);
+  highlightLine(s.line);
+  tintLine(s);
+  renderCtrl(cur, STEPS.length, step ? step.info :
+    '点 Next 开始：nums = [1, 2, 3]，求出它的全部子集（含空集，共 2³ = 8 个）。');
+}
+
+var render = renderAll;
+doReset();
+</script>
+</body>
+</html>

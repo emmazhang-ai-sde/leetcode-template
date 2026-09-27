@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3. Longest Substring Without Repeating Characters</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  /* ── String visualization ─── */
+  .str-row { display: flex; align-items: flex-end; gap: 6px; }
+  .str-cell { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .cell-box {
+    width: 44px; height: 44px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 700; font-family: 'SF Mono', monospace;
+    background: #f5f5f5; color: #1a1a1a;
+    transition: background 0.2s, transform 0.2s, opacity 0.2s;
+  }
+  .cell-box.in-window  { background: rgba(139,133,212,0.22); }
+  .cell-box.active-j   { background: rgba(249,203,66,0.50); transform: scale(1.08); }
+  .cell-box.shrinking  { background: rgba(93,202,165,0.45); }
+  .cell-box.done       { opacity: 0.28; }
+  .cell-idx { font-size: 11px; color: #aaa; font-family: 'SF Mono', monospace; }
+  .cell-ptr { font-size: 11px; font-weight: 700; font-family: 'SF Mono', monospace; height: 16px; line-height: 16px; }
+  .ptr-i    { color: #3A6FD4; }
+  .ptr-j    { color: #B07800; }
+  .ptr-both { color: #C4501E; }
+
+  /* ── Window underline bar ─── */
+  .window-bar { display: flex; gap: 6px; height: 5px; margin-top: 5px; margin-bottom: 2px; }
+  .win-seg    { width: 44px; height: 5px; border-radius: 3px; background: transparent; transition: background 0.2s; }
+  .win-seg.in-window { background: rgba(139,133,212,0.55); }
+
+  /* ── Maps visualization ─── */
+  .maps-area {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-start;
+    min-height: 38px;
+  }
+  .map-entry {
+    display: flex; align-items: center; gap: 3px;
+    background: #f5f5f5; border-radius: 6px; padding: 4px 10px;
+    font-family: 'SF Mono', monospace; font-size: 13px;
+    transition: background 0.2s, opacity 0.2s;
+  }
+  .map-entry.dup  { background: rgba(247,140,108,0.35); }
+  .map-entry.zero { opacity: 0.32; }
+  .map-key   { color: #9333C0; font-weight: 700; }
+  .map-colon { color: #888; margin: 0 1px; }
+  .map-val   { color: #C4501E; font-weight: 700; }
+
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '3. Longest Substring Without Repeating Characters',
+  legend: [
+    { color: 'rgba(249,203,66,0.50)', label: 's[j] — new char' },
+    { color: 'rgba(139,133,212,0.22)', label: 'in window [i..j]' },
+    { color: 'rgba(93,202,165,0.45)', label: 's[i] being evicted' },
+    { color: 'rgba(247,140,108,0.35)', label: 'duplicate in maps' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+
+  <!-- ── Code half ── -->
+  <script>
+  renderCodeBox({
+    code: `
+class Solution:
+    def lengthOfLongestSubstring(self, s: str) -> int:
+        if not s or len(s)==0:
+            return 0
+
+        i = 0
+        j = 0
+        maps = {}
+        ans = 0
+
+        #solution2:考虑结尾
+        for j in range(len(s)):
+            maps[s[j]] = maps.get(s[j],0) + 1
+            while maps.get(s[j],0) > 1:
+                maps[s[i]] -= 1
+                i+=1
+            ans = max(ans, j - i + 1)
+
+        return ans`,
+  });
+  </script>
+
+  <!-- ── Viz panel ── -->
+  <div class="viz-panel">
+
+    <div class="var-bar" id="var-bar">
+      <span class="var-row"></span>
+      <span class="var-row"></span>
+      <span class="var-row"></span>
+      <span class="var-row"></span>
+      <span class="var-row"></span>
+    </div>
+
+    <div class="card">
+      <h3>Input String  s = "abcabcbb"</h3>
+      <div class="str-row" id="str-row"></div>
+      <div class="window-bar" id="window-bar"></div>
+    </div>
+
+    <div class="card">
+      <h3>Frequency Map  maps</h3>
+      <div class="maps-area" id="maps-area">
+        <span style="font-size:12px;color:#aaa;font-family:'SF Mono',monospace;">maps = {}</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<script>
+const S = "abcabcbb";
+
+// ── Step builder ──────────────────────────────────────────────────────────
+function buildSteps() {
+  const steps = [];
+  let i = null, j = null, ans = null;
+  let maps = {};
+  let mapsReady = false;
+  let shrinkIdx = null;
+
+  function snap(line, info) {
+    steps.push({ line, info, i, j, ans, maps: { ...maps }, mapsReady, shrinkIdx });
+  }
+
+  snap(3, `s = "${S}" — not empty, continue`);
+
+  i = 0; shrinkIdx = null;
+  snap(6, 'i = 0  (left boundary of the sliding window)');
+  j = 0;
+  snap(7, 'j = 0  (right boundary before the loop starts)');
+  maps = {};
+  mapsReady = true;
+  snap(8, 'maps = {}  (char → count for all chars inside window)');
+  ans = 0;
+  snap(9, 'ans = 0  (length of longest valid window seen so far)');
+
+  for (let jj = 0; jj < S.length; jj++) {
+    j = jj; shrinkIdx = null;
+    snap(12, `j = ${jj}  →  s[${jj}] = '${S[jj]}'  (right pointer advances)`);
+
+    maps[S[jj]] = (maps[S[jj]] || 0) + 1;
+    snap(13, maps[S[jj]] > 1
+      ? `maps['${S[jj]}'] = ${maps[S[jj]]}  ⚠ duplicate detected!`
+      : `maps['${S[jj]}'] = ${maps[S[jj]]}  ✓ still unique`);
+
+    if (maps[S[jj]] > 1) {
+      snap(14, `maps['${S[jj]}'] = ${maps[S[jj]]} > 1  →  enter while loop, shrink from left`);
+      while (maps[S[jj]] > 1) {
+        shrinkIdx = i;
+        maps[S[i]] -= 1;
+        snap(15, `maps['${S[i]}'] -= 1  →  ${maps[S[i]]}  (evict s[${i}] = '${S[i]}' from window)`);
+        i++;
+        shrinkIdx = null;
+        snap(16, `i += 1  →  i = ${i}  (left boundary shifts right)`);
+        if (maps[S[jj]] > 1) {
+          snap(14, `maps['${S[jj]}'] = ${maps[S[jj]]} > 1  →  still duplicate, keep shrinking`);
+        }
+      }
+      snap(14, `maps['${S[jj]}'] = ${maps[S[jj]]} ≤ 1  →  no duplicate, exit while loop`);
+    } else {
+      snap(14, `maps['${S[jj]}'] = ${maps[S[jj]]} ≤ 1  →  no duplicate, skip while loop`);
+    }
+
+    const oldAns = ans;
+    const winLen = jj - i + 1;
+    ans = Math.max(oldAns, winLen);
+    snap(17, `ans = max(${oldAns}, ${jj} − ${i} + 1) = max(${oldAns}, ${winLen}) = ${ans}`);
+  }
+
+  shrinkIdx = null;
+  snap(19, `return ans = ${ans}  →  longest substring without repeating chars has length 3`);
+  return steps;
+}
+
+const STEPS = buildSteps();
+let cur = -1;
+
+function formatMapsInline(maps) {
+  const entries = Object.entries(maps);
+  if (entries.length === 0) return '{}';
+  return `{ ${entries.map(([k, v]) => `'${k}': ${v}`).join(', ')} }`;
+}
+
+function renderVarBar(state) {
+  const empty = '<span class="var-row"></span>';
+  if (!state) {
+    document.getElementById('var-bar').innerHTML = empty.repeat(5);
+    return;
+  }
+
+  const rows = [
+    state.i !== null
+      ? `<span class="var-row"><span class="var-name">i</span><span class="var-eq"> = </span><span class="var-val">${state.i}</span></span>`
+      : empty,
+    state.j !== null
+      ? `<span class="var-row"><span class="var-name">j</span><span class="var-eq"> = </span><span class="var-val">${state.j}</span></span>`
+      : empty,
+    state.mapsReady
+      ? `<span class="var-row"><span class="var-name">maps</span><span class="var-eq"> = </span><span style="color:#333;">${formatMapsInline(state.maps)}</span></span>`
+      : empty,
+    state.ans !== null
+      ? `<span class="var-row"><span class="var-name">ans</span><span class="var-eq"> = </span><span class="var-val">${state.ans}</span></span>`
+      : empty,
+    state.i !== null && state.j !== null
+      ? `<span class="var-row var-win">Window: <strong>"${S.slice(state.i, state.j + 1)}"</strong> (len ${state.j - state.i + 1})</span>`
+      : empty,
+  ];
+  document.getElementById('var-bar').innerHTML = rows.join('');
+}
+
+// ── DOM init ──────────────────────────────────────────────────────────────
+function buildStringDOM() {
+  const row = document.getElementById('str-row');
+  const winBar = document.getElementById('window-bar');
+  row.innerHTML = '';
+  winBar.innerHTML = '';
+  for (let idx = 0; idx < S.length; idx++) {
+    const cell = document.createElement('div');
+    cell.className = 'str-cell';
+
+    const box = document.createElement('div');
+    box.className = 'cell-box';
+    box.id = `cell-${idx}`;
+    box.textContent = S[idx];
+    cell.appendChild(box);
+
+    const idxLbl = document.createElement('div');
+    idxLbl.className = 'cell-idx';
+    idxLbl.textContent = idx;
+    cell.appendChild(idxLbl);
+
+    const ptrLbl = document.createElement('div');
+    ptrLbl.className = 'cell-ptr';
+    ptrLbl.id = `ptr-${idx}`;
+    cell.appendChild(ptrLbl);
+
+    row.appendChild(cell);
+
+    const seg = document.createElement('div');
+    seg.className = 'win-seg';
+    seg.id = `win-${idx}`;
+    winBar.appendChild(seg);
+  }
+}
+
+// ── Render ────────────────────────────────────────────────────────────────
+function render() {
+  if (cur < 0) {
+    for (let idx = 0; idx < S.length; idx++) {
+      const box = document.getElementById(`cell-${idx}`);
+      if (box) box.className = 'cell-box';
+      const ptr = document.getElementById(`ptr-${idx}`);
+      if (ptr) { ptr.textContent = ''; ptr.className = 'cell-ptr'; }
+      const seg = document.getElementById(`win-${idx}`);
+      if (seg) seg.className = 'win-seg';
+    }
+    renderVarBar(null);
+    document.getElementById('maps-area').innerHTML =
+      `<span style="font-size:12px;color:#aaa;font-family:'SF Mono',monospace;">maps = {}</span>`;
+    renderCtrl(-1, STEPS.length, '');
+    highlightLine(null);
+    return;
+  }
+
+  const s = STEPS[cur];
+  highlightLine(s.line);
+  renderCtrl(cur, STEPS.length, s.info);
+
+  // String cells
+  for (let idx = 0; idx < S.length; idx++) {
+    const box = document.getElementById(`cell-${idx}`);
+    const ptr = document.getElementById(`ptr-${idx}`);
+    const seg = document.getElementById(`win-${idx}`);
+    if (!box || !ptr) continue;
+
+    const isJ       = s.j !== null && idx === s.j;
+    const isI       = s.i !== null && idx === s.i;
+    const isShrink  = s.shrinkIdx !== null && idx === s.shrinkIdx;
+    const inWindow  = s.i !== null && s.j !== null && idx >= s.i && idx <= s.j;
+    const isDone    = s.i !== null && idx < s.i;
+
+    let cls = 'cell-box';
+    if      (isShrink)   cls += ' shrinking';
+    else if (isJ)        cls += ' active-j';
+    else if (inWindow)   cls += ' in-window';
+    else if (isDone)     cls += ' done';
+    box.className = cls;
+
+    if (isShrink && isJ) { ptr.textContent = 'i=j'; ptr.className = 'cell-ptr ptr-both'; }
+    else if (isShrink)   { ptr.textContent = 'i';   ptr.className = 'cell-ptr ptr-i'; }
+    else if (isI && isJ) { ptr.textContent = 'i j'; ptr.className = 'cell-ptr ptr-both'; }
+    else if (isI)        { ptr.textContent = 'i';   ptr.className = 'cell-ptr ptr-i'; }
+    else if (isJ)        { ptr.textContent = 'j';   ptr.className = 'cell-ptr ptr-j'; }
+    else                 { ptr.textContent = '';     ptr.className = 'cell-ptr'; }
+
+    if (seg) seg.className = inWindow ? 'win-seg in-window' : 'win-seg';
+  }
+
+  renderVarBar(s);
+
+  // Maps
+  const ma = document.getElementById('maps-area');
+  const entries = Object.entries(s.maps);
+  if (entries.length === 0) {
+    ma.innerHTML = `<span style="font-size:12px;color:#aaa;font-family:'SF Mono',monospace;">maps = {}</span>`;
+  } else {
+    ma.innerHTML = entries.map(([k, v]) => {
+      let cls = 'map-entry';
+      if (v > 1) cls += ' dup';
+      else if (v === 0) cls += ' zero';
+      return `<div class="${cls}"><span class="map-key">'${k}'</span><span class="map-colon">:</span><span class="map-val">${v}</span></div>`;
+    }).join('');
+  }
+}
+
+buildStringDOM();
+doReset();
+</script>
+</body>
+</html>

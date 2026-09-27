@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TikTok 高频题</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<link rel="stylesheet" href="algo-all-in-one.css">
+<style>
+  /* TikTok 高频题（2026-09-01）：Lyon 给的高频题清单，已经按章节分类
+     直接进了 catalog.js（各自 chapter，归不进的收在 tiktok-uncat block）。
+     题目列表只在侧栏（sidebar.js 的 'tiktok' 模式：Lyon 的 Chapter 1–9 +
+     分类小标题骨架，只填标了 tiktok: true 的题）；主区域不再重复列一遍
+     （原来的按章卡片 2026-09-01 用户要求删掉），只留标题和统计行。
+     加/删高频题只改 catalog 的标记。 */
+  .tt-sub {
+    text-align: center; margin-top: 8px;
+    font-size: 12.5px; color: var(--ink-muted);
+  }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+
+<div class="content-wrapper">
+  <div class="algo-home">
+    <div class="algo-hero">
+      <h1 class="algo-title">TikTok 高频题</h1>
+      <div class="tt-sub" id="tt-sub"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const CATALOG = window.LC_CATALOG;
+  if (!CATALOG) return;
+  let total = 0;
+  CATALOG.chapters.forEach(ch => (ch.sections || []).forEach(sec =>
+    (sec.problems || []).forEach(p => { if (p.tiktok) total++; })));
+  document.getElementById('tt-sub').textContent =
+    '共 ' + total + ' 题，按 Lyon 的章节归类，见左侧侧栏 · 来源：高频题目参考文档（2026-09-01）';
+})();
+</script>
+</body>
+</html>

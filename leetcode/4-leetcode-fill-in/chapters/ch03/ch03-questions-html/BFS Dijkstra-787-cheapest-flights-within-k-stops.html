@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>787. Cheapest Flights Within K Stops · 填空</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/fill-theme.css">
+<script src="../../assets/repo-corner.js" defer></script>
+</head>
+<body class="problem-page">
+<main class="problem-main">
+  <h1 class="prob-title">
+    <a id="probLink" href="https://leetcode.com/problems/cheapest-flights-within-k-stops/description/" target="_blank" rel="noopener noreferrer">
+      <span class="prob-title__num" id="probNum">787.</span><span id="probName">Cheapest Flights Within K Stops</span>
+    </a>
+  </h1>
+  <table class="code-table" id="ct" aria-label="代码填空">
+    <tr><td class="ln">1</td><td class="lc"><span class="seg">import heapq</span></td></tr>
+    <tr><td class="ln">2</td><td class="lc"><span class="seg"></span></td></tr>
+    <tr><td class="ln">3</td><td class="lc"><span class="seg">class Solution:</span></td></tr>
+    <tr><td class="ln">4</td><td class="lc"><span class="seg">    def findCheapestPrice(self, n: int, flights: List[List[int]], src: int, dst: int, k: int) -&gt; int:</span></td></tr>
+    <tr><td class="ln">5</td><td class="lc"><span class="seg">        graph = {}</span></td></tr>
+    <tr><td class="ln">6</td><td class="lc"><span class="seg">        for u, v, w in flights:</span></td></tr>
+    <tr><td class="ln">7</td><td class="lc"><span class="seg">            if u not in graph:</span></td></tr>
+    <tr><td class="ln">8</td><td class="lc"><span class="seg">                graph[u] = []</span></td></tr>
+    <tr><td class="ln">9</td><td class="lc"><span class="seg">            graph[u].append((w, v))</span></td></tr>
+    <tr><td class="ln">10</td><td class="lc"><span class="seg"></span></td></tr>
+    <tr><td class="ln">11</td><td class="lc"><span class="seg">        heap = [(0, 0, </span><span class="blank-group"><input type="text" class="blank" data-answer="src" data-answers='["src"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">src</span></span><span class="seg">)]  # (cost, stops, node)</span></td></tr>
+    <tr><td class="ln">12</td><td class="lc"><span class="seg">        stops_count = {}</span></td></tr>
+    <tr><td class="ln">13</td><td class="lc"><span class="seg"></span></td></tr>
+    <tr><td class="ln">14</td><td class="lc"><span class="seg">        while len(heap) &gt; 0:</span></td></tr>
+    <tr><td class="ln">15</td><td class="lc"><span class="seg">            cost, stops, node = heapq.heappop(heap)</span></td></tr>
+    <tr><td class="ln">16</td><td class="lc"><span class="seg">            if node in stops_count and stops_count[node] &lt;= </span><span class="blank-group"><input type="text" class="blank" data-answer="stops" data-answers='["stops"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">stops</span></span><span class="seg">:</span></td></tr>
+    <tr><td class="ln">17</td><td class="lc"><span class="seg">                continue</span></td></tr>
+    <tr><td class="ln">18</td><td class="lc"><span class="seg">            stops_count[node] = </span><span class="blank-group"><input type="text" class="blank" data-answer="stops" data-answers='["stops"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">stops</span></span></td></tr>
+    <tr><td class="ln">19</td><td class="lc"><span class="seg">            if node == </span><span class="blank-group"><input type="text" class="blank" data-answer="dst" data-answers='["dst"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">dst</span></span><span class="seg">:</span></td></tr>
+    <tr><td class="ln">20</td><td class="lc"><span class="seg">                return cost</span></td></tr>
+    <tr><td class="ln">21</td><td class="lc"><span class="seg">            if stops &gt; </span><span class="blank-group"><input type="text" class="blank" data-answer="k" data-answers='["k"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">k</span></span><span class="seg">:</span></td></tr>
+    <tr><td class="ln">22</td><td class="lc"><span class="seg">                continue</span></td></tr>
+    <tr><td class="ln">23</td><td class="lc"><span class="seg">            for w, next_node in graph.get(node, []):</span></td></tr>
+    <tr><td class="ln">24</td><td class="lc"><span class="seg">                heapq.heappush(heap, (cost + w, </span><span class="blank-group"><input type="text" class="blank" data-answer="stops + 1" data-answers='["stops + 1","stops+1"]' autocomplete="off"><span class="ind" aria-hidden="true"></span><span class="answer-ref">stops + 1</span></span><span class="seg">, next_node))</span></td></tr>
+    <tr><td class="ln">25</td><td class="lc"><span class="seg"></span></td></tr>
+    <tr><td class="ln">26</td><td class="lc"><span class="seg">        return -1</span></td></tr>
+  </table>
+</main>
+<script src="../../assets/fill-blanks.js"></script>
+<script src="../../assets/fill-core.js"></script>
+</body>
+</html>

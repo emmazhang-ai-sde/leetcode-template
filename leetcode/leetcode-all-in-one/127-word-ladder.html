@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>127. Word Ladder</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  /* Phase 1（建图，逐词调 get_neighbour）/ Phase 2（BFS 逐层找最短路径）—
+     跟 207-course-schedule 一个路数：代码框里插两条 phase 标，当前是哪个
+     阶段就亮哪条。get_neighbour 内部对每个字符位置试 26 个字母的双重循环
+     不逐字符展开动画（7 个词 × 3 个字母 × 26 = 546 次，展开会把步数炸到
+     上千步，体验极差）——调用/返回各给一步，info 里直接给出算出来的结果，
+     代码框里仍然完整显示这个函数，只是不逐行单步。BFS 部分（Phase 2）
+     严格逐行，不省。 */
+  .phase-badge { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 11px; font-weight: 700; margin-bottom: 6px; opacity: 0.4; transition: opacity 0.15s; }
+  .phase-badge.p1 { background: rgba(120,160,225,0.22); color: #3A6FD4; }
+  .phase-badge.p2 { background: rgba(249,203,66,0.35); color: #8a6d00; }
+  .divider { border: none; border-top: 1px solid #f0f0f0; margin: 8px 0; }
+
+  .fn-tag { display: inline-block; padding: 1px 8px; border-radius: 5px; background: rgba(199,146,234,0.18);
+            color: #6b3fa0; font-family: var(--ink-mono); font-size: 12px; font-weight: 700; }
+
+  /* ── 调用链：ladderLength 是入口，永远第一行；下面最多再挂一层——
+     get_neighbour（建图阶段，一次调用只闪两步）或 bfs（BFS 阶段，从进入
+     一直待到返回，因为 bfs 本身不递归，是个循环）。跟 78/79 的调用链卡片
+     一个路数，但这题最深只有 1 层，不需要按深度分好几种颜色。 ────────── */
+  .call-chain { display: flex; flex-direction: column; gap: 4px; min-height: 64px; }
+  .chain-row { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 10px;
+               border-radius: 7px; font-family: var(--ink-mono); font-size: 12px;
+               color: #1a1a1a; white-space: nowrap; align-self: flex-start; background: #f5f5f5;
+               transition: box-shadow 0.15s, background 0.15s; }
+  .chain-row.top { box-shadow: 0 0 0 1.5px #1a1a1a; font-weight: 700; background: rgba(249,203,66,0.35); }
+  .chain-dim { color: #8a8a8a; font-weight: 400; }
+  .chain-empty { font-family: var(--ink-mono); font-size: 12px; color: #bbb; }
+  .chain-note { margin-top: 10px; max-width: 430px; font-size: 11.5px; line-height: 1.65; color: #8a8a8a; }
+  .chain-note b { color: #1a1a1a; font-weight: 700; }
+
+  /* ── 邻接表：一词一行，词 chip + 箭头 + 邻居 chip 们，图还没建到这个词
+     时整行灰着显示"…"占位 ────────────────────────────────────────── */
+  .wl-graph-list { display: flex; flex-direction: column; gap: 8px; }
+  .wl-graph-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .wl-arrow { color: #bbb; font-size: 12px; }
+  .wl-pending { color: #bbb; font-family: var(--ink-mono); font-size: 12px; font-style: italic; }
+  .wl-word {
+    padding: 4px 12px; border-radius: 7px; font-family: var(--ink-mono); font-size: 14px; font-weight: 700;
+    background: #f5f5f5; border: 1.5px solid #c9c9c9; color: #1a1a1a;
+    transition: background 0.2s, border-color 0.2s, box-shadow 0.15s, transform 0.15s;
+  }
+  .wl-word.st-queued { background: rgba(120,160,225,0.3); border-color: #7ea0dc; }
+  .wl-word.st-current { background: rgba(249,203,66,0.55); border-color: #d4a800; box-shadow: inset 0 0 0 2px #1a1a1a; transform: translateY(-1px); }
+  .wl-word.st-done { background: rgba(93,202,165,0.4); border-color: #1D9E75; }
+  .wl-word.target { box-shadow: 0 0 0 2px #C4501E; }
+  /* Phase 1：这一轮 for word in wordList 轮到的词，还没算出邻居之前先用
+     这个提前"点亮"，不然 for 行单独一步时右边什么变化都看不出来，容易
+     让人觉得"这一步是不是漏了点什么"。 */
+  .wl-word.building { background: rgba(249,203,66,0.55); border-color: #d4a800; box-shadow: inset 0 0 0 2px #1a1a1a; transform: translateY(-1px); }
+  .wl-neigh {
+    padding: 2px 9px; border-radius: 6px; font-family: var(--ink-mono); font-size: 12px; font-weight: 600;
+    background: #fff; border: 1px solid #ddd; color: #888;
+  }
+  .wl-neigh.checking { border-color: #1a1a1a; color: #1a1a1a; box-shadow: 0 0 0 1.5px #1a1a1a; }
+  .wl-neigh.visited-already { opacity: 0.45; text-decoration: line-through; }
+
+  /* ── BFS Queue：跟 207-course-schedule 的 chip-items 一个路数 ─────────── */
+  .chip-items { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; min-height: 26px; }
+  .q-item { padding: 2px 10px; border-radius: 5px; background: rgba(249,203,66,0.35); font-family: var(--ink-mono); font-size: 12px; font-weight: 700; }
+  .q-item.head { background: rgba(249,203,66,0.6); box-shadow: 0 0 0 1.5px #d4a800 inset; }
+  .q-arrow { color: #aaa; font-size: 11px; }
+  .q-empty { color: #aaa; font-style: italic; font-size: 12px; }
+
+  /* 颜色图例从页头搬到代码框下面（跟 step-info 一起塞进 .code-stack） */
+  .legend-below { flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 0; max-width: none; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '127. Word Ladder',
+  link: 'https://leetcode.com/problems/word-ladder/',
+  legend: [
+    { color: '#f5f5f5', extra: 'border:1.5px solid #c9c9c9;', label: '还没入队（unvisited）' },
+    { color: 'rgba(120,160,225,0.3)', extra: 'border:1.5px solid #7ea0dc;', label: '已经入队，在 BFS Queue 里等着展开' },
+    { color: 'rgba(249,203,66,0.55)', extra: 'box-shadow:inset 0 0 0 2px #1a1a1a;', label: '当前正在处理（word，刚 popleft 出来）' },
+    { color: 'rgba(93,202,165,0.4)', extra: 'border:1.5px solid #1D9E75;', label: '已经处理完（这个词的邻居都检查过了）' },
+    { color: '#fff', extra: 'box-shadow:0 0 0 2px #C4501E;', label: 'endWord（目标词）' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+  <script>
+  renderCodeBox({
+    blocks: [
+      { html: '<div class="phase-badge p1" id="badge-p1">Phase 1 — 建图（每个词找相邻词）</div>' },
+      { code: `
+class Solution:
+    def ladderLength(self, beginWord: str, endWord: str, wordList: List[str]) -> int:
+        # Create Graph
+        graph = collections.defaultdict(list)
+        wordList.append(beginWord)
+        for word in wordList:
+            graph[word] = self.get_neighbour(word, set(wordList))
+
+        queue = collections.deque([beginWord])
+        visited = set()
+        visited.add(beginWord)
+
+        # Go through graph
+        return self.bfs(queue, visited, graph, endWord)
+
+
+    def get_neighbour(self, word, wordList):  # O(26 * L^2)
+        res = []
+        for index,letter in enumerate(word):          # O (L)
+            for replaceLetter in "abcdefghijklmnopqrstuvwxyz": # O(25)
+                if letter != replaceLetter:
+                    newWord = word[:index] + replaceLetter + word[index+1:] #O(L)
+                    if newWord in wordList:
+                        res.append(newWord)
+        return res
+` },
+      { html: '<hr class="divider"><div class="phase-badge p2" id="badge-p2">Phase 2 — BFS 逐层找最短路径</div>' },
+      { code: `
+
+    def bfs(self, queue, visited, graph, endWord):
+        step = 1
+        while len(queue) > 0:
+            size = len(queue)
+            for _ in range(size):
+                word = queue.popleft()
+                neighbours = graph[word]
+                for neighbour in neighbours:
+                    if neighbour not in visited:
+                        if neighbour == endWord:
+                            return step + 1
+                        visited.add(neighbour)
+                        queue.append(neighbour)
+            step +=1
+        return 0` },
+    ],
+  });
+  </script>
+
+  <!-- 步骤说明 + 颜色图例从页头搬到代码框下面（ANIMATION_GUIDE 硬性规则） -->
+  <script>
+  (function () {
+    const stack = document.querySelector('.code-stack');
+    stack.appendChild(document.getElementById('info'));
+    const legend = document.querySelector('.legend');
+    const legendRow = legend.parentElement;
+    legend.classList.add('legend-below');
+    stack.appendChild(legend);
+    legendRow.remove();
+  })();
+  </script>
+
+  <div class="viz-panel">
+    <div class="var-bar" id="var-bar"></div>
+
+    <div class="card">
+      <h3>调用链 — 现在这行代码是谁在跑</h3>
+      <div class="call-chain" id="call-chain"></div>
+      <div class="chain-note">
+        queue / visited / graph 在整个 bfs() 执行期间都是<b>同一个对象</b>，靠
+        append/add 直接改，不用像递归那样每层各拷一份；word / neighbour 只是
+        每轮循环取的局部变量。<b>这题不是递归</b>——bfs() 自己是个 while 循环，
+        跟 78/79 那些 DFS 页面的调用链不一样，链条最多只有两层，不会越挖越深。
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>graph — 每个词能一步变成哪些词</h3>
+      <div class="wl-graph-list" id="graph-list"></div>
+    </div>
+
+    <div class="card">
+      <h3>BFS Queue</h3>
+      <div class="chip-items" id="queue-display"><span class="q-empty">空</span></div>
+    </div>
+  </div>
+</div><!-- /.main -->
+</div><!-- /.content-wrapper -->
+
+<script>
+// ── 例子：LeetCode 127 官方 Example 1，答案 = 5 ────────────────────────────
+// hit → hot → dot → dog → cog（也存在 hit → hot → lot → log → cog 这条等长
+// 的路，BFS 第一次摸到 endWord 就返回，走到哪条全看 get_neighbour 生成邻居
+// 的顺序——不影响答案，因为两条长度一样）。
+const WORDLIST0 = ["hot", "dot", "dog", "lot", "log", "cog"];
+const BEGIN = "hit", END = "cog";
+const WORDLIST_ALL = WORDLIST0.concat([BEGIN]);
+
+/* 行号表：正文从 1 开始连续编（没有 prereq）。get_neighbour 的内部双重
+   循环（19-24 行）不逐行单步——见页头 <style> 里的说明。BFS 主体（27-41）
+   严格按 ANIMATION_GUIDE：每行 ≥ 1 步，for/while 头每轮都停，if 判断
+   True/False 都停，函数调用（get_neighbour 在 7 行、bfs 在 14 行）发起 +
+   返回各一步。 */
+const L = {
+  GRAPH_INIT: 4, APPEND_BEGIN: 5, FOR_WORD: 6, GET_NEIGH: 7,
+  QUEUE_INIT: 9, VISITED_INIT: 10, VISITED_ADD: 11, BFS_CALL: 14,
+  BFS_DEF: 27, STEP_INIT: 28, WHILE: 29, SIZE: 30, FOR_SIZE: 31,
+  POP: 32, NEIGHBOURS: 33, FOR_NEIGH: 34, CHECK_VISITED: 35,
+  CHECK_END: 36, RETURN_FOUND: 37, ADD_VISITED: 38, APPEND_Q: 39,
+  STEP_INCR: 40, RETURN_ZERO: 41,
+};
+
+// get_neighbour 的真实实现，跟 Lyon 的代码逻辑一模一样，只是不逐行记步骤
+function getNeighbour(word, wordSet) {
+  const res = [];
+  for (let index = 0; index < word.length; index++) {
+    for (let code = 97; code <= 122; code++) {
+      const replaceLetter = String.fromCharCode(code);
+      if (word[index] !== replaceLetter) {
+        const newWord = word.slice(0, index) + replaceLetter + word.slice(index + 1);
+        if (wordSet.has(newWord)) res.push(newWord);
+      }
+    }
+  }
+  return res;
+}
+
+// ── 真跑一遍 Lyon 的解法生成步骤，不手写 ────────────────────────────────────
+function buildSteps() {
+  const steps = [];
+  let graphRows = WORDLIST_ALL.map(w => ({ word: w, neighbours: null }));
+  let wordState = {};
+  WORDLIST_ALL.forEach(w => { wordState[w] = 'unvisited'; });
+  let queue = [];
+  let step = null, size = null, curWord = null, curNeighbour = null, answer = null, fn = null, buildWord = null;
+  let callStack = []; // 最多一层：{ label: 'get_neighbour("hot", wordList)' } 或 bfs 那条
+
+  function snap(line, phase, info) {
+    steps.push({
+      line, phase, info, fn,
+      graphRows: graphRows.map(r => ({ word: r.word, neighbours: r.neighbours ? r.neighbours.slice() : null })),
+      wordState: Object.assign({}, wordState),
+      queue: queue.slice(),
+      step, size, curWord, curNeighbour, answer, buildWord,
+      callStack: callStack.slice(),
+    });
+  }
+
+  fn = 'ladderLength';
+  snap(null, 0, `开始！ladderLength(beginWord="${BEGIN}", endWord="${END}", wordList=${JSON.stringify(WORDLIST0)})。\n` +
+    `Word Ladder 是一道 BFS 最短路问题：把 wordList 里的词看成图上的节点，一步能通过替换一个字母互相到达的两个词之间连一条边，求从 beginWord 到 endWord 最少要经过几个词。`);
+
+  snap(L.GRAPH_INIT, 1, 'graph = collections.defaultdict(list)：准备邻接表，key 是词，value 是它一步能变成的词。');
+  snap(L.APPEND_BEGIN, 1, `wordList.append(beginWord)：把 beginWord="${BEGIN}" 也塞进 wordList，这样它也能查到自己的邻居（不然它本身不在 wordList 里，找不到边）。`);
+
+  const wordSet = new Set(WORDLIST_ALL);
+  for (const w of WORDLIST_ALL) {
+    buildWord = w;
+    snap(L.FOR_WORD, 1, `for word in wordList：word = "${w}" — 下一行就要拿它去调 get_neighbour 了。`);
+    callStack = [{ label: `get_neighbour("${w}", wordList)` }];
+    snap(L.GET_NEIGH, 1,
+      `调用 get_neighbour("${w}", wordList) — 对 "${w}" 的每个字母位置依次试 a~z 共 26 种替换，换出来的新词只要还在 wordList 里就算一个邻居（这个双重循环内部不逐字符展开动画，直接看结果）。`);
+    const neigh = getNeighbour(w, wordSet);
+    const row = graphRows.filter(function (r) { return r.word === w; })[0];
+    row.neighbours = neigh;
+    snap(L.GET_NEIGH, 1, `get_neighbour 返回，graph["${w}"] = ${JSON.stringify(neigh)}。`);
+    callStack = [];
+  }
+  buildWord = null;
+
+  queue = [BEGIN];
+  snap(L.QUEUE_INIT, 1, `queue = collections.deque(["${BEGIN}"])：BFS 队列，起点先放进去。`);
+  let visitedSet = {};
+  snap(L.VISITED_INIT, 1, 'visited = set()：记录已经摸过的词，防止 BFS 绕圈子重复访问。');
+  visitedSet[BEGIN] = true;
+  wordState[BEGIN] = 'queued';
+  snap(L.VISITED_ADD, 1, `visited.add("${BEGIN}")：起点自己先标记成已访问。`);
+
+  fn = 'ladderLength';
+  snap(L.BFS_CALL, 1, '调用 self.bfs(queue, visited, graph, endWord) — 图建好了，交给 bfs 逐层找最短路径。');
+
+  fn = 'bfs';
+  callStack = [{ label: 'bfs(queue, visited, graph, endWord)' }];
+  snap(L.BFS_DEF, 2, '进入 bfs(queue, visited, graph, endWord)。');
+  step = 1;
+  snap(L.STEP_INIT, 2, 'step = 1：从起点算，起点自己算第 1 步。');
+
+  let found = false;
+  while (queue.length > 0) {
+    snap(L.WHILE, 2, `while len(queue) > 0 → True（队列里还有 ${queue.length} 个词），继续下一层。`);
+    size = queue.length;
+    snap(L.SIZE, 2, `size = len(queue) = ${size}：这一层（第 ${step} 步）要处理 ${size} 个词。`);
+    for (let k = 0; k < size; k++) {
+      snap(L.FOR_SIZE, 2, `for _ in range(${size})：这一层第 ${k + 1}/${size} 个词。`);
+      curWord = queue.shift();
+      wordState[curWord] = 'current';
+      snap(L.POP, 2, `word = queue.popleft() = "${curWord}"：开始展开这个词的邻居。`);
+      const neighbours = graphRows.filter(function (r) { return r.word === curWord; })[0].neighbours;
+      snap(L.NEIGHBOURS, 2, `neighbours = graph["${curWord}"] = ${JSON.stringify(neighbours)}`);
+      for (let ni = 0; ni < neighbours.length; ni++) {
+        const nb = neighbours[ni];
+        curNeighbour = nb;
+        snap(L.FOR_NEIGH, 2, `for neighbour in neighbours：neighbour = "${nb}"`);
+        const notVisited = !visitedSet[nb];
+        snap(L.CHECK_VISITED, 2, `if neighbour not in visited → ${notVisited}${notVisited ? '' : '（已经访问过，跳过）'}`);
+        if (notVisited) {
+          const isEnd = nb === END;
+          snap(L.CHECK_END, 2, `if neighbour == endWord → ${isEnd}`);
+          if (isEnd) {
+            answer = step + 1;
+            snap(L.RETURN_FOUND, 2, `return step + 1 = ${step} + 1 = ${answer}：摸到 endWord 了，当前是第 ${step} 层，endWord 再多走一步，最短序列长度就是 ${answer}。`);
+            found = true;
+            break;
+          } else {
+            visitedSet[nb] = true;
+            wordState[nb] = 'queued';
+            snap(L.ADD_VISITED, 2, `visited.add("${nb}")`);
+            queue.push(nb);
+            snap(L.APPEND_Q, 2, `queue.append("${nb}")`);
+          }
+        }
+      }
+      curNeighbour = null;
+      if (found) break;
+      wordState[curWord] = 'done';
+    }
+    if (found) break;
+    step += 1;
+    snap(L.STEP_INCR, 2, `step += 1 → ${step}：这一层处理完了，进入下一层前先把 step 加上去。`);
+  }
+  if (!found) {
+    snap(L.WHILE, 2, 'while len(queue) > 0 → False：队列空了还没摸到 endWord。');
+    answer = 0;
+    snap(L.RETURN_ZERO, 2, 'return 0：BFS 兜到底也没找到 endWord，说明压根没有转换路径。');
+  }
+
+  callStack = [];
+  fn = 'ladderLength';
+  snap(L.BFS_CALL, 1, `bfs 返回 ${answer}，ladderLength 直接把这个值返回给调用者。`);
+  snap(null, 0, `✅ ladderLength 返回 ${answer} — 从 "${BEGIN}" 到 "${END}" 最短的转换序列长度是 ${answer}。`);
+
+  return steps;
+}
+
+const STEPS = buildSteps();
+let cur = -1;
+
+// ── 渲染（只读快照，无副作用） ───────────────────────────────────────────
+function graphListHtml(s) {
+  return s.graphRows.map(function (row) {
+    if (row.neighbours === null) {
+      const buildingCls = 'wl-word' + (s.buildWord === row.word ? ' building' : '');
+      return '<div class="wl-graph-row"><span class="' + buildingCls + '">' + row.word + '</span>' +
+        '<span class="wl-arrow">→</span><span class="wl-pending">' +
+        (s.buildWord === row.word ? '这一步就要算了…' : '还没算') + '</span></div>';
+    }
+    const wordCls = 'wl-word st-' + (s.wordState[row.word] || 'unvisited') +
+      (row.word === END ? ' target' : '') + (s.buildWord === row.word ? ' building' : '');
+    const neighHtml = row.neighbours.length
+      ? row.neighbours.map(function (nb) {
+          const isChecking = s.curWord === row.word && s.curNeighbour === nb;
+          return '<span class="wl-neigh' + (isChecking ? ' checking' : '') + '">' + nb + '</span>';
+        }).join('')
+      : '<span class="wl-pending">（没有邻居）</span>';
+    return '<div class="wl-graph-row"><span class="' + wordCls + '">' + row.word + '</span>' +
+      '<span class="wl-arrow">→</span>' + neighHtml + '</div>';
+  }).join('');
+}
+
+// 调用链卡片：ladderLength 永远是第一行（callStack 空的时候它自己就是
+// 当前在跑的那行，加 .top）；callStack 有内容就再挂一行（get_neighbour
+// 或 bfs），链条最深就两层，不用像 78/79 那样按递归深度算缩进/配色。
+function renderChain(s) {
+  const rows = [{ text: 'ladderLength(beginWord, endWord, wordList)', top: !s.callStack.length }];
+  s.callStack.forEach(function (f, i) {
+    rows.push({ text: f.label, top: i === s.callStack.length - 1 });
+  });
+  return rows.map(function (r) {
+    return '<div class="chain-row' + (r.top ? ' top' : '') + '" style="margin-left:' +
+      (rows.indexOf(r) * 18) + 'px"><span>' + r.text + '</span></div>';
+  }).join('');
+}
+
+function chipRow(list) {
+  if (!list.length) return '<span class="q-empty">空</span>';
+  return list.map(function (v, i) {
+    return '<span class="q-item' + (i === 0 ? ' head' : '') + '">' + v + '</span>' +
+      (i < list.length - 1 ? '<span class="q-arrow">→</span>' : '');
+  }).join('');
+}
+
+function renderVars(s) {
+  const row = function (name, val) {
+    return '<span class="var-row"><span class="var-name">' + name + '</span><span class="var-eq"> = </span><span class="var-val">' + val + '</span></span>';
+  };
+  // 每一步都把这几行读数全部列出来，不是有值才出现——不然每走一步右边这
+  // 栏的行数忽多忽少，看着一直在跳。还没算出来的字段读数写死成 "-"（跟
+  // 105/79 那些页面统一约定），word/neighbour 在建图阶段和 BFS 阶段各有
+  // 一份，取当前非空的那个。
+  const word = s.buildWord != null ? s.buildWord : s.curWord;
+  document.getElementById('var-bar').innerHTML =
+    '<span class="var-row"><span class="fn-tag">' + (s.fn ? s.fn + '()' : '—') + '</span></span>' +
+    row('beginWord', '"' + BEGIN + '"') +
+    row('endWord', '"' + END + '"') +
+    row('step', s.step != null ? s.step : '-') +
+    row('size', s.size != null ? s.size : '-') +
+    row('word', word != null ? '"' + word + '"' : '-') +
+    row('neighbour', s.curNeighbour != null ? '"' + s.curNeighbour + '"' : '-') +
+    row('answer', s.answer != null ? s.answer : '-');
+}
+
+const EMPTY = { line: null, phase: 0, info: '', fn: null,
+  graphRows: WORDLIST_ALL.map(function (w) { return { word: w, neighbours: null }; }),
+  wordState: (function () { const o = {}; WORDLIST_ALL.forEach(function (w) { o[w] = 'unvisited'; }); return o; })(),
+  queue: [], step: null, size: null, curWord: null, curNeighbour: null, answer: null, buildWord: null,
+  callStack: [] };
+
+function renderAll() {
+  const step = cur >= 0 ? STEPS[cur] : null;
+  const s = step || EMPTY;
+
+  document.getElementById('call-chain').innerHTML = renderChain(s);
+  document.getElementById('graph-list').innerHTML = graphListHtml(s);
+  document.getElementById('queue-display').innerHTML = chipRow(s.queue);
+  renderVars(s);
+
+  document.getElementById('badge-p1').style.opacity = s.phase === 1 ? '1' : '0.4';
+  document.getElementById('badge-p2').style.opacity = s.phase === 2 ? '1' : '0.4';
+
+  highlightLine(s.line);
+  renderCtrl(cur, STEPS.length, step ? step.info :
+    `点 Next 开始：ladderLength(beginWord="${BEGIN}", endWord="${END}", wordList=${JSON.stringify(WORDLIST0)})`);
+}
+
+var render = renderAll;
+doReset();
+</script>
+</body>
+</html>

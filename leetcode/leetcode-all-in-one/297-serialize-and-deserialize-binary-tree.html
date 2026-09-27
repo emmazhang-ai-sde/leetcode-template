@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>297. Serialize and Deserialize Binary Tree</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  /* 本页专属的可视化样式；状态色沿用 ANIMATION_GUIDE.md 里跟 102/104 一致
+     的那套字面值（curr 黄 / 队列蓝 / 完成绿 / 未访问灰），结构性的边框/圆角
+     走 var(--ink-*)。 */
+  #s-graph-svg, #d-graph-svg { display: block; width: 100%; max-height: 260px; }
+
+  .chip-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; min-height: 26px; }
+  .chip {
+    padding: 3px 10px; border-radius: 6px; background: #f5f5f5; border: 1px solid #c9c9c9;
+    font-family: 'SF Mono', monospace; font-size: 12.5px; font-weight: 700; color: #1a1a1a;
+  }
+  .chip.queued { background: rgba(120,160,225,0.3); border-color: transparent; }
+  .chip-empty { color: #aaa; font-style: italic; font-size: 12px; }
+  .chip-arrow { color: #aaa; font-size: 11px; }
+
+  .arr-row { display: flex; gap: 4px; flex-wrap: wrap; }
+  .arr-cell { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .arr-idx { font-size: 9px; color: #aaa; font-family: 'SF Mono', monospace; }
+  .arr-val {
+    min-width: 26px; height: 26px; padding: 0 6px; border-radius: 6px; background: #f5f5f5;
+    border: 1px solid #c9c9c9; display: flex; align-items: center; justify-content: center;
+    font-family: 'SF Mono', monospace; font-weight: 700; font-size: 13px; color: #1a1a1a;
+  }
+  .arr-val.hash { color: #bbb; font-weight: 400; }
+  .arr-val.cursor { background: rgba(249,203,66,0.55); border-color: transparent; }
+  .arr-val.done { background: rgba(93,202,165,0.4); border-color: transparent; }
+  .arr-empty { color: #aaa; font-style: italic; font-size: 12px; }
+
+  .out-str { margin-top: 8px; font-family: 'SF Mono', monospace; font-size: 12.5px; color: #1a1a1a; word-break: break-all; }
+  .out-str b { color: #1D9E75; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '297. Serialize and Deserialize Binary Tree',
+  link: 'https://leetcode.com/problems/serialize-and-deserialize-binary-tree/',
+  examples: [
+    { id: 'serialize', label: 'Serialize' },
+    { id: 'deserialize', label: 'Deserialize' },
+  ],
+  examplesLabel: 'Method:',
+  legend: [
+    { color: '#f5f5f5', extra: 'border:1px solid #c9c9c9;width:11px;height:11px;border-radius:50%;', label: '未访问 / 尚未创建' },
+    { color: 'rgba(120,160,225,0.3)', extra: 'width:11px;height:11px;border-radius:50%;', label: '在 Queue 中等待处理' },
+    { color: 'rgba(249,203,66,0.55)', extra: 'width:11px;height:11px;border-radius:50%;', label: '当前处理 curr' },
+    { color: 'rgba(93,202,165,0.4)', extra: 'width:11px;height:11px;border-radius:50%;', label: '已处理完成 / 已收进结果' },
+    { color: '#3A6FD4', extra: 'border-radius:2px;width:14px;height:3px;', label: '正在读/写的边' },
+  ],
+});
+</script>
+
+<!-- ============ Method: Serialize ============ -->
+<div class="main layout-grid" id="panel-serialize">
+  <script>
+  renderCodeBox({
+    code: `
+class Codec:
+
+    def serialize(self, root):
+        if root is None:
+            return ""
+
+        ret = []
+        ret.append(str(root.val))
+
+        queue = [root]
+
+        while len(queue) > 0:
+            curr = queue.pop(0)
+            if curr.left:
+                queue.append(curr.left)
+                ret.append(str(curr.left.val))
+            else:
+                ret.append('#')
+
+            if curr.right:
+                queue.append(curr.right)
+                ret.append(str(curr.right.val))
+            else:
+                ret.append('#')
+
+        while ret[-1] == '#':
+            ret.pop(-1)
+
+        return ",".join(ret)`,
+  });
+  </script>
+
+  <div class="viz-panel">
+    <div class="card">
+      <h3>Binary Tree（输入）</h3>
+      <svg id="s-graph-svg" viewBox="0 0 380 260">
+        <defs>
+          <marker id="s-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#c9c9c9"></path>
+          </marker>
+          <marker id="s-arrow-active" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#3A6FD4"></path>
+          </marker>
+        </defs>
+        <g id="s-graph-dyn"></g>
+      </svg>
+    </div>
+
+    <div class="card">
+      <h3>BFS Queue</h3>
+      <div class="chip-row" id="s-queue-display"><span class="chip-empty">空</span></div>
+    </div>
+
+    <div class="card">
+      <h3>ret[]（层序序列化结果）</h3>
+      <div class="arr-row" id="s-ret-display"><span class="arr-empty">空</span></div>
+      <div class="out-str" id="s-ret-str"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Method: Deserialize ============ -->
+<div class="main layout-grid" id="panel-deserialize" style="display:none">
+  <script>
+  renderCodeBox({
+    code: `
+class Codec:
+
+    def deserialize(self, data):
+        if len(data) == 0:
+            return None
+
+        nums = data.split(",")
+
+        root = TreeNode(nums[0])
+
+        queue = [root]
+        i = 1
+
+        while  i < len(nums) and len(queue) > 0:
+            curr = queue.pop(0)
+            if i < len(nums) and nums[i] != "#":
+                curr.left = TreeNode(nums[i])
+                queue.append(curr.left)
+            i +=1
+
+            if  i < len(nums) and nums[i] != "#":
+                curr.right = TreeNode(nums[i])
+                queue.append(curr.right)
+            i+=1
+
+
+        return root`,
+  });
+  </script>
+
+  <div class="viz-panel">
+    <div class="card">
+      <h3>nums[]（输入 token 数组）</h3>
+      <div class="arr-row" id="d-nums-display"></div>
+      <div class="out-str" id="d-i-display"></div>
+    </div>
+
+    <div class="card">
+      <h3>BFS Queue</h3>
+      <div class="chip-row" id="d-queue-display"><span class="chip-empty">空</span></div>
+    </div>
+
+    <div class="card">
+      <h3>Rebuilt Tree（重建中）</h3>
+      <svg id="d-graph-svg" viewBox="0 0 380 260">
+        <defs>
+          <marker id="d-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#c9c9c9"></path>
+          </marker>
+          <marker id="d-arrow-active" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#3A6FD4"></path>
+          </marker>
+        </defs>
+        <g id="d-graph-dyn"></g>
+      </svg>
+    </div>
+  </div>
+</div>
+
+</div><!-- /.content-wrapper -->
+
+<script>
+// ── Tree definition（LeetCode 官方 Example 1: [1,2,3,null,null,4,5]） ──────
+const TREE = {
+  1: { left: 2, right: 3 },
+  2: { left: null, right: null },
+  3: { left: 4, right: 5 },
+  4: { left: null, right: null },
+  5: { left: null, right: null },
+};
+const ROOT_ID = 1;
+const POS = {
+  1: { x: 190, y: 36  },
+  2: { x: 100, y: 130 }, 3: { x: 280, y: 130 },
+  4: { x: 230, y: 224 }, 5: { x: 330, y: 224 },
+};
+const NODE_R = 20;
+
+// nums 下标 → 屏幕位置（重建结果跟输入树同形状，位置提前算好）
+const POS_BY_IDX = { 0: POS[1], 1: POS[2], 2: POS[3], 5: POS[4], 6: POS[5] };
+
+function mkEl(tag) { return document.createElementNS('http://www.w3.org/2000/svg', tag); }
+
+function drawTree(gId, nodes, edges, activeEdge, arrowId, arrowActiveId) {
+  const g = document.getElementById(gId);
+  g.innerHTML = '';
+  for (const [a, b] of edges) {
+    const pa = nodes[a].pos, pb = nodes[b].pos;
+    const isActive = activeEdge && activeEdge[0] === a && activeEdge[1] === b;
+    const dx = pb.x - pa.x, dy = pb.y - pa.y;
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+    const ux = dx / dist, uy = dy / dist;
+    const line = mkEl('line');
+    line.setAttribute('x1', pa.x + ux * NODE_R); line.setAttribute('y1', pa.y + uy * NODE_R);
+    line.setAttribute('x2', pb.x - ux * NODE_R); line.setAttribute('y2', pb.y - uy * NODE_R);
+    line.setAttribute('stroke', isActive ? '#3A6FD4' : '#c9c9c9');
+    line.setAttribute('stroke-width', isActive ? '2.5' : '1.5');
+    line.setAttribute('marker-end', `url(#${isActive ? arrowActiveId : arrowId})`);
+    g.appendChild(line);
+  }
+  for (const key of Object.keys(nodes)) {
+    const n = nodes[key];
+    let fill = '#f5f5f5', stroke = '#c9c9c9', strokeW = 1;
+    if (n.state === 'curr') { fill = 'rgba(249,203,66,0.55)'; stroke = '#d4a800'; strokeW = 2.5; }
+    else if (n.state === 'queued') { fill = 'rgba(120,160,225,0.3)'; stroke = '#5b8ad6'; strokeW = 1.5; }
+    else if (n.state === 'done') { fill = 'rgba(93,202,165,0.4)'; stroke = '#1D9E75'; strokeW = 1.5; }
+
+    const circle = mkEl('circle');
+    circle.setAttribute('cx', n.pos.x); circle.setAttribute('cy', n.pos.y); circle.setAttribute('r', NODE_R);
+    circle.setAttribute('fill', fill); circle.setAttribute('stroke', stroke); circle.setAttribute('stroke-width', strokeW);
+    g.appendChild(circle);
+
+    const text = mkEl('text');
+    text.setAttribute('x', n.pos.x); text.setAttribute('y', n.pos.y);
+    text.setAttribute('text-anchor', 'middle'); text.setAttribute('dominant-baseline', 'central');
+    text.setAttribute('font-size', '13'); text.setAttribute('font-weight', '700'); text.setAttribute('fill', '#2C2C2A');
+    text.setAttribute('font-family', 'SF Mono, Menlo, monospace');
+    text.textContent = n.label;
+    g.appendChild(text);
+  }
+}
+
+function chipRow(list, cls) {
+  if (!list.length) return '<span class="chip-empty">空</span>';
+  return list.map((v, i) =>
+    `<span class="${cls}">${v}</span>${i < list.length - 1 ? '<span class="chip-arrow">→</span>' : ''}`
+  ).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Method 1: Serialize
+// ═══════════════════════════════════════════════════════════════════════
+const LS = {
+  DEF: 3, NULLCHECK: 4, RETEMPTY: 5,
+  RETINIT: 7, RETAPPEND_ROOT: 8,
+  QINIT: 10,
+  WHILE: 12, POP: 13,
+  LEFT_IF: 14, LEFT_PUSH: 15, LEFT_APPEND: 16, LEFT_HASH: 18,
+  RIGHT_IF: 20, RIGHT_PUSH: 21, RIGHT_APPEND: 22, RIGHT_HASH: 24,
+  TRIM_WHILE: 26, TRIM_POP: 27,
+  RETURN: 29,
+};
+
+function buildStepsSerialize() {
+  const steps = [];
+  function snap(o) { steps.push(Object.assign({
+    line: null, queue: [], ret: [], curr: null, activeEdge: null, done: [], info: ''
+  }, o)); }
+
+  snap({ info: `开始！serialize(root=${ROOT_ID})。输入树对应 LeetCode 官方 Example 1：[1,2,3,null,null,4,5]。` });
+
+  snap({ line: LS.DEF, info: '进入 serialize(root)。' });
+  snap({ line: LS.NULLCHECK, info: 'root is None？否，继续执行。' });
+
+  const ret = [];
+  snap({ line: LS.RETINIT, ret: [...ret], info: 'ret = []：准备记录层序序列。' });
+  ret.push(String(ROOT_ID));
+  snap({ line: LS.RETAPPEND_ROOT, ret: [...ret], info: `ret.append(str(root.val)) → ret=[${ret.join(',')}]。` });
+
+  let queue = [ROOT_ID];
+  const done = [];
+  snap({ line: LS.QINIT, queue: [...queue], ret: [...ret], done: [...done], info: 'queue = [root]：BFS 队列，根节点先入队。' });
+
+  while (queue.length > 0) {
+    snap({ line: LS.WHILE, queue: [...queue], ret: [...ret], done: [...done], info: `while len(queue) > 0 → 队列还有 ${queue.length} 个节点，继续。` });
+
+    const currId = queue.shift();
+    snap({ line: LS.POP, queue: [...queue], ret: [...ret], done: [...done], curr: currId, info: `curr = queue.pop(0) = ${currId}：开始处理节点 ${currId}。` });
+
+    const node = TREE[currId];
+    const hasLeft = node.left != null;
+    snap({
+      line: LS.LEFT_IF, queue: [...queue], ret: [...ret], done: [...done], curr: currId, activeEdge: hasLeft ? [currId, node.left] : null,
+      info: `if curr.left：节点 ${currId} 的左孩子${hasLeft ? `是 ${node.left}，存在 → 走 if` : '不存在（None）→ 走 else'}。`
+    });
+    if (hasLeft) {
+      queue.push(node.left);
+      snap({ line: LS.LEFT_PUSH, queue: [...queue], ret: [...ret], done: [...done], curr: currId, activeEdge: [currId, node.left], info: `queue.append(curr.left)：节点 ${node.left} 入队。` });
+      ret.push(String(node.left));
+      snap({ line: LS.LEFT_APPEND, queue: [...queue], ret: [...ret], done: [...done], curr: currId, activeEdge: [currId, node.left], info: `ret.append(str(curr.left.val)) → ret=[${ret.join(',')}]。` });
+    } else {
+      ret.push('#');
+      snap({ line: LS.LEFT_HASH, queue: [...queue], ret: [...ret], done: [...done], curr: currId, info: `ret.append('#')：左孩子是 None，记一个占位符。ret=[${ret.join(',')}]。` });
+    }
+
+    const hasRight = node.right != null;
+    snap({
+      line: LS.RIGHT_IF, queue: [...queue], ret: [...ret], done: [...done], curr: currId, activeEdge: hasRight ? [currId, node.right] : null,
+      info: `if curr.right：节点 ${currId} 的右孩子${hasRight ? `是 ${node.right}，存在 → 走 if` : '不存在（None）→ 走 else'}。`
+    });
+    if (hasRight) {
+      queue.push(node.right);
+      snap({ line: LS.RIGHT_PUSH, queue: [...queue], ret: [...ret], done: [...done], curr: currId, activeEdge: [currId, node.right], info: `queue.append(curr.right)：节点 ${node.right} 入队。` });
+      ret.push(String(node.right));
+      snap({ line: LS.RIGHT_APPEND, queue: [...queue], ret: [...ret], done: [...done], curr: currId, activeEdge: [currId, node.right], info: `ret.append(str(curr.right.val)) → ret=[${ret.join(',')}]。` });
+    } else {
+      ret.push('#');
+      snap({ line: LS.RIGHT_HASH, queue: [...queue], ret: [...ret], done: [...done], curr: currId, info: `ret.append('#')：右孩子是 None，记一个占位符。ret=[${ret.join(',')}]。` });
+    }
+
+    done.push(currId);
+  }
+  snap({ line: LS.WHILE, queue: [...queue], ret: [...ret], done: [...done], info: 'while len(queue) > 0 → 队列空了，主循环结束。' });
+
+  while (ret[ret.length - 1] === '#') {
+    snap({ line: LS.TRIM_WHILE, ret: [...ret], done: [...done], info: "while ret[-1] == '#' → 是（末尾是占位符），继续裁掉。" });
+    ret.pop();
+    snap({ line: LS.TRIM_POP, ret: [...ret], done: [...done], info: `ret.pop(-1) → ret=[${ret.join(',')}]。` });
+  }
+  snap({ line: LS.TRIM_WHILE, ret: [...ret], done: [...done], info: `while ret[-1] == '#' → 否（末尾是真实值 ${ret[ret.length - 1]}），裁剪结束。` });
+
+  const output = ret.join(',');
+  snap({ line: LS.RETURN, ret: [...ret], done: [...done], info: `return ",".join(ret) → "${output}"。\n✅ 序列化结果：${output}` });
+
+  return steps;
+}
+
+function renderTreeSerialize(s) {
+  const nodes = {};
+  for (const id of [1, 2, 3, 4, 5]) {
+    let state = 'none';
+    if (id === s.curr) state = 'curr';
+    else if (s.done.includes(id)) state = 'done';
+    else if (s.queue.includes(id)) state = 'queued';
+    nodes[id] = { pos: POS[id], label: id, state };
+  }
+  const edges = [[1, 2], [1, 3], [3, 4], [3, 5]];
+  drawTree('s-graph-dyn', nodes, edges, s.activeEdge, 's-arrow', 's-arrow-active');
+}
+
+function renderSer() {
+  const step = cur >= 0 ? STEPS[cur] : null;
+  const s = step || { queue: [], ret: [], curr: null, activeEdge: null, done: [] };
+
+  renderTreeSerialize(s);
+  document.getElementById('s-queue-display').innerHTML = chipRow(s.queue, 'chip queued');
+  document.getElementById('s-ret-display').innerHTML = s.ret.length
+    ? s.ret.map(v => `<div class="arr-cell"><span class="arr-val${v === '#' ? ' hash' : ''}">${v}</span></div>`).join('')
+    : '<span class="arr-empty">空</span>';
+  document.getElementById('s-ret-str').innerHTML = s.ret.length ? `output = "<b>${s.ret.join(',')}</b>"` : '';
+
+  highlightLine(step ? step.line : null);
+  renderCtrl(cur, STEPS.length, step ? step.info : `点 Next 开始：serialize(root=${ROOT_ID})`);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Method 2: Deserialize
+// ═══════════════════════════════════════════════════════════════════════
+const LD = {
+  DEF: 3, LENCHECK: 4, RETNONE: 5,
+  SPLIT: 7,
+  ROOTINIT: 9,
+  QINIT: 11, IINIT: 12,
+  WHILE: 14, POP: 15,
+  LEFT_IF: 16, LEFT_NEW: 17, LEFT_PUSH: 18, LEFT_IINC: 19,
+  RIGHT_IF: 21, RIGHT_NEW: 22, RIGHT_PUSH: 23, RIGHT_IINC: 24,
+  RETURN: 27,
+};
+const DESERIALIZE_INPUT = '1,2,3,#,#,4,5';
+
+function buildStepsDeserialize(data) {
+  const steps = [];
+  function snap(o) { steps.push(Object.assign({
+    line: null, nums: [], i: null, queue: [], curr: null, created: [], popped: [], edges: [], info: ''
+  }, o)); }
+
+  snap({ info: `开始！deserialize(data="${data}")。这正是 serialize() 对同一棵树的输出，用来验证互为逆运算。` });
+
+  snap({ line: LD.DEF, info: '进入 deserialize(data)。' });
+  snap({ line: LD.LENCHECK, info: 'len(data) == 0？否，继续执行。' });
+
+  const nums = data.split(',');
+  snap({ line: LD.SPLIT, nums: [...nums], info: `nums = data.split(",") → [${nums.join(', ')}]。` });
+
+  const rootIdx = 0;
+  const created = [rootIdx];
+  const edges = [];
+  snap({ line: LD.ROOTINIT, nums: [...nums], created: [...created], info: `root = TreeNode(nums[0]) → 创建根节点，值 = ${nums[0]}。` });
+
+  let queue = [rootIdx];
+  snap({ line: LD.QINIT, nums: [...nums], created: [...created], queue: [...queue], info: 'queue = [root]：根节点入队。' });
+  let i = 1;
+  snap({ line: LD.IINIT, nums: [...nums], created: [...created], queue: [...queue], i, info: 'i = 1：下一个要读的 token 下标。' });
+
+  const popped = [];
+  while (i < nums.length && queue.length > 0) {
+    snap({ line: LD.WHILE, nums: [...nums], created: [...created], queue: [...queue], i, popped: [...popped], edges: [...edges],
+      info: `while i < len(nums) and len(queue) > 0 → i=${i} < ${nums.length} 且 queue 非空 → 继续。` });
+
+    const currIdx = queue.shift();
+    snap({ line: LD.POP, nums: [...nums], created: [...created], queue: [...queue], i, curr: currIdx, popped: [...popped], edges: [...edges],
+      info: `curr = queue.pop(0) = 下标 ${currIdx}（值 ${nums[currIdx]}）：开始给它接左右孩子。` });
+
+    const leftCond = i < nums.length && nums[i] !== '#';
+    snap({ line: LD.LEFT_IF, nums: [...nums], created: [...created], queue: [...queue], i, curr: currIdx, popped: [...popped], edges: [...edges],
+      info: `i < len(nums) and nums[i] != "#" → i=${i}，nums[${i}]="${nums[i]}" → ${leftCond ? 'True，创建左孩子' : 'False，跳过（左孩子是 #）'}。` });
+    if (leftCond) {
+      created.push(i);
+      edges.push([currIdx, i]);
+      snap({ line: LD.LEFT_NEW, nums: [...nums], created: [...created], queue: [...queue], i, curr: currIdx, popped: [...popped], edges: [...edges], info: `curr.left = TreeNode(nums[${i}])：创建节点，值 = ${nums[i]}。` });
+      queue.push(i);
+      snap({ line: LD.LEFT_PUSH, nums: [...nums], created: [...created], queue: [...queue], i, curr: currIdx, popped: [...popped], edges: [...edges], info: 'queue.append(curr.left)：新节点入队。' });
+    }
+    i += 1;
+    snap({ line: LD.LEFT_IINC, nums: [...nums], created: [...created], queue: [...queue], i, curr: currIdx, popped: [...popped], edges: [...edges], info: `i += 1 → i=${i}。` });
+
+    const rightCond = i < nums.length && nums[i] !== '#';
+    snap({ line: LD.RIGHT_IF, nums: [...nums], created: [...created], queue: [...queue], i, curr: currIdx, popped: [...popped], edges: [...edges],
+      info: `i < len(nums) and nums[i] != "#" → i=${i}，nums[${i}]=${i < nums.length ? '"' + nums[i] + '"' : '越界'} → ${rightCond ? 'True，创建右孩子' : 'False，跳过（右孩子是 # 或越界）'}。` });
+    if (rightCond) {
+      created.push(i);
+      edges.push([currIdx, i]);
+      snap({ line: LD.RIGHT_NEW, nums: [...nums], created: [...created], queue: [...queue], i, curr: currIdx, popped: [...popped], edges: [...edges], info: `curr.right = TreeNode(nums[${i}])：创建节点，值 = ${nums[i]}。` });
+      queue.push(i);
+      snap({ line: LD.RIGHT_PUSH, nums: [...nums], created: [...created], queue: [...queue], i, curr: currIdx, popped: [...popped], edges: [...edges], info: 'queue.append(curr.right)：新节点入队。' });
+    }
+    i += 1;
+    snap({ line: LD.RIGHT_IINC, nums: [...nums], created: [...created], queue: [...queue], i, curr: currIdx, popped: [...popped], edges: [...edges], info: `i += 1 → i=${i}。` });
+
+    popped.push(currIdx);
+  }
+  snap({ line: LD.WHILE, nums: [...nums], created: [...created], queue: [...queue], i, popped: [...popped], edges: [...edges],
+    info: `while i < len(nums) and len(queue) > 0 → i<len(nums) 是 ${i < nums.length}，queue 非空 是 ${queue.length > 0} → 整体 False，主循环结束。` });
+
+  snap({ line: LD.RETURN, nums: [...nums], created: [...created], queue: [...queue], i, popped: [...popped], edges: [...edges],
+    info: `return root。\n✅ 重建完成，还原出根节点值 ${nums[0]} 的二叉树，结构对应 [${nums.join(',')}]，跟 Serialize 的输入树一致。` });
+
+  return steps;
+}
+
+function renderTreeDeserialize(s) {
+  const nodes = {};
+  for (const idx of s.created) {
+    let state = 'none';
+    if (idx === s.curr) state = 'curr';
+    else if (s.popped.includes(idx)) state = 'done';
+    else state = 'queued';
+    nodes[idx] = { pos: POS_BY_IDX[idx], label: s.nums[idx], state };
+  }
+  drawTree('d-graph-dyn', nodes, s.edges, s.curr != null && s.edges.length ? s.edges[s.edges.length - 1] : null, 'd-arrow', 'd-arrow-active');
+}
+
+function renderDes() {
+  const step = cur >= 0 ? STEPS[cur] : null;
+  const s = step || { nums: [], i: null, queue: [], curr: null, created: [], popped: [], edges: [] };
+
+  renderTreeDeserialize(s);
+  document.getElementById('d-queue-display').innerHTML = chipRow(s.queue.map(idx => s.nums[idx]), 'chip queued');
+  document.getElementById('d-nums-display').innerHTML = s.nums.length
+    ? s.nums.map((v, idx) => {
+        let cls = 'arr-val' + (v === '#' ? ' hash' : '');
+        if (s.i != null) {
+          if (idx === s.i) cls += ' cursor';
+          else if (idx < s.i) cls += ' done';
+        }
+        return `<div class="arr-cell"><span class="arr-idx">${idx}</span><span class="${cls}">${v}</span></div>`;
+      }).join('')
+    : '<span class="arr-empty">空</span>';
+  document.getElementById('d-i-display').innerHTML = s.i != null ? `i = <b>${s.i}</b>` : '';
+
+  highlightLine(step ? step.line : null);
+  renderCtrl(cur, STEPS.length, step ? step.info : `点 Next 开始：deserialize(data="${DESERIALIZE_INPUT}")`);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Method switcher
+// ═══════════════════════════════════════════════════════════════════════
+const STEPS_SER = buildStepsSerialize();
+const STEPS_DES = buildStepsDeserialize(DESERIALIZE_INPUT);
+
+// renderCodeBox() 在两个 panel 里各生成一个 id="info" 的 step-info 盒子——
+// HTML id 不能重复，这里把两个都先摘掉重名，再由 switchMethod() 按当前
+// method 把 id="info" 挂回对应那个（shared.js 的 renderCtrl 硬编码找 #info）。
+document.querySelector('#panel-serialize .step-info').id = 'info';
+document.querySelector('#panel-deserialize .step-info').id = 'd-info-inactive';
+
+let STEPS = STEPS_SER;
+let cur = -1;
+var render = renderSer;
+
+function switchMethod(id) {
+  stopAuto();
+  const serWrap = document.getElementById('panel-serialize');
+  const desWrap = document.getElementById('panel-deserialize');
+  if (id === 'serialize') {
+    serWrap.style.display = '';
+    desWrap.style.display = 'none';
+    document.querySelector('#panel-deserialize .step-info').id = 'd-info-inactive';
+    document.querySelector('#panel-serialize .step-info').id = 'info';
+    STEPS = STEPS_SER;
+    render = renderSer;
+  } else {
+    desWrap.style.display = '';
+    serWrap.style.display = 'none';
+    document.querySelector('#panel-serialize .step-info').id = 's-info-inactive';
+    document.querySelector('#panel-deserialize .step-info').id = 'info';
+    STEPS = STEPS_DES;
+    render = renderDes;
+  }
+  cur = -1;
+  render();
+  lockStableSizes();
+  ['serialize', 'deserialize'].forEach(key => {
+    const btn = document.getElementById('ex-' + key);
+    if (btn) btn.classList.toggle('auto-active', key === id);
+  });
+}
+function loadExample(id) { switchMethod(id); }
+
+switchMethod('serialize');
+</script>
+</body>
+</html>

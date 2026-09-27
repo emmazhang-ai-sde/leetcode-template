@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>200. Number of Islands</title>
+<link rel="stylesheet" href="shared.css?v=info-hud">
+<style>
+  /* ── grid：外面额外套两圈 ────────────────────────────────────────────
+     最外一圈是行/列下标（0..3 / 0..4），里面一圈是"界外"细条。
+     留界外那圈是为了让 isValid 的越界判断有地方可看——newx/newy 跑出
+     矩阵时在对应细条上打 ✕，而不是"什么都没发生"。 */
+  .grid-wrap {
+    display: grid;
+    grid-template-columns: 20px 14px repeat(5, 46px) 14px;
+    grid-template-rows: 18px 14px repeat(4, 46px) 14px;
+    gap: 4px;
+    justify-content: start;
+  }
+  .g-pad { }
+  .g-idx { display: flex; align-items: center; justify-content: center; font-family: var(--ink-mono); font-size: 11px; color: #bbb; font-weight: 700; }
+  .g-ring { display: flex; align-items: center; justify-content: center; border-radius: 4px; font-size: 10px; font-weight: 700; line-height: 1; color: transparent; transition: all 0.2s; }
+  .g-ring.oob { color: #C4501E; background: rgba(196,80,30,0.10); border: 1.5px dashed #C4501E; }
+  .g-ring.guide { color: #d4a800; font-size: 11px; }
+
+  .g-cell {
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 8px;
+    font-family: var(--ink-mono); font-size: 17px; font-weight: 700;
+    border: 1.5px solid transparent;
+    transition: background 0.2s, border-color 0.2s, box-shadow 0.15s, transform 0.15s;
+  }
+  /* 水：本来就是 "0" */
+  .g-cell.water { background: #f5f5f5; color: #c4c4c4; }
+  /* 陆地 "1"：还没被访问过 */
+  .g-cell.land  { background: #ffffff; border-color: #c9c9c9; color: #1a1a1a; }
+  /* 已入队等待出队（入队那一刻就被改成 "0" 了） */
+  .g-cell.inq   { background: rgba(120,160,225,0.3); border-color: #3A6FD4; color: #1a1a1a; }
+  /* 刚 popleft 出来、正在往四周扩散 */
+  .g-cell.curr  { background: rgba(249,203,66,0.55); border-color: #d4a800; color: #1a1a1a; transform: scale(1.06); }
+  /* 沉掉了：访问过的陆地 */
+  .g-cell.sunk  { background: rgba(93,202,165,0.4); border-color: #1D9E75; color: #1a1a1a; }
+
+  /* 正在被 isValid 检查的邻居 (newx, newy) */
+  .g-cell.probe-pending { box-shadow: 0 0 0 3px #9333C0; }
+  .g-cell.probe-true    { box-shadow: 0 0 0 3px #1D9E75; }
+  .g-cell.probe-false   { box-shadow: 0 0 0 3px #C4501E; }
+  /* 外层双循环扫到的格子 (row, col) */
+  .g-cell.scan { outline: 2px dotted #C4501E; outline-offset: 3px; }
+
+  /* ── grid 下面的变量读数 ─────────────────────────────────────────── */
+  .grid-vars { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 6px 16px; font-family: var(--ink-mono); font-size: 12.5px; }
+  .res-chip { font-size: 13px; padding: 1px 9px; border-radius: 6px; background: #f5f5f5; transition: background 0.2s; }
+  .res-chip.bump { background: var(--ink-hl); }
+  .fn-tag { font-family: var(--ink-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.04em; padding: 2px 8px; border-radius: 5px; background: rgba(199,146,234,0.18); color: #6b3fa0; }
+
+  /* ── queue ───────────────────────────────────────────────────────── */
+  .q-row { display: flex; align-items: center; gap: 6px; min-height: 40px; flex-wrap: wrap; }
+  .q-cell { min-width: 56px; height: 40px; padding: 0 8px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; font-family: var(--ink-mono); background: rgba(120,160,225,0.3); color: #1a1a1a; transition: all 0.2s; }
+  .q-cell.newest { background: rgba(120,160,225,0.55); transform: scale(1.06); }
+  .q-empty { font-size: 12px; color: #aaa; font-family: var(--ink-mono); }
+  .q-hint { font-size: 11px; color: #aaa; margin-top: 6px; font-family: var(--ink-mono); }
+  .q-curr { margin-top: 10px; font-family: var(--ink-mono); font-size: 12.5px; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+  .q-curr .cell { display: inline-flex; min-width: 50px; height: 26px; padding: 0 8px; border-radius: 7px; align-items: center; justify-content: center; font-weight: 700; background: rgba(249,203,66,0.55); }
+  .q-curr .cell.stale { opacity: 0.45; }
+
+  /* ── 四方向 + isValid ────────────────────────────────────────────── */
+  .dir-row { display: flex; gap: 6px; }
+  .dir-chip {
+    display: flex; flex-direction: column; align-items: center; gap: 1px;
+    min-width: 66px; padding: 5px 4px 4px; border-radius: 8px;
+    background: #f5f5f5; border: 1.5px solid transparent;
+    font-family: var(--ink-mono); transition: all 0.2s;
+  }
+  .dir-chip.active { background: rgba(249,203,66,0.55); border-color: #d4a800; }
+  .dir-chip.tried  { opacity: 0.5; }
+  .dir-arrow { font-size: 13px; font-weight: 700; line-height: 1.1; }
+  .dir-tuple { font-size: 11px; color: #555; }
+  .dir-mark  { font-size: 10px; font-weight: 700; line-height: 1.1; height: 12px; }
+  .dir-mark.ok { color: #1D9E75; }
+  .dir-mark.no { color: #C4501E; }
+  .dir-mark.none { color: transparent; }
+
+  .cond-list { margin-top: 12px; display: flex; flex-direction: column; gap: 5px; }
+  .cond-head { font-size: 11px; color: #aaa; font-family: var(--ink-mono); margin-bottom: 1px; }
+  .cond { display: grid; grid-template-columns: 162px 1fr 64px; gap: 8px; align-items: center; font-family: var(--ink-mono); font-size: 11.5px; }
+  .cond-src { color: #555; }
+  .cond-eval { color: #C4501E; font-weight: 700; }
+  .cond-eval.dim { color: #ccc; font-weight: 400; }
+  .cond-flag { text-align: right; font-weight: 700; font-size: 11px; }
+  .cond-flag.ok  { color: #1D9E75; }
+  .cond-flag.no  { color: #C4501E; }
+  .cond-flag.dim { color: #ccc; font-weight: 400; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="ink.css">
+<script src="catalog.js"></script>
+<script src="sidebar.js"></script>
+<script src="shared.js?v=copybtn"></script>
+
+<div class="content-wrapper">
+<script>
+renderHeader({
+  title: '200. Number of Islands',
+  link: 'https://leetcode.com/problems/number-of-islands/',
+  legend: [
+    { color: '#ffffff', extra: 'border:1.5px solid #c9c9c9;', label: '"1" 没访问过的陆地' },
+    { color: '#f5f5f5', label: '"0" 水' },
+    { color: 'rgba(249,203,66,0.55)', label: '(x, y) 刚出队，正在扩散' },
+    { color: 'rgba(120,160,225,0.3)', label: '在 queue 里排队（已被沉成 "0"）' },
+    { color: 'rgba(93,202,165,0.4)', label: '沉掉的陆地（访问完毕）' },
+    { color: '#ffffff', extra: 'box-shadow:0 0 0 2px #9333C0;', label: 'isValid 正在检查的 (newx, newy)' },
+  ],
+});
+</script>
+<div class="main layout-grid">
+  <script>
+  renderCodeBox({
+    code: `
+from collections import deque
+
+class Solution:
+    def numIslands(self, grid: List[List[str]]) -> int:
+        res = 0
+        for row in range(len(grid)):
+            for col in range(len(grid[0])):
+                if grid[row][col] == "1":
+                    res+=1
+                    self.bfs(row, col, grid)
+        return res
+
+
+    def bfs(self,x,y, grid):
+        queue = deque()
+        queue.append((x,y))
+        grid[x][y] = "0"
+
+        while len(queue) > 0:
+            size = len(queue)
+            for _ in range(size):
+                x,y = queue.popleft()
+                for dx,dy in [(0,1),(0,-1),(1,0),(-1,0)]:
+                    newx = x + dx
+                    newy = y + dy
+                    if self.isValid(newx,newy, grid):
+                        grid[newx][newy] = "0"
+                        queue.append((newx,newy))
+
+    def isValid(self,x,y,grid):
+        return 0<=x<len(grid) and 0<=y<len(grid[0]) and grid[x][y] == "1"`,
+  });
+  </script>
+
+  <div class="viz-panel">
+    <div class="card">
+      <h3>grid · 4 × 5（Example 1）</h3>
+      <div class="grid-wrap" id="grid"></div>
+      <div class="grid-vars" id="grid-vars"></div>
+    </div>
+
+    <div class="card">
+      <h3>queue（deque）· front 在左</h3>
+      <div class="q-row" id="queue-row"></div>
+      <div class="q-hint">popleft ← front · back → append · 存的是坐标 (x, y)</div>
+      <div class="q-curr" id="curr-var"></div>
+    </div>
+
+    <div class="card">
+      <h3>四个方向 · isValid 检查</h3>
+      <div class="dir-row" id="dir-row"></div>
+      <div class="cond-list">
+        <div class="cond-head" id="cond-head"></div>
+        <div id="cond-body"></div>
+      </div>
+    </div>
+  </div>
+</div><!-- /.main -->
+</div><!-- /.content-wrapper -->
+
+<script>
+// ── 输入：LeetCode 官方 Example 1，答案 = 1 ────────────────────────────
+//   grid = [["1","1","1","1","0"],
+//           ["1","1","0","1","0"],
+//           ["1","1","0","0","0"],
+//           ["0","0","0","0","0"]]
+//   9 块陆地全部四方向连通 → 只有 1 个岛。
+const GRID0 = [
+  ['1','1','1','1','0'],
+  ['1','1','0','1','0'],
+  ['1','1','0','0','0'],
+  ['0','0','0','0','0'],
+];
+const R = GRID0.length, C = GRID0[0].length;
+const DIRS = [[0,1],[0,-1],[1,0],[-1,0]];
+const DIR_ARROW = ['→','←','↓','↑'];
+const DIR_NAME  = ['右','左','下','上'];
+
+/* data-l 行号表（正文从 1 开始，空行也占号——renderCodeBox 连空行一起编）。
+   按 ANIMATION_GUIDE.md：每行可执行代码 ≥ 1 步，循环头每轮重走，
+   if 真假都停，函数调用行走两遍（发起 + 返回）。 */
+const L = {
+  IMPORT:    1,   // from collections import deque
+  DEF_NUM:   4,   // def numIslands(self, grid)
+  RES0:      5,   // res = 0
+  FOR_ROW:   6,   // for row in range(len(grid))
+  FOR_COL:   7,   // for col in range(len(grid[0]))
+  IF_LAND:   8,   // if grid[row][col] == "1"
+  RES_INC:   9,   // res+=1
+  CALL_BFS: 10,   // self.bfs(row, col, grid)      调用 + 返回各一次
+  RET_RES:  11,   // return res
+  DEF_BFS:  14,   // def bfs(self,x,y, grid)
+  Q_INIT:   15,   // queue = deque()
+  Q_SEED:   16,   // queue.append((x,y))
+  SINK_SEED:17,   // grid[x][y] = "0"
+  WHILE:    19,   // while len(queue) > 0
+  SIZE:     20,   // size = len(queue)
+  FOR:      21,   // for _ in range(size)
+  POP:      22,   // x,y = queue.popleft()
+  FOR_DIR:  23,   // for dx,dy in [(0,1),(0,-1),(1,0),(-1,0)]
+  NEWX:     24,   // newx = x + dx
+  NEWY:     25,   // newy = y + dy
+  IF_VALID: 26,   // if self.isValid(newx,newy, grid)   调用 + 返回各一次
+  SINK:     27,   // grid[newx][newy] = "0"
+  PUSH:     28,   // queue.append((newx,newy))
+  DEF_VALID:30,   // def isValid(self,x,y,grid)
+  RET_VALID:31,   // return 0<=x<len(grid) and ...
+};
+
+// ── 真实模拟算法生成步骤（不手写步骤数组） ─────────────────────────────
+function buildSteps() {
+  const steps = [];
+  let grid = GRID0.map(r => [...r]);      // 会被算法就地改写，跟 Python 一样
+  let island = GRID0.map(r => r.map(() => 0));  // 每格属于第几个岛（只为讲解用）
+  let queue = null;                       // null = 变量还没创建
+  let res = null;
+  let scanRow = null, scanCol = null;     // 外层双循环的 row / col
+  let curr = null, currLive = false;      // popleft 出来的 (x, y)
+  let probe = null;                       // 正在检查的 (newx, newy)
+  let dirIdx = null, dirResults = [null, null, null, null];
+  let size = null, iter = null, level = 0, fn = null;
+  let x = null, y = null, dx = null, dy = null, newx = null, newy = null;
+  let cells = 0;                          // 当前这个岛已经沉掉几格
+
+  function snap(line, info) {
+    steps.push({
+      line, info,
+      grid: grid.map(r => [...r]),
+      island: island.map(r => [...r]),
+      queue: queue ? queue.map(p => [...p]) : null,
+      res, scanRow, scanCol,
+      curr: curr ? [...curr] : null, currLive,
+      probe: probe ? { x: probe.x, y: probe.y, phase: probe.phase, conds: [...probe.conds], cellVal: probe.cellVal } : null,
+      dirIdx, dirResults: [...dirResults],
+      size, iter, level, fn,
+      x, y, dx, dy, newx, newy, cells,
+    });
+  }
+
+  function inQueue(r, c) {
+    return !!queue && queue.some(p => p[0] === r && p[1] === c);
+  }
+
+  // ── bfs(x, y, grid)：把跟起点连通的整片陆地沉掉 ──────────────────────
+  function runBfs(sx, sy, idNum) {
+    fn = 'bfs';
+    x = sx; y = sy;
+    snap(L.DEF_BFS, `Line 14: 进入 bfs(self, x, y, grid) — 形参 x = ${sx}, y = ${sy}，正是刚才扫到的 row / col。grid 是同一个列表对象（不是拷贝），这里改它，numIslands 那边看到的就是改过的。`);
+
+    queue = [];
+    snap(L.Q_INIT, 'Line 15: queue = deque() — 建一个空的双端队列。deque 的 popleft() 是 O(1)；用普通 list 的 pop(0) 每次都要把后面的元素整体前移，整题会退化成 O(m·n·(m+n))。');
+
+    queue.push([sx, sy]);
+    snap(L.Q_SEED, `Line 16: queue.append((x, y)) — 起点 (${sx}, ${sy}) 入队，这就是本次 BFS 的种子。队列里放的是坐标元组，不是格子的值。`);
+
+    grid[sx][sy] = '0';
+    island[sx][sy] = idNum;
+    cells = 1;
+    snap(L.SINK_SEED, `Line 17: grid[${sx}][${sy}] = "0" — 起点立刻沉掉。"入队即标记"是这个模板的命门：只要进过队列就马上改成 "0"，同一格就再也不可能被第二次入队；如果拖到出队才标记，同一格会被好几个邻居重复推进队列，队列爆炸而且会重复计数。`);
+
+    while (true) {
+      if (queue.length === 0) {
+        snap(L.WHILE, `Line 19: len(queue) = 0 → False，while 结束，bfs 执行完毕（没写 return，隐式返回 None）。第 ${idNum} 个岛的 ${cells} 个格子已经全部沉成 "0"。`);
+        break;
+      }
+      level += 1;
+      snap(L.WHILE, `Line 19: len(queue) = ${queue.length} > 0 → True，进入第 ${level} 轮循环，这一轮处理离起点 ${level - 1} 步的那一圈格子。`);
+
+      size = queue.length;
+      snap(L.SIZE, `Line 20: size = len(queue) = ${size} — 先把本圈的个数冻结下来，下面的 for 只跑 ${size} 次，中途新入队的留给下一轮。这题只要数岛、不关心距离，其实不分层也对（直接 while queue: x, y = popleft()）；这里保留分层是沿用 BFS 模板，换成 994 那种要算轮数的题就非有它不可。`);
+
+      for (let i = 0; i < size; i++) {
+        iter = i + 1;
+        snap(L.FOR, `Line 21: for _ in range(size) — 第 ${iter}/${size} 次迭代开始（下标本身没用，所以写 _）。`);
+
+        const p = queue.shift();
+        x = p[0]; y = p[1];
+        curr = [x, y]; currLive = true;
+        dirResults = [null, null, null, null];
+        dirIdx = null;
+        snap(L.POP, `Line 22: x, y = queue.popleft() — 从队首取出 (${x}, ${y})，元组直接解包给 x, y（覆盖掉函数参数原来的值），队列还剩 ${queue.length} 个。接下来看它的四个邻居。`);
+
+        for (let d = 0; d < 4; d++) {
+          dirIdx = d;
+          dx = DIRS[d][0]; dy = DIRS[d][1];
+          probe = null;
+          snap(L.FOR_DIR, `Line 23: for dx, dy in [(0,1),(0,-1),(1,0),(-1,0)] — 取第 ${d + 1}/4 个方向 (dx, dy) = (${dx}, ${dy})，也就是往${DIR_NAME[d]}看一格。四个方向写死成常量列表，就是"上下左右四连通"的意思（不含斜对角）。`);
+
+          newx = x + dx;
+          snap(L.NEWX, `Line 24: newx = x + dx = ${x} + ${dx} = ${newx} — 邻居的行号。`);
+
+          newy = y + dy;
+          snap(L.NEWY, `Line 25: newy = y + dy = ${y} + ${dy} = ${newy} — 邻居的列号，候选坐标 (${newx}, ${newy})。`);
+
+          probe = { x: newx, y: newy, phase: 'pending', conds: [null, null, null], cellVal: null };
+          snap(L.IF_VALID, `Line 26: if self.isValid(newx, newy, grid) — 调用 isValid(${newx}, ${newy}, grid)。先别急着动格子：得确认这个坐标没越界，而且确实是一块还没访问过的陆地。`);
+
+          fn = 'isValid';
+          snap(L.DEF_VALID, `Line 30: 进入 isValid(self, x, y, grid) — 形参 x = ${newx}, y = ${newy}。这里的 x, y 是 isValid 自己的局部变量，跟 bfs 里的 x, y 同名但互不影响。`);
+
+          const c1 = newx >= 0 && newx < R;
+          const c2 = c1 ? (newy >= 0 && newy < C) : null;
+          const c3 = (c1 && c2) ? (grid[newx][newy] === '1') : null;
+          const ok = !!(c1 && c2 && c3);
+          probe.conds = [c1, c2, c3];
+          // 求值那一刻的格子值要冻结下来：后面 Line 27 会把它改成 "0"，
+          // 而 isValid 面板显示的必须是"当时读到的"那个值
+          probe.cellVal = (c1 && c2) ? grid[newx][newy] : null;
+          probe.phase = ok ? 'true' : 'false';
+          dirResults[d] = ok;
+
+          let why;
+          if (!c1) {
+            why = `第一个条件 0 <= x < len(grid) → 0 <= ${newx} < ${R} 是 False（${newx < 0 ? '往上越过了第 0 行' : '往下越过了最后一行'}）。and 短路，后面两个条件根本不求值——这个顺序不能换：先确认下标合法，才敢去读 grid[x][y]，否则 Python 负下标会从末尾绕回去，静悄悄取到错误的格子。`;
+          } else if (!c2) {
+            why = `第一个条件 True；第二个 0 <= y < len(grid[0]) → 0 <= ${newy} < ${C} 是 False（${newy < 0 ? '往左越界' : '往右越界'}），短路返回 False。`;
+          } else if (!c3) {
+            const orig = GRID0[newx][newy];
+            const reason = orig === '0'
+              ? '这里本来就是水'
+              : (inQueue(newx, newy) ? '这块陆地已经在队列里排队了（入队那一刻就被沉成 "0"）' : '这块陆地本次 BFS 早前已经处理过了');
+            why = `前两个条件都 True（坐标在界内）；第三个 grid[${newx}][${newy}] == "1" 是 False——当前值是 "0"，${reason}。返回 False。`;
+          } else {
+            why = `三个条件全 True：坐标在界内，且 grid[${newx}][${newy}] 还是 "1" —— 一块没访问过的陆地，返回 True。`;
+          }
+          snap(L.RET_VALID, `Line 31: return 0<=x<len(grid) and 0<=y<len(grid[0]) and grid[x][y] == "1" — ${why}`);
+
+          fn = 'bfs';
+          if (ok) {
+            snap(L.IF_VALID, `Line 26: isValid 返回 True → 进入分支，把 (${newx}, ${newy}) 收编进当前这个岛。`);
+
+            grid[newx][newy] = '0';
+            island[newx][newy] = idNum;
+            cells += 1;
+            snap(L.SINK, `Line 27: grid[${newx}][${newy}] = "0" — 先沉掉再入队。这一行同时干了两件事：把这格从"陆地"变成"水"（所以外层扫描不会再把它当新岛的起点），并且充当 visited 标记（所以不用额外开一个 visited 集合）。`);
+
+            queue.push([newx, newy]);
+            snap(L.PUSH, `Line 28: queue.append((newx, newy)) — (${newx}, ${newy}) 入队，队列现在 ${queue.length} 个，留到下一轮再去扩散它自己的邻居。`);
+          } else {
+            snap(L.IF_VALID, `Line 26: isValid 返回 False → 27、28 两行跳过，这个方向什么都不做，直接试下一个方向。`);
+          }
+        }
+
+        dirIdx = null;
+        probe = null;
+        snap(L.FOR_DIR, `Line 23: 四个方向都取完了 → 方向循环结束，(${x}, ${y}) 这一格的邻居全部检查完毕。`);
+        currLive = false;
+      }
+
+      iter = null;
+      snap(L.FOR, `Line 21: range(size) 的 ${size} 次已经取完 → 本轮 for 结束，回到 while 再看队列里还有没有人。`);
+      size = null;
+    }
+  }
+
+  // ── numIslands：双层扫描 ─────────────────────────────────────────────
+  snap(null, '点击 Next 开始：judge 调用 Solution().numIslands(grid)，grid 是 4 行 5 列的字符矩阵（注意是字符串 "1" / "0"，不是数字 1 / 0）。');
+
+  snap(L.IMPORT, 'Line 1: from collections import deque — 模块加载时执行。BFS 要反复从队首取元素，deque 的 popleft() 是 O(1)。');
+
+  fn = 'numIslands';
+  snap(L.DEF_NUM, 'Line 4: 进入 numIslands(self, grid) — 拿到 4×5 的网格。整题思路：从每个还没被访问过的 "1" 出发做一次 BFS，把跟它连通的整片陆地沉成 "0"；发起过几次 BFS，就有几个岛。');
+
+  res = 0;
+  snap(L.RES0, 'Line 5: res = 0 — 岛屿计数器清零。');
+
+  for (let row = 0; row < R; row++) {
+    scanRow = row; scanCol = null;
+    snap(L.FOR_ROW, `Line 6: for row in range(len(grid)) — len(grid) = ${R}（行数），取到 row = ${row}，开始扫第 ${row + 1} 行。`);
+
+    for (let col = 0; col < C; col++) {
+      scanCol = col;
+      snap(L.FOR_COL, `Line 7: for col in range(len(grid[0])) — len(grid[0]) = ${C}（列数），取到 col = ${col}，接下来看格子 (${row}, ${col})。`);
+
+      if (grid[row][col] === '1') {
+        snap(L.IF_LAND, `Line 8: grid[${row}][${col}] == "1" → True — 找到一块还没被访问过的陆地。它一定属于一个还没数过的新岛：之前数过的岛，格子早在那次 BFS 里被改成 "0" 了。`);
+
+        res += 1;
+        snap(L.RES_INC, `Line 9: res += 1 → res = ${res} — 先记账：发现第 ${res} 个岛。`);
+
+        snap(L.CALL_BFS, `Line 10: self.bfs(row, col, grid) — 以 (${row}, ${col}) 为种子发起 BFS，把跟它连通的整片陆地全部沉掉，这样这个岛后面不会被重复计数。`);
+
+        const idNum = res;
+        runBfs(row, col, idNum);
+
+        fn = 'numIslands';
+        snap(L.CALL_BFS, `Line 10: bfs 返回（没有返回值）。第 ${idNum} 个岛的 ${cells} 个格子都变成 "0" 了，扫描回到 (${row}, ${col}) 继续往后走。`);
+      } else {
+        const orig = GRID0[row][col];
+        const why = orig === '0'
+          ? '这格本来就是水'
+          : `这格原本是陆地，但已经在第 ${island[row][col]} 个岛的 BFS 里被沉掉了——不重复计数靠的就是这个`;
+        snap(L.IF_LAND, `Line 8: grid[${row}][${col}] == "1" → False（当前值 "0"，${why}）→ 9、10 行跳过，直接进下一次 col 循环。`);
+      }
+    }
+
+    snap(L.FOR_COL, `Line 7: col 已经走完 0..${C - 1} → 第 ${row + 1} 行的 ${C} 个格子都检查过了，回到外层 row 循环。`);
+  }
+
+  snap(L.FOR_ROW, `Line 6: row 已经走完 0..${R - 1} → 双层扫描结束，${R * C} 个格子每个都被检查过恰好一次。`);
+  snap(L.RET_RES, `Line 11: return res — 把 ${res} 交回给 judge。`);
+  snap(null, `✅ 扫描完成：整张图只发起过 ${res} 次 BFS（那 9 块 "1" 四方向全连通，是同一片陆地），最终答案 = ${res}。`);
+
+  return steps;
+}
+
+const STEPS = buildSteps();
+let cur = -1;
+
+// ── Rendering（只读快照，无副作用，任意跳步都对） ──────────────────────
+function renderGrid(s) {
+  const q = s.queue || [];
+  const out = [];
+  for (let r = -2; r <= R; r++) {
+    for (let c = -2; c <= C; c++) {
+      // 最外层：行号 / 列号标尺
+      if (r === -2 || c === -2) {
+        if (r === -2 && c >= 0 && c < C)      out.push(`<div class="g-idx">${c}</div>`);
+        else if (c === -2 && r >= 0 && r < R) out.push(`<div class="g-idx">${r}</div>`);
+        else                                  out.push('<div class="g-pad"></div>');
+        continue;
+      }
+      // 界外细条：越界的 (newx, newy) 打 ✕，另外顺带放扫描游标的 ▼ / ▶
+      if (r < 0 || r >= R || c < 0 || c >= C) {
+        if (s.probe && s.probe.x === r && s.probe.y === c) {
+          out.push('<div class="g-ring oob">✕</div>');
+        } else if (r === -1 && s.scanCol != null && c === s.scanCol) {
+          out.push('<div class="g-ring guide">▼</div>');
+        } else if (c === -1 && s.scanRow != null && r === s.scanRow) {
+          out.push('<div class="g-ring guide">▶</div>');
+        } else {
+          out.push('<div class="g-ring"></div>');
+        }
+        continue;
+      }
+      // 格子本体
+      const v = s.grid[r][c];
+      const isCurr = s.currLive && s.curr && s.curr[0] === r && s.curr[1] === c;
+      const inQ = q.some(p => p[0] === r && p[1] === c);
+      let cls = 'g-cell ';
+      if (isCurr)              cls += 'curr';
+      else if (inQ)            cls += 'inq';
+      else if (v === '1')      cls += 'land';
+      else if (s.island[r][c]) cls += 'sunk';
+      else                     cls += 'water';
+      if (s.probe && s.probe.x === r && s.probe.y === c) cls += ' probe-' + s.probe.phase;
+      if (s.scanRow === r && s.scanCol === c) cls += ' scan';
+      out.push(`<div class="${cls}">${v}</div>`);
+    }
+  }
+  document.getElementById('grid').innerHTML = out.join('');
+}
+
+function pair(a, b) { return (a == null || b == null) ? '—' : `(${a}, ${b})`; }
+
+function renderGridVars(s) {
+  const rows = [
+    `<span class="fn-tag">${s.fn ? s.fn + '()' : '—'}</span>`,
+    `<span class="res-chip${s.line === L.RES_INC ? ' bump' : ''}"><span class="var-name">res</span><span class="var-eq"> = </span><span class="var-val">${s.res == null ? '—' : s.res}</span></span>`,
+    `<span><span class="var-name">(row, col)</span><span class="var-eq"> = </span><span class="var-val">${pair(s.scanRow, s.scanCol)}</span></span>`,
+    `<span><span class="var-name">(x, y)</span><span class="var-eq"> = </span><span class="var-val">${pair(s.x, s.y)}</span></span>`,
+    `<span><span class="var-name">(dx, dy)</span><span class="var-eq"> = </span><span class="var-val">${pair(s.dx, s.dy)}</span></span>`,
+    `<span><span class="var-name">(newx, newy)</span><span class="var-eq"> = </span><span class="var-val">${pair(s.newx, s.newy)}</span></span>`,
+  ];
+  document.getElementById('grid-vars').innerHTML = rows.join('');
+}
+
+function renderQueue(s) {
+  const el = document.getElementById('queue-row');
+  if (s.queue === null) {
+    el.innerHTML = '<span class="q-empty">queue 尚未创建（Line 15）</span>';
+  } else if (!s.queue.length) {
+    el.innerHTML = '<span class="q-empty">queue 为空</span>';
+  } else {
+    el.innerHTML = s.queue.map((p, i) =>
+      `<div class="q-cell${s.line === L.PUSH && i === s.queue.length - 1 ? ' newest' : ''}">(${p[0]}, ${p[1]})</div>`
+    ).join('');
+  }
+
+  // curr 忠实反映 Python：迭代结束后 x, y 仍留着上次的值，只是淡显
+  const stale = s.currLive ? '' : ' stale';
+  const currHtml = s.curr
+    ? `<span class="cell${stale}">(${s.curr[0]}, ${s.curr[1]})</span>`
+    : '<span class="var-dim">尚未出队</span>';
+  document.getElementById('curr-var').innerHTML =
+    `<span><span class="var-name">x, y</span><span class="var-eq"> = </span>${currHtml}</span>` +
+    `<span><span class="var-name">size</span><span class="var-eq"> = </span><span class="var-val">${s.size == null ? '—' : s.size}</span></span>` +
+    `<span><span class="var-name">迭代</span><span class="var-eq"> = </span><span class="var-val">${s.iter && s.size ? s.iter + '/' + s.size : '—'}</span></span>` +
+    `<span><span class="var-name">len(queue)</span><span class="var-eq"> = </span><span class="var-val">${s.queue ? s.queue.length : '—'}</span></span>`;
+}
+
+function renderDirs(s) {
+  document.getElementById('dir-row').innerHTML = DIRS.map((d, i) => {
+    const done = s.dirResults[i];
+    let cls = 'dir-chip';
+    if (s.dirIdx === i) cls += ' active';
+    else if (done !== null) cls += ' tried';
+    const mark = done === null ? '<span class="dir-mark none">·</span>'
+      : done ? '<span class="dir-mark ok">✓ 入队</span>'
+             : '<span class="dir-mark no">✗ 不行</span>';
+    return `<div class="${cls}">` +
+      `<span class="dir-arrow">${DIR_ARROW[i]}</span>` +
+      `<span class="dir-tuple">(${d[0]}, ${d[1]})</span>` +
+      mark +
+      `</div>`;
+  }).join('');
+}
+
+function renderConds(s) {
+  const p = s.probe;
+  document.getElementById('cond-head').textContent = p
+    ? `isValid(${p.x}, ${p.y}, grid)  —  三个条件用 and 串起来，短路求值`
+    : 'isValid 当前没在执行';
+
+  const SRC = ['0 &lt;= x &lt; len(grid)', '0 &lt;= y &lt; len(grid[0])', 'grid[x][y] == "1"'];
+  const evalText = (i, v) => {
+    if (!p) return '—';
+    // 被 and 短路掉、根本没求值的条件不显示算式；第三个条件例外——
+    // 特意写出"不敢读"，因为这正是三个条件不能换顺序的原因
+    if (v === null && p.phase !== 'pending') return i === 2 ? 'grid[越界] 不敢读' : '—';
+    if (i === 0) return `0 &lt;= ${p.x} &lt; ${R}`;
+    if (i === 1) return `0 &lt;= ${p.y} &lt; ${C}`;
+    // cellVal 是求值当时读到的值（不是现在的 grid——Line 27 会把它改成 "0"）
+    return p.cellVal != null ? `"${p.cellVal}" == "1"` : `grid[${p.x}][${p.y}] == "1"`;
+  };
+  document.getElementById('cond-body').innerHTML = SRC.map((src, i) => {
+    const v = p ? p.conds[i] : null;
+    let flag, flagCls, dim;
+    if (!p)                   { flag = '—';    flagCls = 'dim'; dim = true; }
+    else if (v === true)      { flag = 'True'; flagCls = 'ok';  dim = false; }
+    else if (v === false)     { flag = 'False';flagCls = 'no';  dim = false; }
+    else if (p.phase === 'pending') { flag = '待求值'; flagCls = 'dim'; dim = true; }
+    else                      { flag = '短路跳过'; flagCls = 'dim'; dim = true; }
+    return `<div class="cond">` +
+      `<span class="cond-src">${src}</span>` +
+      `<span class="cond-eval${dim ? ' dim' : ''}">${evalText(i, v)}</span>` +
+      `<span class="cond-flag ${flagCls}">${flag}</span>` +
+      `</div>`;
+  }).join('');
+}
+
+const BLANK = {
+  line: null,
+  grid: GRID0.map(r => [...r]),
+  island: GRID0.map(r => r.map(() => 0)),
+  queue: null, res: null, scanRow: null, scanCol: null,
+  curr: null, currLive: false, probe: null,
+  dirIdx: null, dirResults: [null, null, null, null],
+  size: null, iter: null, level: 0, fn: null,
+  x: null, y: null, dx: null, dy: null, newx: null, newy: null, cells: 0,
+};
+
+function renderAll() {
+  const step = cur >= 0 ? STEPS[cur] : null;
+  const s = step || BLANK;
+
+  renderGrid(s);
+  renderGridVars(s);
+  renderQueue(s);
+  renderDirs(s);
+  renderConds(s);
+  highlightLine(s.line);
+  renderCtrl(step ? cur : -1, STEPS.length,
+    step ? step.info : '初始状态：grid 还没被动过，9 块 "1" 都是没访问过的陆地。点击 Next → 开始逐行执行。');
+}
+
+var render = renderAll;
+doReset();
+</script>
+</body>
+</html>
