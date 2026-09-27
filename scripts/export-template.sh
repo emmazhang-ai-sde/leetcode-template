@@ -52,7 +52,6 @@ rsync -a --delete \
   --exclude='backend/leetcode.db' \
   --exclude='backend/leetcode.db.bak-*' \
   --exclude='backend/note_images/' \
-  --exclude='leetcode/0-my-answers/' \
   --exclude='leetcode/user-answers/' \
   --exclude='leetcode/0-oa-real-problems/' \
   --exclude='leetcode/2-leetcode-speak/' \
@@ -71,7 +70,6 @@ rm -rf \
   "$DEST/backend/leetcode.db" \
   "$DEST/backend"/leetcode.db.bak-* \
   "$DEST/backend/note_images" \
-  "$DEST/leetcode/0-my-answers" \
   "$DEST/leetcode/user-answers" \
   "$DEST/leetcode/0-oa-real-problems" \
   "$DEST/leetcode/2-leetcode-speak" \
