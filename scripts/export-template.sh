@@ -63,6 +63,22 @@ rsync -a --delete \
 
 touch "$DEST/$MARKER"
 
+rm -rf \
+  "$DEST/.DS_Store" \
+  "$DEST/.claude" \
+  "$DEST/.venv" \
+  "$DEST/backend/__pycache__" \
+  "$DEST/backend/leetcode.db" \
+  "$DEST/backend"/leetcode.db.bak-* \
+  "$DEST/backend/note_images" \
+  "$DEST/leetcode/0-my-answers" \
+  "$DEST/leetcode/0-oa-real-problems" \
+  "$DEST/leetcode/2-leetcode-speak" \
+  "$DEST/leetcode/3-leetcode-lecture-notes" \
+  "$DEST/leetcode/4-leetcode-fill-in/node_modules" \
+  "$DEST/leetcode/4-leetcode-fill-in/PRACTICE_JOURNAL.md" \
+  "$DEST/Tiktok面经.pdf"
+
 JOURNAL_DIR="$DEST/leetcode/4-leetcode-fill-in"
 if [[ -f "$JOURNAL_DIR/PRACTICE_JOURNAL.example.md" ]]; then
   cp "$JOURNAL_DIR/PRACTICE_JOURNAL.example.md" "$JOURNAL_DIR/PRACTICE_JOURNAL.md"
