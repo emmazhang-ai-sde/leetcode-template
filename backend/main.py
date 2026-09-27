@@ -319,7 +319,7 @@ def lc_shell_page(num: str):
     return HTMLResponse(html, headers={"Cache-Control": "no-store"})
 
 
-# ---------- 本地 Lyon 答案浏览（4-leetcode-fill-in 右上角角标用） ----------
+# ---------- 本地 Lyon 答案浏览 ----------
 # 老师的 GitHub 仓库 QiuzhiLyon/Algo_class 2026-08-29 已下线，角标改指这里。
 # 静态挂载不列目录、.py 会被浏览器当下载，所以单独给一个清单页 + 纯文本页。
 
@@ -364,7 +364,8 @@ def lyon_by_num(num: str):
 # 页面里大量资源路径是从站点根开始写的（例如 /leetcode-all-in-one/...）。
 # 明确挂顶层目录，比 app.mount("/") 在当前 Starlette 版本下更稳。
 app.mount("/leetcode-all-in-one", NoCacheStaticFiles(directory=CONTENT / "leetcode-all-in-one", html=True), name="leetcode-all-in-one")
-app.mount("/4-leetcode-fill-in", NoCacheStaticFiles(directory=CONTENT / "4-leetcode-fill-in", html=True), name="leetcode-fill-in")
+if (CONTENT / "4-leetcode-fill-in").is_dir():
+    app.mount("/4-leetcode-fill-in", NoCacheStaticFiles(directory=CONTENT / "4-leetcode-fill-in", html=True), name="leetcode-fill-in")
 if (CONTENT / "3-leetcode-lecture-notes").is_dir():
     app.mount("/3-leetcode-lecture-notes", NoCacheStaticFiles(directory=CONTENT / "3-leetcode-lecture-notes", html=True), name="leetcode-lecture-notes")
 if (CONTENT / "0-oa-real-problems").is_dir():

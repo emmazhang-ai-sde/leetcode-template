@@ -38,9 +38,9 @@ python3 -m venv ~/.venvs/leetcode-app
 （Lyon 优先），不再单独复制一份。`0-Lyon-Python` 目录名写死在
 `backend/main.py` 顶部的 `LYON_DIR`，改名目录必须同步改常量。
 `leetcode/leetcode-all-in-one/catalog.js` 是题目目录的唯一权威（加题/上架
-动画都只改它）。`4-leetcode-fill-in` 是相对独立的结构目录，互相不引用。
-`2-leetcode-speak`、`3-leetcode-lecture-notes`、`0-oa-real-problems` 属于
-本地私人资料，导出的 template 不包含它们。
+动画都只改它）。`2-leetcode-speak`、`3-leetcode-lecture-notes`、
+`4-leetcode-fill-in`、`0-oa-real-problems` 属于本地私人资料，导出的
+template 不包含它们。
 
 ## 跟 Life OS 的关系
 
