@@ -300,7 +300,7 @@ html.lcn-laptop .lcn-cell-ck, html.lcn-laptop .lcn-cell-rh, html.lcn-laptop .lcn
 .lcn-empty { font-size: 14.5px; color: var(--ink-muted); padding: 6px 2px; }
 
 /* ---- Solution ---- */
-/* 版本 tab 条：Lyon 固定第一个（没有 × / 不能改名），后面是用户自建的 tab，
+/* 版本 tab 条：Standard 固定第一个（没有 × / 不能改名），后面是用户自建的 tab，
    视觉沿用页头 .lcn-switch 那套分段胶囊（激活=黑底白字），最后跟一个
    "+ Copy as new tab" 按钮（复用 .lcn-btn-sub.lcn-btn-sm，不用另起样式） */
 .lcn-sol-tabs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 10px; }

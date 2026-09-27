@@ -140,8 +140,8 @@ Auto 播放 / `lockStableSizes`（自动锁卡片高度防抖动）。页面只�
 
 ## 代码面板
 
-- 答案代码必须是 `0-Lyon-Python/` 里 Lyon 的原版（Lyon 缺的题用
-  `0-my-answers/` 里的自写答案），**逐字保留**
+- 答案代码必须是 `standard-answers/` 里的标准答案（本地补充可放
+  `user-answers/`），**逐字保留**
   （包括 `return res;` 这种分号、`levelRes` 这种命名）。按题号取文件。
 - 数据结构定义（TreeNode/ListNode 注释）放 `prereq`，行号从 1 开始连续
   编；正文行号紧接 prereq。页面里定义 `const L = { POP: 22, … }` 一张

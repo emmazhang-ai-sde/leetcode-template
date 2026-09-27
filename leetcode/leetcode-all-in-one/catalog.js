@@ -4,7 +4,7 @@
    为什么单独一个文件：章节/分类/题目列表以前在 sidebar.js 里手写数组，
    各处各存一份，加一道题要改好几处。现在这里是
    唯一数据源：sidebar / index 首页卡片 / notes.js（LC_ANIM_DATA）全部
-   从这份 catalog 派生渲染。答案文件（0-Lyon-Python / 0-my-answers）后端按
+   从这份 catalog 派生渲染。答案文件（standard-answers / user-answers）后端按
    题号自动对上，天然对齐。
 
    每题一条，只存事实，不存渲染细节：
@@ -14,15 +14,15 @@
      anim 动画页文件名；没有动画就不写这个字段（sidebar 自动指到 placeholder）
      page 非动画的图文页文件名（OA 题解等）：链接指到它，但不算"有动画"、
           不出 🎬 徽标。anim / page 二选一，都没有才是 placeholder
-     solAuthor Solution 卡第一个 tab 的作者名；不写默认 'Lyon'。Lyon 没讲过、
-          答案是自己写的题（如 694）标 'Shuyang'
+     solAuthor Solution 卡第一个 tab 的作者名；不写默认 'Standard'。需要标注
+          自定义标准答案来源时可填作者名
      tiktok TikTok 高频题标记（2026-09-01，来源：Lyon 给的高频题参考文档）。
           题目本身归进各自 chapter（归不进任何章的收在最后的 tiktok-uncat
           block），tiktok-frequent.html 按这个标记派生"只看 TikTok 高频"
           的章节分组视图——加/删高频题只改这个标记，那页自动跟上
 
-   加一道题：在对应章节 problems 里加一行；答案 Lyon 有就在 0-Lyon-Python/
-   里（原样不动），Lyon 没有就自写一份丢进 0-my-answers/（后端按题号自动认，
+   加一道题：在对应章节 problems 里加一行；标准答案放进 standard-answers/
+   里（原样不动），用户自己的答案可丢进 user-answers/（后端按题号自动认，
    两个目录都扫）。做好动画后补 anim 字段。
    每个页面在 <script src="sidebar.js"> 之前先加载本文件。
    ========================================================================= */

@@ -19,7 +19,7 @@ python3 -m venv ~/.venvs/leetcode-app
 
 ```
 leetcode/
-├── 0-Lyon-Python/              Lyon 老师原始答案（答案权威，原样不改）
+├── standard-answers/           标准答案（template 自带，原样不改）
 └── leetcode-all-in-one/        动画 + LC Notes 笔记 + 打卡 + 上课记录
 backend/
 ├── main.py                     API + 静态资源挂载
@@ -28,7 +28,7 @@ backend/
 └── note_images/                笔记截图（gitignored）
 ```
 
-本地私人资料目录不属于 template 结构，例如 `0-my-answers/`、`2-leetcode-speak/`、
+本地私人资料目录不属于 template 结构，例如 `user-answers/`、`2-leetcode-speak/`、
 `3-leetcode-lecture-notes/`、`4-leetcode-fill-in/`、`0-oa-real-problems/`。
 有这些目录时项目会使用它们；导出的 template 不包含它们。
 
@@ -43,12 +43,12 @@ backend/
 | PUT | `/api/leetcode/checkins/{cid}` | 改一条打卡记录 |
 | DELETE | `/api/leetcode/items/{name}` | 删一道题连同它全部打卡历史 |
 | GET / PUT | `/api/leetcode/class-links`、`/class-links/{day}` | 每节课的录屏回看链接 |
-| GET | `/api/leetcode/notes/{name}` | 一道题的笔记卡 + 自定义 block + solution 副本 + Lyon 原版代码 |
+| GET | `/api/leetcode/notes/{name}` | 一道题的笔记卡 + 自定义 block + solution 副本 + 标准答案代码 |
 | PUT / DELETE | `/api/leetcode/notes/card` `/card/{id}` | 行链笔记卡 upsert / 删除 |
 | PUT / DELETE | `/api/leetcode/notes/block` `/block/{id}` | 自命名 block upsert / 删除 |
 | GET / PUT | `/api/leetcode/notes-scope/{scope_key}` | 单条大笔记：`all` / `ch:<章>` / `cat:<章>\|<分类>` |
 | GET / POST / DELETE | `/api/leetcode/expressions` | 表达库 |
-| PUT | `/api/leetcode/solution/{name}` | 用户自改 solution 副本；code 传空 = 还原 Lyon |
+| PUT | `/api/leetcode/solution/{name}` | 用户自改 solution 副本；code 传空 = 还原标准答案 |
 | GET / PUT / DELETE | `/api/leetcode/stars` `/stars/{name}` | 重点题星标 |
 | GET / PUT / DELETE | `/api/leetcode/struggles` `/struggles/{name}` | 难题旗（本轮卡住的题） |
 | POST / GET | `/api/leetcode/note-image` `/note-image/{fn}` | 截图上传（base64）/ 读取 |

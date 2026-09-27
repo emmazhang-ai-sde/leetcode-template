@@ -91,8 +91,8 @@ CREATE TABLE IF NOT EXISTS lc_solutions (
     updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
 
--- lc_solution_versions：solution 多版本 tab（Lyon 原版不入库，现读 0-Lyon-Python /
--- 0-my-answers；
+-- lc_solution_versions：solution 多版本 tab（标准答案不入库，现读 standard-answers /
+-- user-answers；
 -- 这里存的都是用户自己开的副本）。一题可以有多份，position 定 tab 顺序（新建
 -- 追加到最后 = MAX+1，跟 lc_custom_blocks 一个路数）。
 CREATE TABLE IF NOT EXISTS lc_solution_versions (

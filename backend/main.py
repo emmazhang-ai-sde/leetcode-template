@@ -29,9 +29,9 @@ import db
 ROOT = Path(__file__).parent.parent
 CONTENT = ROOT / "leetcode"
 NOTE_IMG_DIR = Path(__file__).parent / "note_images"
-LYON_DIR = CONTENT / "0-Lyon-Python"
-MY_ANSWERS_DIR = CONTENT / "0-my-answers"
-ANSWER_DIRS = (LYON_DIR, MY_ANSWERS_DIR)
+STANDARD_ANSWERS_DIR = CONTENT / "standard-answers"
+USER_ANSWERS_DIR = CONTENT / "user-answers"
+ANSWER_DIRS = (STANDARD_ANSWERS_DIR, USER_ANSWERS_DIR)
 
 app = FastAPI(title="LeetCode")
 
@@ -48,8 +48,8 @@ app.add_middleware(
 @app.on_event("startup")
 def _startup():
     db.init()
-    if not LYON_DIR.is_dir():
-        print(f"[warn] answer dir missing: {LYON_DIR} —— 目录改名了？同步改 backend/main.py 顶部的路径常量")
+    if not STANDARD_ANSWERS_DIR.is_dir():
+        print(f"[warn] answer dir missing: {STANDARD_ANSWERS_DIR} —— 目录改名了？同步改 backend/main.py 顶部的路径常量")
 
 
 class NoCacheStaticFiles(StaticFiles):
@@ -119,13 +119,13 @@ def put_lc_class_link(day: str, payload: dict):
 # ---------- LC Notes（长在动画站里的笔记系统，notes.js 调用） ----------
 
 def _answer_files():
-    """0-Lyon-Python（Lyon 原版，不改动）优先，0-my-answers（本地可选）
+    """standard-answers（template 自带标准答案）优先，user-answers（本地可选）
     补缺。每次现扫。"""
     for d in ANSWER_DIRS:
-        # Lyon 目录改名/缺失时只丢一条警告、跳过这个目录，别让整个 notes 接口
-        # 500（2026-08-29 Lyon-Python 改名 0-Lyon-Python 时全站 Solution 卡空白）
+        # 标准答案目录改名/缺失时只丢一条警告、跳过这个目录，别让整个 notes 接口
+        # 500。user-answers 是可选目录，缺了不警告。
         if not d.is_dir():
-            if d == LYON_DIR:
+            if d == STANDARD_ANSWERS_DIR:
                 print(f"[warn] answer dir missing: {d}")
             continue
         for p in sorted(d.iterdir()):
@@ -134,7 +134,7 @@ def _answer_files():
 
 
 def _answer_index():
-    """题号 → 答案文件。Lyon 文件名不规则（"1.TwoSum.py"、"127. Word Ladder"
+    """题号 → 答案文件。标准答案文件名不规则（"1.TwoSum.py"、"127. Word Ladder"
     连扩展名都没有），只认前导数字，其余不管。"""
     idx = {}
     for p in _answer_files():
@@ -145,7 +145,7 @@ def _answer_index():
 
 
 def _slugify(s: str) -> str:
-    # Lyon 的无题号文件是驼峰名（FindKPairCount），先按大小写拆词再小写
+    # 无题号文件可能是驼峰名（FindKPairCount），先按大小写拆词再小写
     # 连字符化，和前端按题名生成的 slug（find-k-pair-count）对得上
     s = re.sub(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])", "-", s)
     return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
@@ -168,7 +168,9 @@ def lc_question_notes(name: str):
     if p is None:
         slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
         p = _answer_index_by_slug().get(slug)
-    data["lyon"] = p.read_text(encoding="utf-8") if p else ""
+    standard = p.read_text(encoding="utf-8") if p else ""
+    data["standard"] = standard
+    data["lyon"] = standard  # Backward-compatible key for older frontend code.
     return data
 
 
@@ -319,19 +321,19 @@ def lc_shell_page(num: str):
     return HTMLResponse(html, headers={"Cache-Control": "no-store"})
 
 
-# ---------- 本地 Lyon 答案浏览 ----------
-# 老师的 GitHub 仓库 QiuzhiLyon/Algo_class 2026-08-29 已下线，角标改指这里。
+# ---------- 本地答案浏览 ----------
 # 静态挂载不列目录、.py 会被浏览器当下载，所以单独给一个清单页 + 纯文本页。
 
+@app.get("/answers/", response_class=HTMLResponse)
 @app.get("/lyon/", response_class=HTMLResponse)
-def lyon_index():
+def answers_index():
     rows = []
     for p in _answer_files():
-        rows.append(f'<li><a href="/lyon/file/{quote(p.name)}">{escape(p.name)}</a>'
+        rows.append(f'<li><a href="/answers/file/{quote(p.name)}">{escape(p.name)}</a>'
                     f' <small>{escape(p.parent.name)}</small></li>')
     title = " / ".join(d.name for d in ANSWER_DIRS if d.is_dir()) or "answers"
     return HTMLResponse(
-        "<!DOCTYPE html><meta charset='utf-8'><title>Lyon answers</title>"
+        "<!DOCTYPE html><meta charset='utf-8'><title>Answers</title>"
         "<style>body{font:14px/1.7 -apple-system,sans-serif;max-width:760px;margin:32px auto;padding:0 16px}"
         "li{list-style:none}a{text-decoration:none}small{color:#888;margin-left:8px}</style>"
         f"<h2>{escape(title)}（{len(rows)}）</h2><ul>{''.join(rows)}</ul>",
@@ -343,16 +345,18 @@ def _plain(p: Path):
                         headers={"Cache-Control": "no-store"})
 
 
+@app.get("/answers/file/{name}")
 @app.get("/lyon/file/{name}")
-def lyon_file(name: str):
+def answers_file(name: str):
     for p in _answer_files():
         if p.name == name:
             return _plain(p)
     raise HTTPException(404, "没有这个答案文件")
 
 
+@app.get("/answers/{num}")
 @app.get("/lyon/{num}")
-def lyon_by_num(num: str):
+def answers_by_num(num: str):
     p = _answer_index().get(num) or _answer_index_by_slug().get(num)
     if p is None:
         raise HTTPException(404, f"答案目录里没有 {num} 的答案文件")

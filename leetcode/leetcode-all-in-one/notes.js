@@ -2105,12 +2105,12 @@
         .catch(function (e2) { alert("打卡失败：" + e2.message); });
     });
 
-    /* ----- Solution：Lyon（只读，不入库）+ 任意多个用户自建 tab ----- */
-    // tab 0 的作者名默认 Lyon；Lyon 没讲过、答案自己写的题在 catalog 里
+    /* ----- Solution：Standard（只读，不入库）+ 任意多个用户自建 tab ----- */
+    // tab 0 的作者名默认 Standard；自定义标准答案作者可在 catalog 里
     // 标 solAuthor（如 694 → 'Shuyang'），这里跟着显示
-    var solAuthor = (catalogLookup(num) || {}).solAuthor || "Lyon";
-    var solData = { lyon: "", versions: [] }; // versions 按 position 排好序
-    var activeVersionId = null; // null = 正在看 Lyon
+    var solAuthor = (catalogLookup(num) || {}).solAuthor || "Standard";
+    var solData = { standard: "", versions: [] }; // versions 按 position 排好序
+    var activeVersionId = null; // null = 正在看 Standard
     var editing = false;
     function activeVersion() {
       for (var i = 0; i < solData.versions.length; i++) {
@@ -2118,7 +2118,7 @@
       }
       return null;
     }
-    function currentCode() { var v = activeVersion(); return v ? fixFontRgb(v.code) : solData.lyon; }
+    function currentCode() { var v = activeVersion(); return v ? fixFontRgb(v.code) : solData.standard; }
     function solTabKey() { return "lcn-sol-tab:" + label; }
     function setActiveVersion(id) {
       activeVersionId = id;
@@ -2128,7 +2128,7 @@
       } catch (e) { /* 隐私模式/禁用存储 */ }
     }
     // 用户副本一律经 ceToLines 存成"每行 HTML"（实体转义 + <font> 颜色）；
-    // Lyon 原版和旧的纯文本副本按原样转义显示。用有没有转义痕迹来区分。
+    // 标准答案和旧的纯文本副本按原样转义显示。用有没有转义痕迹来区分。
     function solIsHtml(s) { return SOL_MARKUP_RE.test(s) || /&lt;|&gt;|&amp;/.test(s); }
     function focusNoScroll(node) {
       if (!node) return;
@@ -2141,7 +2141,7 @@
       // 也没内容时没东西可撑，改成两列 5:5（2026-09-02 用户要求）
       $("lcnSolBox").closest(".lcn-grid").classList.toggle("lcn-grid-nosol", !currentCode());
       $("lcnSolMeta").textContent = v ? "your copy · based on " + solAuthor : solAuthor + " · original";
-      // Lyon 是 tab 0，不可编辑（"这个里面我是不可以修改的"）——按钮直接藏掉
+      // Standard 是 tab 0，不可编辑（"这个里面我是不可以修改的"）——按钮直接藏掉
       $("lcnSolEdit").style.display = v ? "" : "none";
       renderSolTabs();
       if (editing) {
@@ -2163,17 +2163,17 @@
       $("lcnSolTools").innerHTML = "";
       var isHtml = v != null && solIsHtml(currentCode());
       var lines = currentCode().split("\n");
-      // 注释染绿对 Lyon 原版和用户副本都生效；只影响显示 class，不写回代码内容。
+      // 注释染绿对标准答案和用户副本都生效；只影响显示 class，不写回代码内容。
       var cmt = commentFlags(lines, isHtml);
       $("lcnSolBox").innerHTML = '<div class="lcn-code">' + (lines.length && currentCode() ? lines.map(function (ln, i) {
         var n = i + 1;
         return '<div class="lcn-line' + (cmt[i] ? " lcn-cmt" : "") + '" data-l="' + n + '">' +
           '<span class="lcn-ln">' + n + "</span>" + (isHtml ? ln : esc(ln)) + "</div>";
-      }).join("") : '<div class="lcn-empty" style="padding:8px">0-Lyon-Python / 0-my-answers 里没找到这题的答案文件</div>') + "</div>";
+      }).join("") : '<div class="lcn-empty" style="padding:8px">standard-answers / user-answers 里没找到这题的答案文件</div>') + "</div>";
     }
     $("lcnSolEdit").addEventListener("click", function () {
       var v = activeVersion();
-      if (!v) return; // Lyon 不可编辑；按钮这时也是藏着的，这里是双保险
+      if (!v) return; // Standard 不可编辑；按钮这时也是藏着的，这里是双保险
       if (!editing) {
         var sx = window.scrollX;
         var sy = window.scrollY;
@@ -2192,10 +2192,10 @@
         { id: v.id, name: label, title: v.title, code: html }).catch(function () {});
       renderSolution();
     });
-    /* ----- Solution 版本 tab 条：Lyon 固定第一个，之后是用户自建的 tab ----- */
+    /* ----- Solution 版本 tab 条：Standard 固定第一个，之后是用户自建的 tab ----- */
     function renderSolTabs() {
-      // Lyon 这个 tab 没有 × 删除按钮，跟下面 Copy tab 共用的
-      // "padding: 4px 4px 4px 10px"（给 × 按钮流出的右侧空间）会让 "Lyon"
+      // Standard 这个 tab 没有 × 删除按钮，跟下面 Copy tab 共用的
+      // "padding: 4px 4px 4px 10px"（给 × 按钮流出的右侧空间）会让 "Standard"
       // 这几个字看着往左偏——单独补一个 lcn-sol-tab-noclose 类改回对称内边距。
       var html = '<span class="lcn-sol-tab lcn-sol-tab-noclose' + (activeVersionId == null ? " on" : "") + '" data-id="">' +
         '<span class="lcn-sol-tab-name">' + esc(solAuthor) + "</span></span>";
@@ -2371,7 +2371,7 @@
     api("GET", "/api/leetcode/checkins").then(function (rows) { checkins = rows; renderHist(); });
     api("GET", "/api/leetcode/notes/" + encodeURIComponent(label)).then(function (data) {
       solData.versions = (data.versions || []).slice().sort(function (a, b) { return a.position - b.position; });
-      solData.lyon = data.lyon || "";
+      solData.standard = data.standard || data.lyon || "";
       var saved = null;
       try { saved = localStorage.getItem(solTabKey()); } catch (e) { /* 隐私模式/禁用存储 */ }
       // 没有记住的选择时：有 copy 就默认停在第一个 copy（versions 已按

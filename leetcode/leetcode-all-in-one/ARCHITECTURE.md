@@ -18,19 +18,19 @@
 
 ```
 leetcode/
-├── 0-Lyon-Python/            Lyon 老师原始答案（答案权威，原样不改）
+├── standard-answers/       标准答案（答案权威，原样不改）
 └── leetcode-all-in-one/    ← 本目录：动画 + 笔记 + 打卡
 ```
 
-本地私人资料目录不属于 template 结构：`0-my-answers/`、`2-leetcode-speak/`、
+本地私人资料目录不属于 template 结构：`user-answers/`、`2-leetcode-speak/`、
 `3-leetcode-lecture-notes/`、`4-leetcode-fill-in/`、`0-oa-real-problems/`。
 有这些目录时项目会使用它们；导出的 template 不包含它们。
 
 两个"唯一权威"，其它地方一律引用、不复制：
 
 - **题目目录**（章节 / 分类 / 有没有动画）→ `leetcode-all-in-one/catalog.js`
-- **题目答案** → `0-Lyon-Python/`（原样不改）；本地可选补充答案可放
-  `0-my-answers/`（后端按题号现扫，Lyon 优先，改完不用重启）
+- **题目答案** → `standard-answers/`（原样不改）；本地可选补充答案可放
+  `user-answers/`（后端按题号现扫，标准答案优先，改完不用重启）
 
 私人资料目录和本目录互相不直接依赖。改这里通常不用管它们。
 
@@ -196,8 +196,8 @@ window.LC_CATALOG = {
 `sidebar.js` 把它派生成 `window.LC_ANIM_DATA`（补上 `file` / `pending`），
 供侧栏、`algo-all-in-one.js`（BFS/DFS 汇总页）、`notes.js` 反查章节共用——三处永远一致。
 
-**加一道题**只改 catalog 一行（答案 Lyon 有就已经在 `0-Lyon-Python/`；没有
-就自写一份丢进 `0-my-answers/`）。
+**加一道题**只改 catalog 一行（标准答案放进 `standard-answers/`；本地个人补充
+可放进 `user-answers/`）。
 **上架动画**只加一个 `anim:` 字段，侧栏/汇总页/章节页链接全部自动跟上。
 
 Life OS 那边（`frontend/js/views/lccheckin.js`）也 fetch 这个 `catalog.js`
@@ -205,15 +205,15 @@ Life OS 那边（`frontend/js/views/lccheckin.js`）也 fetch 这个 `catalog.js
 
 ### 答案文件 → Solution 卡
 
-后端 `_answer_index()` 每次请求现扫 `0-Lyon-Python/` + `0-my-answers/`
-（Lyon 优先），按文件名前导数字建"题号 → 文件"索引。Lyon 的文件名不规则
+后端 `_answer_index()` 每次请求现扫 `standard-answers/` + `user-answers/`
+（标准答案优先），按文件名前导数字建"题号 → 文件"索引。标准答案的文件名不规则
 （`1.TwoSum.py`、`127. Word Ladder` 连扩展名都没有），索引只认前导数字。
 题目页的 Solution 卡显示的就是它（用户改过的话显示自己的副本，可一键 ↺
 还原）。加答案文件不用重启服务。
 无题号的 OA 题（2026-08-16 起）走 `_answer_index_by_slug()` 兜底：按文件
 名（stem）驼峰拆词后小写连字符化对题名 slug（`FindKPairCount` /
 `debugger-actions.py` → `find-k-pair-count` / `debugger-actions`），
-自写的放进 `0-my-answers/` 即可被 Solution 卡认到。
+用户自己的放进 `user-answers/` 即可被 Solution 卡认到。
 
 ---
 
@@ -256,7 +256,7 @@ Notes/Follow-up + 讲题顺序），没有搬过来，继续用它自己的 life
 | `file === 'chapter-notes.html'` | 章节页 | Notes / Templates 两栏 + Mock Expressions + 分类笔记；右上 Notes 卡带 "+ New note"，往下追加任意多张笔记卡（跟题目页同一个 `noteCardEl` 组件、同一张 `lc_note_cards` 表，key = `ch-notes:<章标题>`） |
 | `file === 'section-notes.html'` | 分类页（2026-08-21） | 顶行左题目列表、右 Lyon 模板（跟章节页那一行同一对卡），下面 Blocks 列："+ New block" 加自命名 block（标题自己起 + 富文本正文，`blockEl` 组件、`lc_custom_blocks` 表，key = `sec:<章标题>\|<分类标题>`） |
 | `document.title` 以 `数字. ` 开头 | 题目页 | 页面原内容包进 Animation 区 + Notes 区 + 顶部双区开关；Solution 块正上方固定一张只读 Problem 卡（2026-08-27 起所有题目页都有，含空壳页）：题面来源按顺序——页面里写了 `.oa-layout` 题面块（OA 图文页）就搬进来；否则 fetch `problems/<题号>.html` 片段（无题号按题名 slug；纯 innerHTML，正文 `<p>` + `<h3>Example N</h3>` / `<h3>Constraints</h3>` 小节，Chapter 8 的 10 道有题号的题手写；Chapter 9 的 10 道由 `4-leetcode-fill-in/scripts/fetch-ch09-problems.py` 从 LeetCode 抓取后生成；Chapter 1–7 全部 + Chapter 8/9 缺的（2026-09-01/02，共 129 道）由本目录 `scripts/fetch-problems.py <chapter-id>…` 抓取生成——它直接读 catalog.js 拿 slug，premium 题走 doocs/leetcode 镜像，已有的片段默认跳过、`--force` 才覆盖。生成的片段别手改，重跑脚本即刷新）；都没有就放 "not fetched yet" 占位 + 力扣链接。样式统一在 `notes.css` 的 `.lcn-problem-*` |
-| 文件名对上 catalog 的 `page:` 条目 | 图文页（OA 题解等，无题号） | 同题目页（Notes / Animation，2026-08-16 改，原来开关叫 Problem）：页面里的题面（`.oa-layout`）挪进 Notes 区底部当只读 Problem 块，Animation 区放占位等以后补动画；打卡 key = 页面标题（= catalog 的 `pageName`）；Solution 块按题名 slug 对 0-Lyon-Python / 0-my-answers 的无题号答案文件 |
+| 文件名对上 catalog 的 `page:` 条目 | 图文页（OA 题解等，无题号） | 同题目页（Notes / Animation，2026-08-16 改，原来开关叫 Problem）：页面里的题面（`.oa-layout`）挪进 Notes 区底部当只读 Problem 块，Animation 区放占位等以后补动画；打卡 key = 页面标题（= catalog 的 `pageName`）；Solution 块按题名 slug 对 standard-answers / user-answers 的无题号答案文件 |
 
 题目页的 **Notes / Animation 开关**记忆在 localStorage，刷新后停在原地。
 没用 URL hash——`3-longest-substring-consider-starting.html` 自己拿 hash 选
@@ -278,7 +278,7 @@ Notes/Follow-up + 讲题顺序），没有搬过来，继续用它自己的 life
 
 | 想做什么 | 改哪里 |
 |---|---|
-| 加一道题到某章 | `catalog.js` 加一行（答案 Lyon 没有的话自写进 `0-my-answers/`） |
+| 加一道题到某章 | `catalog.js` 加一行（标准答案进 `standard-answers/`，个人补充进 `user-answers/`） |
 | 上架一个新动画 | 先读 `ANIMATION_GUIDE.md`，做完页面 → `catalog.js` 加 `anim:` 字段 |
 | 给一题补题面（Problem 卡） | 跑 `python3 scripts/fetch-problems.py chapter-N`（整章）或 `--slug <题名slug>`（单题）自动抓；抓不到的手写 `problems/<题号>.html` 片段（照 `problems/252.html` 的结构）。都不用改 JS |
 | 换配色 / 调阴影 | 只改 `ink.css` 的变量，全站跟着变 |
