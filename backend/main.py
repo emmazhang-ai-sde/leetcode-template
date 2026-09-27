@@ -3,7 +3,7 @@
 2026-08-10 从 shuyangzhang-life-summary 拆出来的独立服务：只服务这个目录下的
 静态内容（动画站 / 题解 / 讲义等）+ LC Notes 笔记系统的 API。
 
-启动：./run.sh   然后打开 http://127.0.0.1:8789
+启动：./run.sh   然后打开 http://127.0.0.1:9009
 
 跟 Life OS 的分工：Life OS 那边还留着一个"LeetCode · Class"上课笔记页
 （打卡表单 + Notes/Follow-up + 讲题顺序），暂时没有搬过来，继续读写它自己
